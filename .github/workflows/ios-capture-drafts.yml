@@ -1,0 +1,87 @@
+name: Draft iOS screenshot captures
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/ios-capture-drafts]
+    paths: ['scripts/ios-capture/**', '.github/workflows/ios-capture-drafts.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ios-capture-drafts-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    name: Build draft capture simulator app
+    runs-on: macos-26
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.12.0'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Qualify capture tooling before compilation
+        run: |
+          bun test scripts/ios-capture/fixtures.test.ts
+          bunx tsc -p scripts/tsconfig.json
+          node --test scripts/ios-capture/*.test.mjs
+      - name: Build unsigned source-bound app with reviewed deployment lock
+        run: bun scripts/ios-native/run.mjs --build-only
+      - name: Freeze partial build evidence
+        if: ${{ always() }}
+        run: node scripts/ios-native/snapshot.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: ios-capture-build-${{ github.sha }}
+          path: reports/native-evidence/
+          retention-days: 3
+          if-no-files-found: warn
+  capture:
+    name: Capture draft scenes (${{ matrix.profile }})
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [phone-69, tablet-13]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.12.0'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ios-capture-build-${{ github.sha }}
+          path: reports/native-build/
+      - name: Install pinned local-only Maestro
+        run: |
+          curl --fail --location --retry 2 https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
+          printf '%s  %s\n' '29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991' "$RUNNER_TEMP/maestro.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-tool"
+          test -x "$RUNNER_TEMP/maestro-tool/maestro/bin/maestro"
+          echo "$RUNNER_TEMP/maestro-tool/maestro/bin" >> "$GITHUB_PATH"
+          echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
+      - name: Generate source-preserving draft scenes on owned simulator
+        env:
+          CAPTURE_PROFILE: ${{ matrix.profile }}
+        run: bun scripts/ios-capture/run.mjs "--profile=$CAPTURE_PROFILE" --scene=all --appearance=scene
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: ios-capture-drafts-${{ matrix.profile }}-${{ github.sha }}
+          path: reports/capture-drafts-evidence/
+          retention-days: 3
+          if-no-files-found: warn
