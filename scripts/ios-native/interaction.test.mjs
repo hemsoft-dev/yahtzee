@@ -74,6 +74,33 @@ test("throwing tool keeps its error and only timing metadata before failure capt
     assert.deepEqual(flow.captures, ["scenario-failure"]); assert.equal(flow.state().closed, 1);
   } finally { flow.cleanup(); }
 });
+test("shutdown failure cannot mask the original uncertain tool error", async () => {
+  const flow = harness(), open = flow.options.openSession;
+  flow.options.openSession = async (options) => {
+    const client = await open(options), call = client.call;
+    return { call: async (name, args) => {
+      if (name === "run") throw new Error("Local Maestro tools/call timed out.");
+      return call(name, args);
+    }, close: async () => { await client.close(); throw new Error("Local Maestro did not close within 60 seconds."); } };
+  };
+  try {
+    await assert.rejects(nativeInteraction({ ...flow.options, exercise: (io) => io.run([{ tapOn: { id: "die-0", retryTapIfNoChange: false } }]) }), /Local Maestro tools\/call timed out/);
+    assert.equal(flow.state().closed, 1); assert.deepEqual(flow.captures, ["scenario-failure"]);
+    assert(readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8").includes("shutdown failed"));
+  } finally { flow.cleanup(); }
+});
+test("shutdown failure after a successful exercise still fails qualification", async () => {
+  const flow = harness(), open = flow.options.openSession;
+  flow.options.openSession = async (options) => {
+    const client = await open(options);
+    return { ...client, close: async () => { await client.close(); throw new Error("shutdown failure"); } };
+  };
+  try {
+    await assert.rejects(nativeInteraction({ ...flow.options, exercise: async () => {} }), /shutdown failure/);
+    assert.equal(flow.state().closed, 1);
+    assert(readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8").includes("shutdown failed"));
+  } finally { flow.cleanup(); }
+});
 test("unbound or oversized authored flows cannot reach the driver", async () => {
   for (const yaml of [resumeFlow("another.app"), 'appId: "fixture.app"\n---\n' + "x".repeat(262144)]) {
     const flow = harness();

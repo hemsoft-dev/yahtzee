@@ -14,4 +14,6 @@ Authored setup, resume and results-navigation YAML uses single-line JSON command
 
 The production RPC transport can time out when one authored setup request contains enough individually short commands to exceed its request budget. `batches.test.mjs` reproduces that pattern at a scaled budget and passes after partitioning the unchanged commands. It also checks exact command preservation, rejection before execution, and stopping without replay after an uncertain batch.
 
+The fresh PR62 retry failed during initial setup with `Local Maestro did not close within 60 seconds.` Its screenshot showed the simulator Home screen and its retained save was empty. A separate red-before-green test confirms that shutdown failure could overwrite an earlier phase exception. The interaction now retains the original phase failure and records a fixed shutdown-failure notice. If exercise succeeded but shutdown fails, qualification still fails. This corrects error attribution; it does not make a timed-out operation successful.
+
 This test does not establish why the native driver was slow. Cold startup alone or a stalled UI operation can still fail. Current-source macOS qualification is required, and the new timing receipts help distinguish those cases. Do not describe this change as a universal native-driver reliability fix or as physical-device acceptance.

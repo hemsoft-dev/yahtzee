@@ -13,7 +13,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   const deadline = Date.now() + (prefix === "scenario" ? 1200000 : 600000);
   const childEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
     /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|JAVA_HOME|DEVELOPER_DIR|LANG|LC_ALL|MAESTRO_CLI_NO_ANALYTICS|MAESTRO_DISABLE_UPDATE_CHECK|MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED|MAESTRO_DRIVER_STARTUP_TIMEOUT)$/.test(key)));
-  let client;
+  let client, shutdownFailed = false, shutdownError;
   async function call(name, args) {
     assert(Date.now() < deadline, "Native interaction exceeded its bounded session budget.");
     const started = Date.now(); let outcome = "threw";
@@ -49,6 +49,11 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     throw error;
   } finally {
     try { await client?.close(); }
+    catch (error) {
+      shutdownFailed = true; shutdownError = error;
+      diagnostics += "\nLocal Maestro shutdown failed.\n";
+    }
     finally { writeFileSync(join(directory, `${prefix}-mcp.log`), redactDriverLog(diagnostics, env)); }
   }
+  if (shutdownFailed) throw shutdownError;
 }
