@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -109,6 +109,38 @@ test("unwritable timing artifact preserves returned tool data and records a fixe
     assert.equal((diagnostic.match(/Native timing telemetry unavailable\./g) ?? []).length, 1);
     assert(!diagnostic.includes("fixture-secret"));
   } finally { flow.cleanup(); }
+});
+test("timing metadata is buffered without artifact writes between driver calls and flushed before return", async () => {
+  const flow = harness(), timingPath = join(flow.options.directory, "scenario-tool-timing.jsonl");
+  try {
+    await nativeInteraction({ ...flow.options, exercise: async (io) => {
+      assert(!existsSync(timingPath));
+      await io.inspect(); assert(!existsSync(timingPath));
+      await io.run([{ assertVisible: "safe fixture" }]); assert(!existsSync(timingPath));
+    } });
+    const entries = readFileSync(timingPath, "utf8").trim().split("\n").map(JSON.parse);
+    assert.deepEqual(entries.map((entry) => entry.tool), ["list_devices", "inspect_screen", "run"]);
+    assert(entries.every((entry) => entry.outcome === "returned"));
+    assert.equal(flow.state().closed, 1);
+  } finally { flow.cleanup(); }
+});
+test("timing buffer caps retained entries and reports overflow or failed flush exactly once", async () => {
+  for (const failedFlush of [false, true]) {
+    const flow = harness(), timingPath = join(flow.options.directory, "scenario-tool-timing.jsonl");
+    if (failedFlush) mkdirSync(timingPath);
+    try {
+      await nativeInteraction({ ...flow.options, exercise: async (io) => { for (let index = 0; index < 2050; index++) await io.inspect(); } });
+      assert.equal(flow.calls.length, 2051); assert.equal(flow.state().closed, 1);
+      if (!failedFlush) {
+        const entries = readFileSync(timingPath, "utf8").trim().split("\n").map(JSON.parse);
+        assert.equal(entries.length, 2048); assert.equal(entries[0].tool, "list_devices");
+        assert(entries.slice(1).every((entry) => entry.tool === "inspect_screen" && entry.outcome === "returned"));
+      }
+      const diagnostic = readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8");
+      assert.equal((diagnostic.match(/Native timing telemetry unavailable\./g) ?? []).length, 1);
+      assert(!diagnostic.includes("fixture-secret"));
+    } finally { flow.cleanup(); }
+  }
 });
 test("required diagnostic write failure preserves the primary phase error but fails a successful phase", async () => {
   for (const failedExercise of [true, false]) {

@@ -92,9 +92,14 @@ test("all authored mode/AI and largest-text cases retain their required lifecycl
   for (const scenario of scenarios) {
     const flow = harness({ scenario }), batches = [], originalRun = flow.options.io.run;
     flow.options.io.run = async (commands) => { batches.push(commands); await originalRun(commands); };
-    const bytes = await exerciseScenario(flow.options);
-    assert.equal(JSON.parse(bytes).active.game.diceCount, scenario.dice);
-    assert.equal(JSON.parse(bytes).active.game.players.length, scenario.ai + 1);
+    await exerciseScenario(flow.options);
+    const commands = flow.flows.flatMap((yaml) => yaml.split("\n")).filter((line) => line.startsWith("- ")).map((line) => {
+      const match = /^- (\w+): (.*)$/.exec(line);
+      return match ? { [match[1]]: JSON.parse(match[2]) } : { [line.slice(2)]: undefined };
+    });
+    assert.deepEqual(commands.filter((command) => /^(5|6|8|10) dice$/.test(command.tapOn?.text)).map((command) => command.tapOn), [{ text: `${scenario.dice} dice`, enabled: true }]);
+    assert.deepEqual(commands.filter((command) => ["Solo", "3 AI"].includes(command.tapOn?.text)).map((command) => command.tapOn), [{ text: scenario.ai ? "3 AI" : "Solo", enabled: true }]);
+    assert.deepEqual(commands.filter((command) => command.setOrientation).map((command) => command.setOrientation), [scenario.orientation]);
     assert.equal(flow.terminated(), 1);
     assert.equal(flow.flows.flatMap((yaml) => yaml.split("\n")).filter((line) => line.startsWith("- launchApp:")).length, scenario.largeText ? 2 : 3);
     assert.equal(flow.flows.flatMap((yaml) => yaml.split("\n")).filter((line) => line === '- tapOn: {"text":"Resume Game","enabled":true}').length, 1);

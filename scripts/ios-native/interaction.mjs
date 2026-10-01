@@ -8,6 +8,11 @@ import { redactDriverLog } from "./driverLogs.mjs";
 export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro }) {
   assert(["complete", "hold", "scenario"].includes(prefix), "Unknown native interaction phase.");
   let diagnostics = "", sequence = 0, timingUnavailable = false;
+  const timings = [];
+  function timingNotice() {
+    if (!timingUnavailable) diagnostics += "\nNative timing telemetry unavailable.\n";
+    timingUnavailable = true;
+  }
   // A scenario includes setup, hold/reroll, cold relaunches, all categories and result navigation.
   // Captured native runs reached the former ten-minute deadline while still committing valid scores.
   const deadline = Date.now() + (prefix === "scenario" ? 1200000 : 600000);
@@ -19,11 +24,8 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     const started = Date.now(); let outcome = "threw";
     try { const result = await client.call(name, args); outcome = "returned"; return result; }
     finally {
-      try { appendFileSync(join(directory, `${prefix}-tool-timing.jsonl`), JSON.stringify({ tool: name, flowSequence: sequence, started, elapsedMs: Date.now() - started, outcome }) + "\n"); }
-      catch {
-        if (!timingUnavailable) diagnostics += "\nNative timing telemetry unavailable.\n";
-        timingUnavailable = true;
-      }
+      if (timings.length < 2048) timings.push(JSON.stringify({ tool: name, flowSequence: sequence, started, elapsedMs: Date.now() - started, outcome }));
+      else timingNotice();
     }
   }
   async function inspect() {
@@ -58,6 +60,8 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
       diagnostics += "\nLocal Maestro shutdown failed.\n";
     }
     finally {
+      try { writeFileSync(join(directory, `${prefix}-tool-timing.jsonl`), timings.join("\n") + (timings.length ? "\n" : "")); }
+      catch { timingNotice(); }
       try { writeFileSync(join(directory, `${prefix}-mcp.log`), redactDriverLog(diagnostics, env)); }
       catch (error) { diagnosticFailed = true; diagnosticError = error; }
     }
