@@ -32,18 +32,18 @@ The repair opts only `expo-file-system` into source compilation through the SDK 
 | Data or behavior | Source behavior | Remaining evidence |
 | --- | --- | --- |
 | Player name and five recent names | Local preferences only | Device traffic measurement and reset/uninstall check |
-| Active game, dice, holds and opponents | One acknowledged SQLite document, retained for resume | iPhone simulator resume observed on `beff6ec`; physical interruption and airplane-mode checks remain |
+| Active game, dice, holds and opponents | One acknowledged SQLite document, retained for resume | Current reviewed source `86011d8` passed unsigned iPhone/iPad cold-resume qualification, with one disclosed phone-six fresh retry; physical interruption and airplane-mode checks remain |
 | Completed results and local rankings | Last 500 games; top ten entries per mode | Physical retention, backup and restore checks |
 | Appearance and game options | Local preferences | Device reset and restore checks |
 | Legacy preferences | Import only the two documented old preference keys | Device upgrade fixture if an older native build is distributed |
-| Diagnostics | Explicit allowlist; current source previews before sharing | Current native preview/cancel/share behavior and destination checks |
+| Diagnostics | Explicit allowlist; source previews before sharing; native preview/cancel observed | Physical-device OS sharing and destination/traffic checks remain |
 | Public technical feedback | User chooses an external GitHub issue page | Owner-approved private contact and public support copy |
 | OS backup | SQLite lives under Documents/SQLite | Real-device backup eligibility, restore and older-data behavior |
 | Expo updates | Disabled in the inspected compiled configuration | Recheck the signed candidate and measured traffic |
 | SDK telemetry and crash behavior | No app-authored telemetry client; declared manifests inspected | Measure every release SDK, including OS-mediated diagnostics |
 | Account, ads, purchases and cloud sync | Not implemented in the native app | Confirm final scope has not changed before declarations |
 
-See [the persistence boundary](mobile-offline.md) for storage and recovery behavior. The Node, browser and Bun SQLite tests do not replace device evidence.
+See [the persistence boundary](mobile-offline.md) for storage and recovery behavior. The Node, browser and Bun SQLite tests do not replace device evidence. The [reviewed native qualification](https://github.com/HemSoft/yahtzee/actions/runs/36795531946) and [merged foundation](https://github.com/HemSoft/yahtzee/pull/57) add unsigned simulator observations, not signed-candidate acceptance. The historical package hashes above remain historical and must not be presented as a new candidate's hashes.
 
 ## Signed-candidate acceptance still required
 

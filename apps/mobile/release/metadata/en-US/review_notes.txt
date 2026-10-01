@@ -1,5 +1,14 @@
 DRAFT, NOT APPROVED FOR SUBMISSION
 
-After native qualification, describe the actual offline access, account requirements, dice modes, house rules, computer opponents, persistence, reset and support paths. Provide numbered steps through the shipping app, not a fixture mode or developer server. Do not claim that Convex has been removed until the native release proves it.
+The repository's separate native implementation runs locally without an account or required Convex connection. It offers five, six, eight and ten dice with one human and zero to three computer opponents. These development choices and the public identity still need owner approval. Unsigned simulator results do not establish the signed candidate's behavior.
+
+After signed-device qualification, verify these steps against the exact candidate before supplying reviewer-facing notes:
+1. Launch, enter a display name, choose a dice count and computer-opponent count, then start. The first roll is automatic.
+2. Tap a die to hold it, reroll the other dice and select a score category. Castle requires two distinct triples; the larger all-dice category requires the whole hand to match.
+3. Pause and resume the acknowledged active game. Cold-launch resume, local results and rankings are on-device only, not an online leaderboard.
+4. Open Help for house rules and optional diagnostics. Previewing or cancelling sends nothing; choosing Share opens the operating system's share controls with the previewed allowlist text.
+5. Test reset only with disposable data and explicit confirmation. Damaged saves remain untouched until an explicit recovery/reset choice.
+
+Record actual signed-device results, supported modes, approved support/privacy URLs and any changed behavior in the release tracker. Do not claim zero network traffic, completed VoiceOver/backup testing or accepted privacy/export declarations from simulator evidence alone.
 
 Enter review contact information privately in App Store Connect. Do not commit contact phone numbers, credentials, tester details or private review correspondence here.
