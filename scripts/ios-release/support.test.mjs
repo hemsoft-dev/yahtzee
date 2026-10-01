@@ -13,6 +13,12 @@ function assertTemplate(content) {
   const prohibition = /\bDo not include ([^.\r\n]+)\./.exec(content)?.[1];
   assert(prohibition, "Missing privacy prohibition");
   for (const excluded of excludedTerms) assert(prohibition.includes(excluded), `Missing privacy prohibition: ${excluded}`);
+  const sensitive = /\b(?:player names?|saved games?|save databases?|score histor(?:y|ies)|device identifiers?|credentials?|SQLite files?)\b/i;
+  for (const sentence of content.split(/[.\r\n]/).filter((part) => sensitive.test(part))) {
+    const warning = /^\s*(?:Do not|Never) (?:include|attach|provide|post|share|send|upload|submit|paste)\s+(.+)$/i.exec(sentence);
+    assert(warning, "Sensitive-data fields or requests must not appear outside explicit prohibitions");
+    assert.doesNotMatch(warning[1], /;|\b(?:please|must|should|but|instead|however|then|include|attach|provide|post|share|send|upload|submit|paste)\b/i, "Privacy warnings must not contain a conflicting request");
+  }
   assert.match(content, /approved private reporting contact is not available yet/);
   assert.match(content, /\[security reporting policy\]\(https:\/\/github\.com\/HemSoft\/yahtzee\/blob\/main\/SECURITY\.md\)/);
   assert.doesNotMatch(content, /\]\(\.\.\//);
@@ -33,6 +39,13 @@ test("privacy guard rejects requests for the same sensitive terms instead of pro
   const original = read(".github/ISSUE_TEMPLATE/bug_report.md");
   assert.throws(() => assertTemplate(original.replace("Do not include player names", "Please include player names")));
   assert.throws(() => assertTemplate(original.replace("Do not include player names, saved games, score history, device identifiers, credentials or unreviewed logs and screenshots.", "Do not include player names. Please include saved games, score history, device identifiers and credentials.")));
+});
+test("privacy guard rejects conflicting requests elsewhere while retaining the original warning", () => {
+  const original = read(".github/ISSUE_TEMPLATE/bug_report.md");
+  for (const request of ["Please attach a saved game.", "Provide your credentials.", "Player name: ___", "Upload the save database.", "Include device identifiers and score history.", "Do not attach saved games; provide credentials instead.", "Do not include player names but please send credentials."]) {
+    assert.throws(() => assertTemplate(original + `\n## Attachments\n\n${request}\n`));
+  }
+  assert.doesNotThrow(() => assertTemplate(original + "\nNever attach saved games or credentials.\n"));
 });
 test("classic template metadata permits standard optional fields and field ordering", () => {
   const original = read(".github/ISSUE_TEMPLATE/bug_report.md");
