@@ -7,7 +7,7 @@ import { redactDriverLog } from "./driverLogs.mjs";
 /** One bounded local driver session for the owned simulator. */
 export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro }) {
   assert(["complete", "hold", "scenario"].includes(prefix), "Unknown native interaction phase.");
-  let diagnostics = "", sequence = 0;
+  let diagnostics = "", sequence = 0, timingUnavailable = false;
   // A scenario includes setup, hold/reroll, cold relaunches, all categories and result navigation.
   // Captured native runs reached the former ten-minute deadline while still committing valid scores.
   const deadline = Date.now() + (prefix === "scenario" ? 1200000 : 600000);
@@ -19,7 +19,11 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     const started = Date.now(); let outcome = "threw";
     try { const result = await client.call(name, args); outcome = "returned"; return result; }
     finally {
-      appendFileSync(join(directory, `${prefix}-tool-timing.jsonl`), JSON.stringify({ tool: name, flowSequence: sequence, started, elapsedMs: Date.now() - started, outcome }) + "\n");
+      try { appendFileSync(join(directory, `${prefix}-tool-timing.jsonl`), JSON.stringify({ tool: name, flowSequence: sequence, started, elapsedMs: Date.now() - started, outcome }) + "\n"); }
+      catch {
+        if (!timingUnavailable) diagnostics += "\nNative timing telemetry unavailable.\n";
+        timingUnavailable = true;
+      }
     }
   }
   async function inspect() {

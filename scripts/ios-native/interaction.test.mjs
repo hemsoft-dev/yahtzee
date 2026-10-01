@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -69,9 +69,44 @@ test("throwing tool keeps its error and only timing metadata before failure capt
   };
   try {
     await assert.rejects(nativeInteraction({ ...flow.options, exercise: (io) => io.run([{ tapOn: { id: "die-0", retryTapIfNoChange: false } }]) }), /retained original transport failure/);
-    const entries = readFileSync(join(flow.options.directory, "scenario-tool-timing.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    const timing = readFileSync(join(flow.options.directory, "scenario-tool-timing.jsonl"), "utf8");
+    const entries = timing.trim().split("\n").map((line) => JSON.parse(line));
     assert.equal(entries.at(-1).outcome, "threw"); assert.equal(entries.at(-1).flowSequence, 1);
+    assert.deepEqual(Object.keys(entries.at(-1)).sort(), ["elapsedMs", "flowSequence", "outcome", "started", "tool"]);
+    assert(!timing.includes("retained original transport failure"));
+    assert(!timing.includes("die-0")); assert(!timing.includes("fixture-secret"));
     assert.deepEqual(flow.captures, ["scenario-failure"]); assert.equal(flow.state().closed, 1);
+  } finally { flow.cleanup(); }
+});
+test("unwritable timing artifact cannot replace an actual transport error or replay its request", async () => {
+  const flow = harness(), open = flow.options.openSession, original = new Error("original uncertain failure");
+  let runs = 0;
+  mkdirSync(join(flow.options.directory, "scenario-tool-timing.jsonl"));
+  flow.options.openSession = async (options) => {
+    const client = await open(options), call = client.call;
+    return { ...client, call: async (name, args) => {
+      if (name === "run") { runs++; throw original; }
+      return call(name, args);
+    } };
+  };
+  try {
+    await assert.rejects(nativeInteraction({ ...flow.options, exercise: (io) => io.run([{ tapOn: { id: "die-0", retryTapIfNoChange: false } }]) }), (error) => error === original);
+    assert.equal(runs, 1); assert.equal(flow.state().closed, 1);
+    assert.deepEqual(flow.captures, ["scenario-failure"]);
+    assert(readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8").includes("Native timing telemetry unavailable."));
+  } finally { flow.cleanup(); }
+});
+test("unwritable timing artifact preserves returned tool data and records a fixed notice", async () => {
+  const flow = harness();
+  mkdirSync(join(flow.options.directory, "scenario-tool-timing.jsonl"));
+  try {
+    let received;
+    await nativeInteraction({ ...flow.options, exercise: async (io) => { received = await io.inspect(); } });
+    assert.deepEqual(received, { ui_schema: { platform: "ios" }, elements: [] });
+    assert.deepEqual(flow.calls.map((call) => call.name), ["list_devices", "inspect_screen"]);
+    assert.equal(flow.state().closed, 1); assert.deepEqual(flow.captures, []);
+    const diagnostic = readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8");
+    assert(diagnostic.includes("Native timing telemetry unavailable.")); assert(!diagnostic.includes("fixture-secret"));
   } finally { flow.cleanup(); }
 });
 test("shutdown failure cannot mask the original uncertain tool error", async () => {
