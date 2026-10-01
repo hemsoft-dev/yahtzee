@@ -5,7 +5,7 @@ about: Suggest a non-sensitive improvement to the game
 
 ## Before posting
 
-This issue is public and requires a GitHub account. Do not include player names, saved games, score history, device identifiers, credentials or unreviewed screenshots. Security and privacy-sensitive findings belong under the [security reporting policy](../../SECURITY.md), not in a public feature request. An approved private reporting contact is not available yet.
+This issue is public and requires a GitHub account. Do not include player names, saved games, score history, device identifiers, credentials or unreviewed screenshots. Security and privacy-sensitive findings belong under the [security reporting policy](https://github.com/HemSoft/yahtzee/blob/main/SECURITY.md), not in a public feature request. An approved private reporting contact is not available yet.
 
 ## Problem to solve
 

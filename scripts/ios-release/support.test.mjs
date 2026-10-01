@@ -15,8 +15,9 @@ for (const filename of ["bug_report.md", "feature_request.md"]) {
       assert(content.includes(excluded), `Missing privacy warning: ${excluded}`);
     }
     assert.match(content, /approved private reporting contact is not available yet/);
-    assert.match(content, /\[security reporting policy\]\(\.\.\/\.\.\/SECURITY\.md\)/);
-    assert(existsSync(new URL("../../SECURITY.md", new URL(file, root))));
+    assert.match(content, /\[security reporting policy\]\(https:\/\/github\.com\/HemSoft\/yahtzee\/blob\/main\/SECURITY\.md\)/);
+    assert.doesNotMatch(content, /\]\(\.\.\//);
+    assert(existsSync(new URL("SECURITY.md", root)));
     assert.doesNotMatch(content, /mailto:|itms-apps:|apps\.apple\.com|https:\/\/[^\s)]*\/security\/advisories\/new/);
   });
 }
