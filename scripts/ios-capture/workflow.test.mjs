@@ -16,6 +16,10 @@ test("capture workflow pins actions and reuses a same-run unsigned deployment bu
   assert.match(workflow, /permissions:\n {2}contents: read/);
   assert(!workflow.includes("secrets.") && !workflow.includes("pull_request_target"));
 });
+test("every owned-branch head can regenerate source-bound evidence, including app-only rebases", () => {
+  assert.match(workflow, /branches: \[feat\/ios-capture-drafts\]/);
+  assert.doesNotMatch(workflow, /\n\s+paths:/, "A source-bound build cannot depend on capture-only changed paths.");
+});
 test("capture source guards output, isolated saves, exact effects and publication snapshots", () => {
   assert.match(runner, /!existsSync\(output\) && !existsSync\(published\)/);
   assert.match(runner, /!existsSync\(database\)/);
