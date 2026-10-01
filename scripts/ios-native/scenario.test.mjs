@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { exerciseScenario } from "./scenario.mjs";
+import { scenarios } from "./flows.mjs";
 
-function harness({ changedResume = false, missingCompletion = false, failedHold = false } = {}) {
-  const scenario = { id: "tablet-8-solo-light", ai: 0, dice: 8, orientation: "PORTRAIT" };
-  let data = { active: { revision: 0, game: { diceCount: 8, players: [{}], dice: [3, 5, 4, 1, 6, 2, 2, 6], held: [], rollsLeft: 2 } }, history: { entries: [] }, highScores: { entries: [] } };
+function harness({ changedResume = false, missingCompletion = false, failedHold = false,
+  scenario = { id: "tablet-8-solo-light", ai: 0, dice: 8, orientation: "PORTRAIT" } } = {}) {
+  let data = { active: { revision: 0, game: { diceCount: scenario.dice, players: Array.from({ length: scenario.ai + 1 }, () => ({})),
+    dice: Array.from({ length: scenario.dice }, (_, index) => [3, 5, 4, 1, 6, 2, 2, 6][index % 8]), held: [], rollsLeft: 2 } }, history: { entries: [] }, highScores: { entries: [] } };
   let finished = false, recorded = false, terminated = 0;
   const phases = [], stages = [], flows = [], taps = [];
   const screen = () => ({ ui_schema: { platform: "ios", defaults: { enabled: true } }, elements: finished ? [
@@ -30,7 +32,7 @@ function harness({ changedResume = false, missingCompletion = false, failedHold 
           flows.push(yaml);
           if (yaml.includes('"Play Again"')) {
             assert(finished);
-            if (!missingCompletion) data = { active: null, history: { entries: [{}] }, highScores: { entries: [{}] } };
+            if (!missingCompletion) data = { active: null, history: { entries: [{}] }, highScores: { entries: Array.from({ length: scenario.ai + 1 }, () => ({})) } };
           }
         },
         run: async (commands) => {
@@ -59,11 +61,46 @@ test("one scenario preserves real cold relaunch, exact document and complete-gam
   assert(flow.flows.every((yaml) => yaml.split("\n").filter((line) => line.startsWith("- ")).length <= 8));
   assert.equal(JSON.parse(bytes).active.game.held[0], 0);
 });
+test("persistent scenario launches only for fresh setup, actual cold resume and persisted-result restart", async () => {
+  const flow = harness(), commands = [], originalRun = flow.options.io.run, originalFlow = flow.options.io.runFlow;
+  flow.options.io.run = async (batch) => { commands.push(...batch); await originalRun(batch); };
+  flow.options.io.runFlow = async (yaml) => {
+    for (const line of yaml.split("\n").filter((line) => line.startsWith("- "))) {
+      const match = /^- (\w+): (.*)$/.exec(line);
+      if (match) commands.push({ [match[1]]: JSON.parse(match[2]) });
+    }
+    await originalFlow(yaml);
+  };
+  await exerciseScenario(flow.options);
+  assert.deepEqual(commands.filter((command) => command.launchApp).map((command) => command.launchApp), [
+    { clearState: true, permissions: { all: "deny" } },
+    { permissions: { all: "deny" } },
+    { permissions: { all: "deny" } },
+  ]);
+  assert.equal(commands.filter((command) => command.tapOn?.text === "Resume Game").length, 1);
+  assert.equal(flow.terminated(), 1);
+  assert.deepEqual(flow.stages, ["before-hold", "after-hold", "after-reroll", "before-relaunch", "after-relaunch", "completed"]);
+  assert.deepEqual(flow.taps, ["die-0", "reroll-action", "score-ones", "score-chance"]);
+});
 test("largest-text scenarios still hold, reroll and resume without claiming a complete game", async () => {
   const flow = harness(); flow.options.scenario.largeText = true;
   await exerciseScenario(flow.options);
   assert.equal(flow.terminated(), 1); assert.deepEqual(flow.phases, ["start", "hold", "resume"]);
   assert.deepEqual(flow.taps, ["die-0", "reroll-action"]); assert.equal(flow.flows.length, 4);
+});
+test("all authored mode/AI and largest-text cases retain their required lifecycle without phase restarts", async () => {
+  for (const scenario of scenarios) {
+    const flow = harness({ scenario }), batches = [], originalRun = flow.options.io.run;
+    flow.options.io.run = async (commands) => { batches.push(commands); await originalRun(commands); };
+    const bytes = await exerciseScenario(flow.options);
+    assert.equal(JSON.parse(bytes).active.game.diceCount, scenario.dice);
+    assert.equal(JSON.parse(bytes).active.game.players.length, scenario.ai + 1);
+    assert.equal(flow.terminated(), 1);
+    assert.equal(flow.flows.flatMap((yaml) => yaml.split("\n")).filter((line) => line.startsWith("- launchApp:")).length, scenario.largeText ? 2 : 3);
+    assert.equal(flow.flows.flatMap((yaml) => yaml.split("\n")).filter((line) => line === '- tapOn: {"text":"Resume Game","enabled":true}').length, 1);
+    assert(!batches.flat().some((command) => command.launchApp));
+    assert.deepEqual(flow.taps, scenario.largeText ? ["die-0", "reroll-action"] : ["die-0", "reroll-action", "score-ones", "score-chance"]);
+  }
 });
 test("uncertain setup batch cannot reach a hold, reroll, relaunch or later setup command", async () => {
   const flow = harness();

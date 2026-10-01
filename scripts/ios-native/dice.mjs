@@ -12,9 +12,10 @@ async function reach(kind, position, { inspect, run, record }) {
 }
 
 /** Never retry a toggle or a random roll. Check UI acknowledgment and exact saved effects. */
-export async function holdAndReroll({ readSave, ...io }) {
+export async function holdAndReroll({ readSave, alreadyForeground = false, ...io }) {
   const { inspect, run, capture, record } = io;
-  await run([{ launchApp: { stopApp: false, clearState: false, permissions: { all: "deny" } } },
+  assert.equal(typeof alreadyForeground, "boolean");
+  await run([...(alreadyForeground ? [] : [{ launchApp: { stopApp: false, clearState: false, permissions: { all: "deny" } } }]),
     { extendedWaitUntil: { visible: { id: "reroll-action", text: "Re-roll \\(2\\)" }, timeout: 15000 } }]);
   const before = await readSave("before-hold");
   assert.equal(before.active?.revision, 0, "Expected a newly started game.");
