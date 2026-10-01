@@ -39,6 +39,12 @@ test("multiple authored flows and inspections use exactly one owned bounded sess
     assert.equal(readdirSync(flow.options.directory).filter((name) => name.endsWith(".yaml")).length, 3);
     assert(!readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8").includes("fixture-secret"));
     assert.deepEqual(flow.captures, []);
+    const timing = readFileSync(join(flow.options.directory, "scenario-tool-timing.jsonl"), "utf8");
+    assert(!timing.includes("fixture-secret"));
+    const entries = timing.trim().split("\n").map((line) => JSON.parse(line));
+    assert.deepEqual(entries.map((item) => item.tool), ["list_devices", "run", "run", "inspect_screen", "run"]);
+    assert(entries.every((item) => item.outcome === "returned" && item.elapsedMs >= 0));
+    assert(entries.every((item) => Object.keys(item).sort().join(",") === "elapsedMs,flowSequence,outcome,started,tool"));
   } finally { flow.cleanup(); }
 });
 test("failure preserves its phase screenshot and closes the same session without replay", async () => {
@@ -50,6 +56,22 @@ test("failure preserves its phase screenshot and closes the same session without
     assert.equal(flow.state().opened, 1); assert.equal(flow.state().closed, 1);
     assert.equal(flow.calls.filter((item) => item.name === "run").length, 1);
     assert.deepEqual(flow.captures, ["scenario-failure"]);
+  } finally { flow.cleanup(); }
+});
+test("throwing tool keeps its error and only timing metadata before failure capture", async () => {
+  const flow = harness(); const open = flow.options.openSession;
+  flow.options.openSession = async (options) => {
+    const client = await open(options), call = client.call;
+    return { ...client, call: async (name, args) => {
+      if (name === "run") throw new Error("retained original transport failure");
+      return call(name, args);
+    } };
+  };
+  try {
+    await assert.rejects(nativeInteraction({ ...flow.options, exercise: (io) => io.run([{ tapOn: { id: "die-0", retryTapIfNoChange: false } }]) }), /retained original transport failure/);
+    const entries = readFileSync(join(flow.options.directory, "scenario-tool-timing.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    assert.equal(entries.at(-1).outcome, "threw"); assert.equal(entries.at(-1).flowSequence, 1);
+    assert.deepEqual(flow.captures, ["scenario-failure"]); assert.equal(flow.state().closed, 1);
   } finally { flow.cleanup(); }
 });
 test("unbound or oversized authored flows cannot reach the driver", async () => {

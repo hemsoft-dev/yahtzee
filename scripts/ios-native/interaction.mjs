@@ -14,7 +14,14 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   const childEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
     /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|JAVA_HOME|DEVELOPER_DIR|LANG|LC_ALL|MAESTRO_CLI_NO_ANALYTICS|MAESTRO_DISABLE_UPDATE_CHECK|MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED|MAESTRO_DRIVER_STARTUP_TIMEOUT)$/.test(key)));
   let client;
-  async function call(name, args) { assert(Date.now() < deadline, "Native interaction exceeded its bounded session budget."); return client.call(name, args); }
+  async function call(name, args) {
+    assert(Date.now() < deadline, "Native interaction exceeded its bounded session budget.");
+    const started = Date.now(); let outcome = "threw";
+    try { const result = await client.call(name, args); outcome = "returned"; return result; }
+    finally {
+      appendFileSync(join(directory, `${prefix}-tool-timing.jsonl`), JSON.stringify({ tool: name, flowSequence: sequence, started, elapsedMs: Date.now() - started, outcome }) + "\n");
+    }
+  }
   async function inspect() {
     const screen = await call("inspect_screen", { device_id: device });
     writeFileSync(join(directory, `${prefix}-screen-latest.json`), JSON.stringify(screen, null, 2) + "\n");
