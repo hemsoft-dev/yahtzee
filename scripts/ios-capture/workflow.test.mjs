@@ -5,6 +5,7 @@ import test from "node:test";
 // Git may materialize this text file as CRLF on Windows. Action pins and
 // permissions are unchanged; match the same source contract on either platform.
 const workflow = readFileSync(new URL("../../.github/workflows/ios-capture-drafts.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
+const quality = readFileSync(new URL("../../.github/workflows/quality.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const runner = readFileSync(new URL("./run.mjs", import.meta.url), "utf8");
 const guard = readFileSync(new URL("./saveGuard.mjs", import.meta.url), "utf8");
 test("capture workflow pins actions and reuses a same-run unsigned deployment build", () => {
@@ -20,6 +21,11 @@ test("capture workflow pins actions and reuses a same-run unsigned deployment bu
 test("every owned-branch head can regenerate source-bound evidence, including app-only rebases", () => {
   assert.match(workflow, /branches: \[feat\/ios-capture-drafts\]/);
   assert.doesNotMatch(workflow, /\n\s+paths:/, "A source-bound build cannot depend on capture-only changed paths.");
+});
+test("ordinary PR and main qualification exercise capture code, fixtures and script types", () => {
+  assert.match(quality, /node --test[^\n]*scripts\/ios-capture\/\*\.test\.mjs/);
+  assert.match(quality, /bun test scripts\/ios-capture\/fixtures\.test\.ts/);
+  assert.match(quality, /bunx tsc -p scripts\/tsconfig\.json/);
 });
 test("capture source guards output, isolated saves, exact effects and publication snapshots", () => {
   assert.match(runner, /!existsSync\(output\) && !existsSync\(published\)/);
