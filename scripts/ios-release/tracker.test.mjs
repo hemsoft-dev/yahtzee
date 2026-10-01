@@ -21,3 +21,9 @@ test("release tracker reflects the local native root without promoting draft acc
     assert.equal(candidate[key], null, `${key} must not be fabricated by a documentation refresh`);
   }
 });
+
+test("native qualification documentation describes matrix coverage collectively", () => {
+  const documentation = read("docs/native-simulator.md");
+  assert.match(documentation, /Together, the four groups run all four modes/);
+  assert.doesNotMatch(documentation, /It runs all four modes/);
+});
