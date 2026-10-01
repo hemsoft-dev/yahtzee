@@ -93,7 +93,7 @@ test("unwritable timing artifact cannot replace an actual transport error or rep
     await assert.rejects(nativeInteraction({ ...flow.options, exercise: (io) => io.run([{ tapOn: { id: "die-0", retryTapIfNoChange: false } }]) }), (error) => error === original);
     assert.equal(runs, 1); assert.equal(flow.state().closed, 1);
     assert.deepEqual(flow.captures, ["scenario-failure"]);
-    assert(readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8").includes("Native timing telemetry unavailable."));
+    assert.equal((readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8").match(/Native timing telemetry unavailable\./g) ?? []).length, 1);
   } finally { flow.cleanup(); }
 });
 test("unwritable timing artifact preserves returned tool data and records a fixed notice", async () => {
@@ -106,7 +106,8 @@ test("unwritable timing artifact preserves returned tool data and records a fixe
     assert.deepEqual(flow.calls.map((call) => call.name), ["list_devices", "inspect_screen"]);
     assert.equal(flow.state().closed, 1); assert.deepEqual(flow.captures, []);
     const diagnostic = readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8");
-    assert(diagnostic.includes("Native timing telemetry unavailable.")); assert(!diagnostic.includes("fixture-secret"));
+    assert.equal((diagnostic.match(/Native timing telemetry unavailable\./g) ?? []).length, 1);
+    assert(!diagnostic.includes("fixture-secret"));
   } finally { flow.cleanup(); }
 });
 test("required diagnostic write failure preserves the primary phase error but fails a successful phase", async () => {
