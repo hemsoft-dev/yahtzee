@@ -109,6 +109,18 @@ test("unwritable timing artifact preserves returned tool data and records a fixe
     assert(diagnostic.includes("Native timing telemetry unavailable.")); assert(!diagnostic.includes("fixture-secret"));
   } finally { flow.cleanup(); }
 });
+test("required diagnostic write failure preserves the primary phase error but fails a successful phase", async () => {
+  for (const failedExercise of [true, false]) {
+    const flow = harness(), original = new Error("original phase failure");
+    mkdirSync(join(flow.options.directory, "scenario-mcp.log"));
+    try {
+      const result = nativeInteraction({ ...flow.options, exercise: async () => { if (failedExercise) throw original; } });
+      await assert.rejects(result, (error) => failedExercise ? error === original : error.code === "EISDIR");
+      assert.equal(flow.state().closed, 1);
+      assert.deepEqual(flow.captures, failedExercise ? ["scenario-failure"] : []);
+    } finally { flow.cleanup(); }
+  }
+});
 test("shutdown failure cannot mask the original uncertain tool error", async () => {
   const flow = harness(), open = flow.options.openSession;
   flow.options.openSession = async (options) => {
