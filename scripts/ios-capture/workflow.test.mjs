@@ -6,6 +6,7 @@ import test from "node:test";
 // permissions are unchanged; match the same source contract on either platform.
 const workflow = readFileSync(new URL("../../.github/workflows/ios-capture-drafts.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const runner = readFileSync(new URL("./run.mjs", import.meta.url), "utf8");
+const guard = readFileSync(new URL("./saveGuard.mjs", import.meta.url), "utf8");
 test("capture workflow pins actions and reuses a same-run unsigned deployment build", () => {
   const actions = [...workflow.matchAll(/uses: ([^\s]+)@([^\s]+)/g)];
   assert.equal(actions.length, 9);
@@ -23,7 +24,9 @@ test("every owned-branch head can regenerate source-bound evidence, including ap
 test("capture source guards output, isolated saves, exact effects and publication snapshots", () => {
   assert.match(runner, /!existsSync\(output\) && !existsSync\(published\)/);
   assert.match(runner, /!existsSync\(database\)/);
-  assert.match(runner, /saved\[0\].value, bytes/);
+  assert.match(runner, /await unchangedSave\(\{ expected: bytes/);
+  assert.match(guard, /assert.equal\(saved, expected/);
+  assert.match(runner, /after-navigation-save.json/);
   assert.match(runner, /accepted: false/);
   assert.match(runner, /snapshotEvidence\(output, published, receipt\)/);
   assert.match(runner, /Owned capture simulator cleanup failed/);

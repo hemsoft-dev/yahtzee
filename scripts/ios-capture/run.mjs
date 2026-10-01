@@ -13,6 +13,7 @@ const { nativeInteraction } = await import("../ios-native/interaction.mjs");
 const { snapshotEvidence } = await import("../ios-native/snapshot.mjs");
 const { rgbCapture } = await import("./image.mjs");
 const { showScene } = await import("./scene.mjs");
+const { unchangedSave } = await import("./saveGuard.mjs");
 
 assert.equal(process.platform, "darwin", "Draft capture requires macOS, Xcode and owned iOS simulators.");
 const args = process.argv.slice(2);
@@ -81,14 +82,21 @@ try {
     sim("ui", owned, "appearance", selectedAppearance); sim("ui", owned, "content_size", "large");
     sim("status_bar", owned, "override", "--time", "9:41", "--batteryState", "charged", "--batteryLevel", "100");
     const source = join(directory, "source.png");
-    await nativeInteraction({ device: owned, bundleId, directory, prefix: "complete", env,
-      capture: (name) => sim("io", owned, "screenshot", join(directory, `${name}.png`)),
-      exercise: async (io) => {
-        await showScene(scene, getScorecardCategories(scene.dice).map((category) => category.id), io);
-        sim("io", owned, "screenshot", source);
+    await unchangedSave({ expected: bytes,
+      exercise: () => nativeInteraction({ device: owned, bundleId, directory, prefix: "complete", env,
+        capture: (name) => sim("io", owned, "screenshot", join(directory, `${name}.png`)),
+        exercise: async (io) => {
+          await showScene(scene, getScorecardCategories(scene.dice).map((category) => category.id), io);
+          sim("io", owned, "screenshot", source);
+        } }),
+      readSaved: () => {
+        const saved = JSON.parse(run("sqlite3", ["-readonly", "-json", database, "SELECT value FROM local_save WHERE key = 'hemsoft-local-dice-v1'"], { capture: true }));
+        assert.equal(saved.length, 1); return saved[0].value;
+      },
+      record: (saved) => {
+        writeFileSync(join(directory, "after-navigation-save.json"), saved);
+        writeFileSync(join(directory, "save-integrity.json"), JSON.stringify({ unchanged: saved === bytes, expectedSha256: hash(Buffer.from(bytes)), observedSha256: hash(Buffer.from(saved)) }, null, 2) + "\n");
       } });
-    const saved = JSON.parse(run("sqlite3", ["-readonly", "-json", database, "SELECT value FROM local_save WHERE key = 'hemsoft-local-dice-v1'"], { capture: true }));
-    assert.equal(saved.length, 1); assert.equal(saved[0].value, bytes, "Display-only capture changed the preloaded save.");
     const exported = rgbCapture(readFileSync(source), profile);
     const filename = `${String(scene.order).padStart(2, "0")}-${scene.id}-${selectedAppearance}.png`;
     writeFileSync(join(output, filename), exported.bytes);

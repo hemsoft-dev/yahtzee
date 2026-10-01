@@ -7,12 +7,12 @@
   },
   "cases": [
     {
-      "anchorLabel": "Combinations",
+      "anchorLabel": "Numbers",
       "focus": "score-three-of-a-kind",
       "screen": {
         "ui_schema": { "platform": "ios", "defaults": { "enabled": true } },
         "elements": [{ "rid": "score-viewport", "b": "[0,164][440,854]", "c": [
-          { "a11y": "Combinations", "b": "[20,543][420,567]", "c": [{ "a11y": "Combinations", "b": "[20,543][420,567]" }] },
+          { "a11y": "Numbers", "b": "[20,151][420,175]", "c": [{ "a11y": "Numbers", "b": "[20,151][420,175]" }] },
           { "rid": "score-three-of-a-kind", "b": "[20,745][420,801]", "a11y": "Score Three of a Kind, 15 points", "enabled": true }
         ] }]
       }

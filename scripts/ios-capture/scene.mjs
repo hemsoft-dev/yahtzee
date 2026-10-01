@@ -42,11 +42,12 @@ export async function showScene(scene, categories, { run, inspect, record }) {
 /** Align actual UI content rather than cropping or painting over capture bytes. */
 export async function frameScoreSection(scene, categories, { run, inspect, record }) {
   assert(["Numbers", "Combinations"].includes(scene.anchorLabel), "Unknown score section anchor.");
+  let previous = null, slop = 24, stalls = 0;
   for (let attempt = 0; attempt < 30; attempt++) {
     await run([{ waitForAnimationToEnd: { timeout: 5000 } }]);
     const screen = await inspect(), elements = screenElements(screen);
     const pane = uniqueElement(elements, "score-viewport"), viewport = pane.rect;
-    assert(viewport.width >= 80 && viewport.height >= 100, "Capture viewport is too small.");
+    assert(viewport.width >= 80 && viewport.height >= 150, "Capture viewport is too small for safe framing gestures.");
     const matches = elements.filter((node) => node.parents.includes(pane) && (node.a11y === scene.anchorLabel || node.txt === scene.anchorLabel));
     // Native Text can expose same-bounds parent/leaf copies of one heading.
     assert(matches.every((node) => node.b === matches[0].b), "Ambiguous capture section heading.");
@@ -58,11 +59,31 @@ export async function frameScoreSection(scene, categories, { run, inspect, recor
       assert.equal(focus.action, "tap", "Framed score focus must still be fully reachable.");
       record({ action: "framed", attempt, anchor, viewport, target: focus.target }); return;
     }
-    const delta = Math.round(Math.max(-viewport.height * 0.18, Math.min(viewport.height * 0.18, error)));
-    assert(delta !== 0, "Capture framing made no progress.");
+    if (previous && anchor) {
+      const movement = previous.top - anchor.top;
+      if (movement === 0) stalls++;
+      else {
+        assert(Math.sign(movement) === Math.sign(previous.delta), "Capture section moved in an unexpected direction.");
+        slop = Math.max(0, Math.min(24, Math.abs(previous.delta) - Math.abs(movement))); stalls = 0;
+      }
+    }
+    assert(stalls < 3, "Capture section reached a scroll boundary or gesture made no progress.");
+    // Native traces subtract 11–20pt before content moves. Never send a tiny
+    // gesture that could be treated as a press on an interactive score row.
+    const distance = Math.round(Math.min(viewport.height * 0.18, Math.max(24, Math.abs(error) + slop)));
+    const delta = Math.sign(error) * distance;
     const x = Math.round((viewport.left + viewport.right) / 2), middle = (viewport.top + viewport.bottom) / 2;
-    const swipe = { start: `${x},${Math.round(middle + delta / 2)}`, end: `${x},${Math.round(middle - delta / 2)}`, duration: 1000 };
-    record({ action: "frame-swipe", attempt, anchor: anchor ?? null, viewport, swipe }); await run([{ swipe }]);
+    const visibleTop = anchor ? Math.max(anchor.top, viewport.top + 4) : 0;
+    const visibleBottom = anchor ? Math.min(anchor.bottom, viewport.bottom - 4) : 0;
+    // Start on the noninteractive heading whenever it is visible. This also
+    // keeps an ignored small correction from scoring a preloaded fixture.
+    const startY = visibleBottom > visibleTop ? Math.round((visibleTop + visibleBottom) / 2) : Math.round(middle + delta / 2);
+    const endY = startY - delta;
+    assert(Math.abs(delta) >= 24 && startY >= viewport.top + 4 && startY <= viewport.bottom - 4 && endY >= viewport.top + 4 && endY <= viewport.bottom - 4, "Cannot frame capture safely inside its viewport.");
+    const swipe = { start: `${x},${startY}`, end: `${x},${endY}`, duration: 1000 };
+    record({ action: "frame-swipe", attempt, anchor: anchor ?? null, viewport, slop, swipe });
+    previous = anchor ? { top: anchor.top, delta } : null;
+    await run([{ swipe }]);
   }
   throw new Error("Capture section did not align within 30 inspections.");
 }

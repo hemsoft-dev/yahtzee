@@ -88,7 +88,7 @@ test("framing cannot succeed with ambiguous headings or an unreachable final sco
     assert(!flow.commands.some((step) => step.tapOn));
   }
 });
-test("retained phone hierarchy excerpts keep native duplicate heading wrappers and frame both sections", async () => {
+test("retained phone hierarchy excerpts keep native duplicate heading wrappers and frame both score-focused scenes", async () => {
   const fixture = JSON.parse(readFileSync(new URL("./fixtures/phone-section-headings.json", import.meta.url), "utf8"));
   for (const { anchorLabel, focus, screen } of fixture.cases) {
     const records = [], pane = screen.elements[0];
@@ -115,4 +115,58 @@ test("stuck or missing section headings fail after at most thirty inspections", 
   const flow = harness(native());
   await assert.rejects(frameScoreSection({ anchorLabel: "Numbers", focus: "score-three-of-a-kind" }, ["three-of-a-kind"], flow.io), /30 inspections/);
   assert.equal(flow.records.length, 30); assert(!flow.commands.some((step) => step.tapOn));
+});
+
+test("captured phone correction converges through 11 to 20 point native touch slop without touching a score row", async () => {
+  for (const touchSlop of [11, 20]) {
+    const fixture = JSON.parse(readFileSync(new URL("./fixtures/phone-section-headings.json", import.meta.url), "utf8"));
+    const { screen, anchorLabel, focus } = fixture.cases[0], pane = screen.elements[0];
+    const records = []; let gestures = 0;
+    await frameScoreSection({ anchorLabel, focus }, [focus.slice(6)], {
+      inspect: async () => screen, record: (item) => records.push(item),
+      run: async (steps) => {
+        const swipe = steps[0].swipe; if (!swipe) return;
+        gestures++;
+        const start = Number(swipe.start.split(",")[1]), end = Number(swipe.end.split(",")[1]);
+        const heading = bounds(pane.c[0].b), viewport = bounds(pane.b);
+        assert(start >= Math.max(heading.top, viewport.top + 4) && start <= Math.min(heading.bottom, viewport.bottom - 4), "Correction must start on the noninteractive heading.");
+        assert(Math.abs(end - start) >= 24, "Tiny native gestures can become score presses.");
+        const delta = Math.sign(end - start) * Math.max(0, Math.abs(end - start) - touchSlop);
+        function move(nodes) {
+          for (const node of nodes) {
+            const rect = bounds(node.b); node.b = `[${rect.left},${rect.top + delta}][${rect.right},${rect.bottom + delta}]`;
+            if (node.c) move(node.c);
+          }
+        }
+        move(pane.c);
+      },
+    });
+    assert(gestures <= 3); assert.equal(records.at(-1).action, "framed");
+    assert(Math.abs(bounds(pane.c[0].b).top - 180) <= 8);
+  }
+});
+test("tall tablet uses Numbers context while an unreachable lower heading fails at the scroll boundary", async () => {
+  const source = readFileSync(new URL("./plan.ts", import.meta.url), "utf8");
+  assert.match(source, /focus: "score-three-of-a-kind", anchorLabel: "Numbers"/);
+  for (const impossible of [false, true]) {
+    let top = impossible ? 368 : 176;
+    const screen = { ui_schema: { platform: "ios", defaults: { enabled: true } }, elements: [
+      { rid: "score-viewport", b: "[340,134][1032,1356]", c: [
+        { a11y: "Numbers", b: `[360,${top}][1012,${top + 24}]` },
+        { rid: "score-three-of-a-kind", a11y: "Three of a Kind, 15 points", b: "[360,770][1012,826]" },
+      ] },
+    ] };
+    let gestures = 0;
+    const invoke = frameScoreSection({ anchorLabel: "Numbers", focus: "score-three-of-a-kind" }, ["three-of-a-kind"], {
+      inspect: async () => screen, record: () => {}, run: async (steps) => {
+        const swipe = steps[0].swipe; if (!swipe) return;
+        gestures++;
+        const requested = Number(swipe.end.split(",")[1]) - Number(swipe.start.split(",")[1]);
+        const movement = impossible ? 0 : Math.sign(requested) * Math.max(0, Math.abs(requested) - 20);
+        top += movement; screen.elements[0].c[0].b = `[360,${top}][1012,${top + 24}]`;
+      },
+    });
+    if (impossible) { await assert.rejects(invoke, /scroll boundary|no progress/); assert(gestures <= 3); }
+    else { await invoke; assert.equal(gestures, 1); assert(Math.abs(top - 150) <= 8); }
+  }
 });
