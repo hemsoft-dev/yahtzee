@@ -19,7 +19,10 @@ export async function showScene(scene, categories, { run, inspect, record }) {
     for (let attempt = 0; attempt < 30; attempt++) {
       await run([{ waitForAnimationToEnd: { timeout: 5000 } }]);
       const decision = scorePosition(await inspect(), scene.focus.slice(6), categories); record({ attempt, ...decision });
-      if (decision.action === "tap") return; // Readiness only. Do not tap the score.
+      if (decision.action === "tap") {
+        if (scene.anchorLabel) await frameScoreSection(scene, categories, { run, inspect, record });
+        return; // Readiness only. Do not tap the score.
+      }
       if (decision.action === "swipe") await run([{ swipe: { start: decision.start, end: decision.end, duration: decision.duration } }]);
     }
     throw new Error("Capture score focus did not become reachable within 30 inspections.");
@@ -34,4 +37,32 @@ export async function showScene(scene, categories, { run, inspect, record }) {
   assert(die.rect.top >= pane.rect.top + 8 && die.rect.bottom <= pane.rect.bottom - 8 && die.rect.left >= pane.rect.left && die.rect.right <= pane.rect.right, "Capture die is clipped.");
   assert.equal(die.val, "checkbox, checked, Held", "Capture fixture's held die is not reflected in native UI.");
   record({ action: "ready", target: die.rect, viewport: pane.rect });
+}
+
+/** Align actual UI content rather than cropping or painting over capture bytes. */
+export async function frameScoreSection(scene, categories, { run, inspect, record }) {
+  assert(["Numbers", "Combinations"].includes(scene.anchorLabel), "Unknown score section anchor.");
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await run([{ waitForAnimationToEnd: { timeout: 5000 } }]);
+    const screen = await inspect(), elements = screenElements(screen);
+    const pane = uniqueElement(elements, "score-viewport"), viewport = pane.rect;
+    assert(viewport.width >= 80 && viewport.height >= 100, "Capture viewport is too small.");
+    const matches = elements.filter((node) => node.parents.includes(pane) && (node.a11y === scene.anchorLabel || node.txt === scene.anchorLabel));
+    // Native Text can expose same-bounds parent/leaf copies of one heading.
+    assert(matches.every((node) => node.b === matches[0].b), "Ambiguous capture section heading.");
+    const anchor = matches[0]?.rect, desiredTop = viewport.top + 16;
+    const error = anchor ? anchor.top - desiredTop : -viewport.height * 0.18;
+    if (anchor && Math.abs(error) <= 8) {
+      assert(anchor.left >= viewport.left && anchor.right <= viewport.right && anchor.bottom <= viewport.bottom - 8, "Capture section heading is clipped.");
+      const focus = scorePosition(screen, scene.focus.slice(6), categories);
+      assert.equal(focus.action, "tap", "Framed score focus must still be fully reachable.");
+      record({ action: "framed", attempt, anchor, viewport, target: focus.target }); return;
+    }
+    const delta = Math.round(Math.max(-viewport.height * 0.18, Math.min(viewport.height * 0.18, error)));
+    assert(delta !== 0, "Capture framing made no progress.");
+    const x = Math.round((viewport.left + viewport.right) / 2), middle = (viewport.top + viewport.bottom) / 2;
+    const swipe = { start: `${x},${Math.round(middle + delta / 2)}`, end: `${x},${Math.round(middle - delta / 2)}`, duration: 1000 };
+    record({ action: "frame-swipe", attempt, anchor: anchor ?? null, viewport, swipe }); await run([{ swipe }]);
+  }
+  throw new Error("Capture section did not align within 30 inspections.");
 }

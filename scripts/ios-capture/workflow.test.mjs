@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const workflow = readFileSync(new URL("../../.github/workflows/ios-capture-drafts.yml", import.meta.url), "utf8");
+// Git may materialize this text file as CRLF on Windows. Action pins and
+// permissions are unchanged; match the same source contract on either platform.
+const workflow = readFileSync(new URL("../../.github/workflows/ios-capture-drafts.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const runner = readFileSync(new URL("./run.mjs", import.meta.url), "utf8");
 test("capture workflow pins actions and reuses a same-run unsigned deployment build", () => {
   const actions = [...workflow.matchAll(/uses: ([^\s]+)@([^\s]+)/g)];
