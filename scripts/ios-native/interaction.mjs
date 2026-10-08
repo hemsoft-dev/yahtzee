@@ -13,9 +13,15 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|JAVA_HOME|DEVELOPER_DIR|LANG|LC_ALL|MAESTRO_CLI_NO_ANALYTICS|MAESTRO_DISABLE_UPDATE_CHECK|MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED|MAESTRO_DRIVER_STARTUP_TIMEOUT)$/.test(key)));
   let client;
   async function call(name, args) { assert(Date.now() < deadline, "Native interaction exceeded ten minutes."); return client.call(name, args); }
+  function writeScreen(name, screen) {
+    assert.equal(screen.ui_schema?.platform, "ios", "Expected an owned iOS screen.");
+    assert(Array.isArray(screen.elements), "Expected a native screen hierarchy.");
+    const projection = { ui_schema: screen.ui_schema, elements: screen.elements };
+    writeFileSync(join(directory, `${name}.json`), redactDriverLog(JSON.stringify(projection, (key, value) => /token|password|secret|credential|private.*key/i.test(key) ? undefined : value, 2), env) + "\n");
+  }
   async function inspect() {
     const screen = await call("inspect_screen", { device_id: device });
-    writeFileSync(join(directory, `${prefix}-screen-latest.json`), JSON.stringify(screen, null, 2) + "\n");
+    writeScreen(`${prefix}-screen-latest`, screen);
     return screen;
   }
   async function runFlow(yaml) {
@@ -36,6 +42,22 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     assert(devices.devices?.some((item) => item.device_id === device && item.platform === "ios" && item.connected === true), "Owned simulator is not connected to Maestro.");
     await exercise({ inspect, run, runFlow, capture, record: (value) => appendFileSync(join(directory, `${prefix}-geometry.jsonl`), JSON.stringify(value) + "\n") });
   } catch (error) {
+    // Preserve the earlier geometry and primary failure. This read does not replay an action.
+    function unavailableScreen() {
+      try { writeFileSync(join(directory, `${prefix}-screen-failure-unavailable.txt`), "Failure screen inspection unavailable; the original interaction failure is preserved.\n"); }
+      catch { /* Diagnostic storage can also fail without changing the primary error. */ }
+    }
+    if (client && Date.now() < deadline) {
+      let timer;
+      try {
+        const screen = await Promise.race([
+          call("inspect_screen", { device_id: device }),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Failure screen inspection timed out.")), Math.max(1, Math.min(10000, deadline - Date.now()))); }),
+        ]);
+        writeScreen(`${prefix}-screen-failure`, screen);
+      } catch { unavailableScreen(); }
+      finally { clearTimeout(timer); }
+    } else { unavailableScreen(); }
     try { await capture(`${prefix}-failure`); } catch { /* Preserve the original error; the runner also reads the saved document. */ }
     throw error;
   } finally {
