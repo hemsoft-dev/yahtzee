@@ -103,7 +103,7 @@ See [the lint policy](docs/lint-policy.md) for rules and generated-code exclusio
 
 ## Planned work
 
-Remote human multiplayer is planned, not part of the current application. Do not interpret shared leaderboards as live multiplayer. Server-authoritative results, durable replay handling and isolated client journeys are implemented. Remaining work is tracked in the [issue queue](https://github.com/HemSoft/yahtzee/issues).
+Remote human multiplayer is planned, not part of the current application. Do not interpret shared leaderboards as live multiplayer. Server-authoritative results, durable replay handling and isolated client journeys are implemented. Remaining work is tracked in the [issue queue](https://github.com/hemsoft-dev/yahtzee/issues).
 
 ## License
 

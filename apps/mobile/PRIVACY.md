@@ -1,6 +1,6 @@
 # Privacy policy draft
 
-Prepared September 27, 2026. This is development copy, not an approved policy for a published app. The owner must approve the public identity, contact information and final declarations after the signed candidate is measured. See the [privacy acceptance issue](https://github.com/HemSoft/yahtzee/issues/48).
+Prepared September 27, 2026. This is development copy, not an approved policy for a published app. The owner must approve the public identity, contact information and final declarations after the signed candidate is measured. See the [privacy acceptance issue](https://github.com/hemsoft-dev/yahtzee/issues/48).
 
 ## Data on the device
 
@@ -20,7 +20,7 @@ The current source requires a preview before sharing diagnostics. The preview co
 
 Choosing Share opens the operating system's share controls with exactly the previewed text. The selected app or destination may use the network and follows its own privacy practices. Sharing is optional.
 
-The repository's [GitHub issue page](https://github.com/HemSoft/yahtzee/issues) is public. Do not post player names, save files, credentials or screenshots containing private information there. GitHub handles information submitted to it under [GitHub's privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
+The repository's [GitHub issue page](https://github.com/hemsoft-dev/yahtzee/issues) is public. Do not post player names, save files, credentials or screenshots containing private information there. GitHub handles information submitted to it under [GitHub's privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
 
 An owner-approved private support contact and final public policy URL have not been selected. They must be provided before this draft is published as the release policy.
 
