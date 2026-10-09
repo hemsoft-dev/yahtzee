@@ -4,12 +4,13 @@
     "version": "3.0.3",
     "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
     "patch": "patches/braces@3.0.3.patch",
-    "patchSha256": "f020e47bb6cb29de64998065ec2bd46ed160c354f44343bfb2db0ca3056d5c58",
+    "patchSha256": "8770bdd884d6817b6bb0301cdbf5df431b50d1d8bcd7e216ddd2f0f18b841230",
     "files": {
       "lib/parse.js": "f07d1342cce850dbe643ac18ec318c2a8750ddb21f74c91d0da3c6dacff7dd52",
       "lib/compile.js": "67d4efd825c1860f3fdb510a948871d2d7223d6d7cc23d56a444365a1a4015d3",
-      "lib/expand.js": "49ebd2bf0d38307bbcbc34682fbfe877581868203ed26860005880eae9e9cb4f",
-      "lib/stringify.js": "19a44eb696eb0883efd84f1769bb0b56b85d8c84079402dc8a8c0faa438b5160"
+      "lib/expand.js": "1371e52fda860bed5cf7a1a9ce204bb469a679ab489eb6a987de082e7543bed0",
+      "lib/stringify.js": "19a44eb696eb0883efd84f1769bb0b56b85d8c84079402dc8a8c0faa438b5160",
+      "lib/utils.js": "76082e373e92da77c95fcc1233b527c8301e07c096506885f2684936c8756be2"
     }
   },
   {
@@ -17,9 +18,9 @@
     "version": "1.4.0",
     "advisory": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
     "patch": "patches/node-forge@1.4.0.patch",
-    "patchSha256": "7f4a049660ca0660ff1bf0b9df301597b18bde1ab4adc7669acc27695febcacd",
+    "patchSha256": "ed291e22844c1feb80cbfa5ce0f0e48e9c15726bd0859eba5e9067b069d8b95a",
     "files": {
-      "lib/rsa.js": "c65caaa8c6e6a4ddb46721b518c4df8ddf6358eec3446587c2e9e54f66921412"
+      "lib/rsa.js": "4bfba9a21256ecda994bd8da2a3163bd82b04190060503a5165b126c8aa79e7e"
     }
   },
   {

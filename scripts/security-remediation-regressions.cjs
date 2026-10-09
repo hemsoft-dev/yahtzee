@@ -10,6 +10,10 @@ for (const operation of ['compile', 'expand', 'stringify']) {
   for (let index = 0; index < 4000; index++) ast = { type: 'root', nodes: [ast] };
   assert.throws(() => braces[operation](ast), /safe depth/);
 }
+let nestedValue = 'a';
+for (let index = 0; index < 4000; index++) nestedValue = [nestedValue];
+assert.throws(() => braces.expand({ type: 'root', nodes: [{ type: 'text', value: nestedValue }] }), /safe depth/);
+assert.throws(() => require('braces/lib/utils').flatten(nestedValue), /safe depth/);
 for (const kind of ['f', 'e', 'g']) assert.doesNotThrow(() => sprintf(`%.1000000000${kind}`, 1));
 assert.equal(sprintf('%.2f', 1.234), '1.23');
 const pair = forge.pki.rsa.generateKeyPair({ bits: 1024, e: 3 });
@@ -18,5 +22,16 @@ md.update('fixture');
 const a=forge.asn1;const digestInfo=a.create(a.Class.UNIVERSAL,a.Type.SEQUENCE,true,[a.create(a.Class.UNIVERSAL,a.Type.SEQUENCE,true,[a.create(a.Class.UNIVERSAL,a.Type.OID,false,a.oidToDer(forge.oids.sha256).getBytes()),a.create(a.Class.UNIVERSAL,a.Type.NULL,false,''),a.create(a.Class.UNIVERSAL,a.Type.NULL,false,'')]),a.create(a.Class.UNIVERSAL,a.Type.OCTETSTRING,false,md.digest().getBytes())]);
 const bad=a.toDer(digestInfo).getBytes();const signature=pair.privateKey.sign(bad,'NONE');
 assert.throws(() => pair.publicKey.verify(md.digest().getBytes(), signature), /valid RSASSA/);
+for (const parameter of [a.create(a.Class.UNIVERSAL, a.Type.NULL, false, 'garbage'),
+  a.create(a.Class.UNIVERSAL, a.Type.OCTETSTRING, false, 'garbage'),
+  a.create(a.Class.CONTEXT_SPECIFIC, a.Type.NULL, false, '')]) {
+  const malformed = a.create(a.Class.UNIVERSAL, a.Type.SEQUENCE, true, [
+    a.create(a.Class.UNIVERSAL, a.Type.SEQUENCE, true, [
+      a.create(a.Class.UNIVERSAL, a.Type.OID, false, a.oidToDer(forge.oids.sha256).getBytes()), parameter]),
+    a.create(a.Class.UNIVERSAL, a.Type.OCTETSTRING, false, md.digest().getBytes()),
+  ]);
+  const malformedSignature = pair.privateKey.sign(a.toDer(malformed).getBytes(), 'NONE');
+  assert.throws(() => pair.publicKey.verify(md.digest().getBytes(), malformedSignature), /valid RSASSA/);
+}
 assert.equal(pair.publicKey.verify(md.digest().getBytes(), pair.privateKey.sign(md)), true);
 console.log('Security patch regressions passed.');

@@ -22,10 +22,35 @@ index dce69beb90ece5c3b0ca234a949418f9f34eedbc..cc3474749093ed1fd5f3626d30c0f35f
      }
  
 diff --git a/lib/expand.js b/lib/expand.js
-index 35b2c41d6afdb8f0197959e26079f266e48370d3..c37c9b284d9e8b5c4b17521a050a76f873fbabb5 100644
+index 35b2c41d6afdb8f0197959e26079f266e48370d3..39af2b2867873f2820472a8cb0db5b0a3f4b9c69 100644
 --- a/lib/expand.js
 +++ b/lib/expand.js
-@@ -33,7 +33,8 @@ const append = (queue = '', stash = '', enclose = false) => {
+@@ -4,7 +4,8 @@ const fill = require('fill-range');
+ const stringify = require('./stringify');
+ const utils = require('./utils');
+ 
+-const append = (queue = '', stash = '', enclose = false) => {
++const append = (queue = '', stash = '', enclose = false, depth = 0) => {
++  if (depth >= 128) throw new SyntaxError('Brace nesting exceeds the safe depth limit');
+   const result = [];
+ 
+   queue = [].concat(queue);
+@@ -18,12 +19,12 @@ const append = (queue = '', stash = '', enclose = false) => {
+   for (const item of queue) {
+     if (Array.isArray(item)) {
+       for (const value of item) {
+-        result.push(append(value, stash, enclose));
++        result.push(append(value, stash, enclose, depth + 1));
+       }
+     } else {
+       for (let ele of stash) {
+         if (enclose === true && typeof ele === 'string') ele = `{${ele}}`;
+-        result.push(Array.isArray(ele) ? append(item, ele, enclose) : item + ele);
++        result.push(Array.isArray(ele) ? append(item, ele, enclose, depth + 1) : item + ele);
+       }
+     }
+   }
+@@ -33,7 +34,8 @@ const append = (queue = '', stash = '', enclose = false) => {
  const expand = (ast, options = {}) => {
    const rangeLimit = options.rangeLimit === undefined ? 1000 : options.rangeLimit;
  
@@ -35,7 +60,7 @@ index 35b2c41d6afdb8f0197959e26079f266e48370d3..c37c9b284d9e8b5c4b17521a050a76f8
      node.queue = [];
  
      let p = parent;
-@@ -100,7 +101,7 @@ const expand = (ast, options = {}) => {
+@@ -100,7 +102,7 @@ const expand = (ast, options = {}) => {
        }
  
        if (child.nodes) {
@@ -91,3 +116,23 @@ index 8bcf872c31894f81a8c64d9202fd607e4fd7ea2b..6574cc89a51e96be681e02733bfea6f5
        }
      }
      return output;
+diff --git a/lib/utils.js b/lib/utils.js
+index d19311fe044ad5157624077670dc297e8b53da49..8a9023c5d384e04662346490bc874a14bdcda01c 100644
+--- a/lib/utils.js
++++ b/lib/utils.js
+@@ -101,12 +101,13 @@ exports.reduce = nodes => nodes.reduce((acc, node) => {
+ exports.flatten = (...args) => {
+   const result = [];
+ 
+-  const flat = arr => {
++  const flat = (arr, depth = 0) => {
++    if (depth >= 128) throw new SyntaxError('Brace nesting exceeds the safe depth limit');
+     for (let i = 0; i < arr.length; i++) {
+       const ele = arr[i];
+ 
+       if (Array.isArray(ele)) {
+-        flat(ele);
++        flat(ele, depth + 1);
+         continue;
+       }
+ 

@@ -40,8 +40,8 @@ Future exceptions require an exact package/advisory URL, owner, concrete rationa
 
 Pinned overrides update http-cache-semantics to 4.3.0, shell-quote to 1.12.0 and source-map-js to 1.2.2. Three packages still lack published patched releases, so frozen installs apply checked-in Bun patches:
 
-- braces 3.0.3: bound parser and recursive AST traversal depth for [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
-- node-forge 1.4.0: reject additional RSA DigestInfo algorithm-sequence elements for [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv).
+- braces 3.0.3: bound parser, recursive AST traversal and nested expansion-array depth for [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
+- node-forge 1.4.0: reject additional RSA DigestInfo algorithm-sequence elements and nonempty or non-NULL parameters for [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv).
 - sprintf-js 1.1.3: bound numeric precision to the supported JavaScript range for [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c).
 
 Bun's version scanner still reports those three versions. The audit recognizes only their exact package/advisory identities after verifying the pinned override, patch registration, patch SHA-256, installed version and repaired source hashes for every matching Bun package-store copy. It also runs exploit regressions and ordinary-input checks. Missing or changed patches, vulnerable duplicate versions, failed regressions and every other advisory fail the command. The exception list remains empty.
