@@ -1,7 +1,7 @@
 const command = (name, value) => `- ${name}${value === undefined ? "" : `: ${JSON.stringify(value)}`}`;
 const visible = (text) => command("assertVisible", text);
 const tap = (text) => command("tapOn", { text, enabled: true });
-const scroll = (element) => command("scrollUntilVisible", { element, direction: "DOWN", timeout: 60000, visibilityPercentage: 100 });
+const scroll = (element, visibilityPercentage = 100) => command("scrollUntilVisible", { element, direction: "DOWN", timeout: 60000, visibilityPercentage });
 const shot = (name) => command("takeScreenshot", name);
 const header = (bundleId, commands) => `appId: ${JSON.stringify(bundleId)}\n---\n${commands.join("\n")}\n`;
 
@@ -27,9 +27,10 @@ export function completeEndFlow(bundleId, previewDiagnostics = false) {
     visible("Game Over!"), shot("results"), tap("History"), visible("Local history"), shot("history"),
     command("launchApp", { permissions: { all: "deny" } }), scroll({ text: "Review saved result" }), tap("Review saved result"),
     visible("Game Over!"), tap("Help"), visible("How to play"), shot("help"),
-    ...(previewDiagnostics ? [scroll({ text: "Preview diagnostics" }), tap("Preview diagnostics"), scroll({ id: "diagnostics-preview" }),
+    ...(previewDiagnostics ? [scroll({ text: "Preview diagnostics" }), tap("Preview diagnostics"), scroll({ id: "diagnostics-preview" }, 10),
       command("assertVisible", { id: "diagnostics-preview" }), shot("diagnostics-preview"), scroll({ text: "Cancel preview" }), tap("Cancel preview"),
-      command("assertNotVisible", "Cancel preview"), command("assertNotVisible", { id: "diagnostics-preview" }), visible("Preview diagnostics"), shot("diagnostics-cancelled")] : []), tap("Done"),
+      command("assertNotVisible", "Cancel preview"), command("assertNotVisible", { id: "diagnostics-preview" }), visible("Preview diagnostics"), shot("diagnostics-cancelled")] : []),
+    scroll({ text: "Open source repository" }), shot("help-source"), tap("Done"),
     scroll({ text: "Play Again" }), tap("Play Again"), scroll({ text: "Start Game" }), shot("play-again")]);
 }
 export function emptyRelaunchFlow(bundleId) {

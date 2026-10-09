@@ -1,6 +1,6 @@
 # Dependency security
 
-The September 18, 2026 baseline contained 24 affected package names and 116 distinct advisory URLs. The updated locked graph returns an empty `bun audit --json` report. No exceptions are accepted.
+The September 18, 2026 baseline contained 24 affected package names and 116 distinct advisory URLs. That baseline was repaired to an empty `bun audit --json` report. The October 9 additions below address newly published advisories. No exceptions are accepted.
 
 - [Original scanner report](audit-before.json)
 - [Updated scanner report](audit-after.json)
@@ -35,3 +35,15 @@ The regression suite resolves `qs` through the actual Stryker REST-client depend
 Dependabot alerts and security updates are enabled. [The updater configuration](../../.github/dependabot.yml) uses the supported **bun** ecosystem at the workspace root, plus GitHub Actions updates. Earlier automatic npm scanning of the nested desktop manifest failed because it lacked a recognized lockfile or exact Electron requirement. The Bun configuration uses the actual text lockfile. See [GitHub's supported ecosystems](https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-ecosystems-and-repositories).
 
 Future exceptions require an exact package/advisory URL, owner, concrete rationale and expiry in [security-exceptions.json](../../security-exceptions.json), reviewed in a PR. The empty list is intentional. A negative validation temporarily restored vulnerable UUID 8.3.2; the real security command exited 1 on GHSA-w5hq-g745-h8pq. Restoring the reviewed manifest/lockfile returned the check to green.
+
+## October 9 repairs
+
+Pinned overrides update http-cache-semantics to 4.3.0, shell-quote to 1.12.0 and source-map-js to 1.2.2. Three packages still lack published patched releases, so frozen installs apply checked-in Bun patches:
+
+- braces 3.0.3: bound parser, recursive AST traversal and nested expansion-array depth for [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
+- node-forge 1.4.0: reject additional RSA DigestInfo algorithm-sequence elements and nonempty or non-NULL parameters for [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv).
+- sprintf-js 1.1.3: bound numeric precision to the supported JavaScript range for [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c).
+
+Bun's version scanner still reports those three versions. The audit recognizes only their exact package/advisory identities after verifying the pinned override, patch registration, patch SHA-256, installed version and repaired source hashes for every matching Bun package-store copy. It also runs exploit regressions and ordinary-input checks. Missing or changed patches, vulnerable duplicate versions, failed regressions and every other advisory fail the command. The exception list remains empty.
+
+[security-remediations.json](../../security-remediations.json) records the delivered hashes. [Policy regressions](../../packages/game-engine/tests/securityRemediations.test.ts) prove tampering and unrelated advisories remain errors. Remove each patch, override and matching remediation record together when a compatible upstream release incorporates the fix; run the exploit regressions and full audit before merging that replacement.

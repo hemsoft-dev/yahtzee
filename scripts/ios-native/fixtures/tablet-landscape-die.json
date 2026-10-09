@@ -1,0 +1,581 @@
+{
+  "ui_schema": {
+    "platform": "ios",
+    "abbreviations": {
+      "b": "bounds",
+      "txt": "text",
+      "rid": "resource-id",
+      "a11y": "accessibilityText",
+      "hint": "hintText",
+      "val": "value",
+      "c": "children"
+    },
+    "defaults": {
+      "enabled": true,
+      "focused": false,
+      "selected": false,
+      "checked": false,
+      "txt": "",
+      "hint": "",
+      "rid": "",
+      "val": "",
+      "a11y": ""
+    }
+  },
+  "elements": [
+    {
+      "b": "[0,0][1376,1032]",
+      "a11y": "Yahtzee",
+      "c": [
+        {
+          "b": "[0,0][1376,1032]",
+          "c": [
+            {
+              "b": "[0,0][1376,1032]",
+              "c": [
+                {
+                  "b": "[0,0][1376,1032]",
+                  "c": [
+                    {
+                      "b": "[0,0][1376,1032]",
+                      "c": [
+                        {
+                          "b": "[0,0][1376,1032]",
+                          "c": [
+                            {
+                              "b": "[0,0][1376,1032]",
+                              "c": [
+                                {
+                                  "b": "[0,0][1376,1032]",
+                                  "c": [
+                                    {
+                                      "b": "[0,0][1376,1032]",
+                                      "c": [
+                                        {
+                                          "b": "[0,0][1376,1032]",
+                                          "c": [
+                                            {
+                                              "b": "[0,0][1376,1032]",
+                                              "c": [
+                                                {
+                                                  "b": "[0,32][1376,86]",
+                                                  "rid": "Yahtzee",
+                                                  "c": [
+                                                    {
+                                                      "b": "[656,43][719,64]",
+                                                      "a11y": "Yahtzee"
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "b": "[0,0][1376,1032]",
+                                                  "c": [
+                                                    {
+                                                      "b": "[0,0][1376,1032]",
+                                                      "c": [
+                                                        {
+                                                          "b": "[0,86][1376,1032]",
+                                                          "c": [
+                                                            {
+                                                              "b": "[0,86][1376,1032]",
+                                                              "c": [
+                                                                {
+                                                                  "b": "[0,86][1376,1032]",
+                                                                  "c": [
+                                                                    {
+                                                                      "b": "[0,86][1376,1032]",
+                                                                      "c": [
+                                                                        {
+                                                                          "b": "[12,86][688,134]",
+                                                                          "a11y": "History"
+                                                                        },
+                                                                        {
+                                                                          "b": "[688,86][1364,134]",
+                                                                          "a11y": "Help"
+                                                                        },
+                                                                        {
+                                                                          "b": "[88,134][428,944]",
+                                                                          "rid": "dice-viewport",
+                                                                          "c": [
+                                                                            {
+                                                                              "b": "[88,134][428,944]",
+                                                                              "c": [
+                                                                                {
+                                                                                  "b": "[88,134][428,884]",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[88,134][428,884]",
+                                                                                      "c": [
+                                                                                        {
+                                                                                          "b": "[264,328][320,408]",
+                                                                                          "a11y": "Die 3, showing 3",
+                                                                                          "txt": "checkbox, unchecked, Not held",
+                                                                                          "val": "checkbox, unchecked, Not held",
+                                                                                          "rid": "die-2"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[108,154][408,202]",
+                                                                                          "a11y": "Pause Game"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[108,218][408,856]"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,238][388,271]",
+                                                                                          "a11y": "Local tester's turn",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,238][388,271]",
+                                                                                              "a11y": "Local tester's turn"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,283][388,304]",
+                                                                                          "a11y": "Round 1 / 20",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,283][388,304]",
+                                                                                              "a11y": "Round 1 / 20"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,328][184,408]",
+                                                                                          "a11y": "Die 1, showing 4",
+                                                                                          "txt": "checkbox, unchecked, Not held",
+                                                                                          "val": "checkbox, unchecked, Not held",
+                                                                                          "rid": "die-0"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[196,328][252,408]",
+                                                                                          "a11y": "Die 2, showing 2",
+                                                                                          "txt": "checkbox, unchecked, Not held",
+                                                                                          "val": "checkbox, unchecked, Not held",
+                                                                                          "rid": "die-1"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[332,328][388,408]",
+                                                                                          "a11y": "Die 4, showing 6",
+                                                                                          "txt": "checkbox, unchecked, Not held",
+                                                                                          "val": "checkbox, unchecked, Not held",
+                                                                                          "rid": "die-3"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,420][184,500]",
+                                                                                          "a11y": "Die 5, showing 3",
+                                                                                          "txt": "checkbox, unchecked, Not held",
+                                                                                          "val": "checkbox, unchecked, Not held",
+                                                                                          "rid": "die-4"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[196,420][252,500]",
+                                                                                          "a11y": "Die 6, showing 2",
+                                                                                          "txt": "checkbox, unchecked, Not held",
+                                                                                          "val": "checkbox, unchecked, Not held",
+                                                                                          "rid": "die-5"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[264,420][320,500]",
+                                                                                          "a11y": "Die 7, showing 2",
+                                                                                          "txt": "checkbox, unchecked, Not held",
+                                                                                          "val": "checkbox, unchecked, Not held",
+                                                                                          "rid": "die-6"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[332,420][388,500]",
+                                                                                          "a11y": "Die 8, showing 1",
+                                                                                          "txt": "checkbox, unchecked, Not held",
+                                                                                          "val": "checkbox, unchecked, Not held",
+                                                                                          "rid": "die-7"
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,524][388,560]",
+                                                                                          "a11y": "Tap a die to hold it. Choose a score when you're ready.",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,524][388,560]",
+                                                                                              "a11y": "Tap a die to hold it. Choose a score when you're ready."
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,584][388,604]",
+                                                                                          "a11y": "Local tester · You",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,584][388,604]",
+                                                                                              "a11y": "Local tester · You"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,608][388,629]",
+                                                                                          "a11y": "0 pts",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,608][388,629]",
+                                                                                              "a11y": "0 pts"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,653][388,673]",
+                                                                                          "a11y": "Bot Alpha · AI",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,653][388,673]",
+                                                                                              "a11y": "Bot Alpha · AI"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,677][388,698]",
+                                                                                          "a11y": "0 pts",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,677][388,698]",
+                                                                                              "a11y": "0 pts"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,722][388,742]",
+                                                                                          "a11y": "Bot Beta · AI",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,722][388,742]",
+                                                                                              "a11y": "Bot Beta · AI"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,746][388,767]",
+                                                                                          "a11y": "0 pts",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,746][388,767]",
+                                                                                              "a11y": "0 pts"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,791][388,811]",
+                                                                                          "a11y": "Bot Gamma · AI",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,791][388,811]",
+                                                                                              "a11y": "Bot Gamma · AI"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[128,815][388,836]",
+                                                                                          "a11y": "0 pts",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[128,815][388,836]",
+                                                                                              "a11y": "0 pts"
+                                                                                            }
+                                                                                          ]
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                {
+                                                                                  "b": "[395,134][425,944]",
+                                                                                  "a11y": "Vertical scroll bar, 1 page",
+                                                                                  "txt": "0%",
+                                                                                  "val": "0%",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[422,239][425,945]"
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                {
+                                                                                  "b": "[88,911][428,941]",
+                                                                                  "a11y": "Horizontal scroll bar, 1 page",
+                                                                                  "txt": "0%",
+                                                                                  "val": "0%",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[241,938][1451,941]"
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                {
+                                                                                  "b": "[395,134][425,944]",
+                                                                                  "a11y": "Vertical scroll bar, 1 page",
+                                                                                  "txt": "0%",
+                                                                                  "val": "0%",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[422,239][425,945]"
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                {
+                                                                                  "b": "[88,911][428,941]",
+                                                                                  "a11y": "Horizontal scroll bar, 1 page",
+                                                                                  "txt": "0%",
+                                                                                  "val": "0%",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[241,938][1451,941]"
+                                                                                    }
+                                                                                  ]
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        },
+                                                                        {
+                                                                          "b": "[88,134][1288,1012]",
+                                                                          "rid": "play-viewport"
+                                                                        },
+                                                                        {
+                                                                          "b": "[428,134][1288,1012]",
+                                                                          "rid": "score-viewport",
+                                                                          "c": [
+                                                                            {
+                                                                              "b": "[428,134][1288,1012]",
+                                                                              "c": [
+                                                                                {
+                                                                                  "b": "[428,134][1288,2018]",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[428,134][1288,2018]",
+                                                                                      "c": [
+                                                                                        {
+                                                                                          "b": "[448,176][1268,200]",
+                                                                                          "a11y": "Numbers",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[448,176][1268,200]",
+                                                                                              "a11y": "Numbers"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[448,210][1268,684]",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[448,210][1268,289]",
+                                                                                              "a11y": "Score Ones, 1 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-ones"
+                                                                                            },
+                                                                                            {
+                                                                                              "b": "[448,289][1268,368]",
+                                                                                              "a11y": "Score Twos, 6 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-twos"
+                                                                                            },
+                                                                                            {
+                                                                                              "b": "[448,368][1268,447]",
+                                                                                              "a11y": "Score Threes, 6 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-threes"
+                                                                                            },
+                                                                                            {
+                                                                                              "b": "[448,447][1268,526]",
+                                                                                              "a11y": "Score Fours, 4 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-fours"
+                                                                                            },
+                                                                                            {
+                                                                                              "b": "[448,526][1268,605]",
+                                                                                              "a11y": "Score Fives, 0 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-fives"
+                                                                                            },
+                                                                                            {
+                                                                                              "b": "[448,605][1268,684]",
+                                                                                              "a11y": "Score Sixes, 6 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-sixes"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[448,706][1268,730]",
+                                                                                          "a11y": "Combinations",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[448,706][1268,730]",
+                                                                                              "a11y": "Combinations"
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "b": "[448,740][1268,1864]",
+                                                                                          "c": [
+                                                                                            {
+                                                                                              "b": "[448,740][1268,819]",
+                                                                                              "a11y": "Score One Pair, 6 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-one-pair"
+                                                                                            },
+                                                                                            {
+                                                                                              "b": "[448,819][1268,898]",
+                                                                                              "a11y": "Score Two Pairs, 10 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-two-pairs"
+                                                                                            },
+                                                                                            {
+                                                                                              "b": "[448,898][1268,977]",
+                                                                                              "a11y": "Score Three Pairs, 0 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-three-pairs"
+                                                                                            },
+                                                                                            {
+                                                                                              "b": "[448,977][1268,1056]",
+                                                                                              "a11y": "Score Three of a Kind, 6 points. Bot Alpha: not scored · Bot Beta: not scored · Bot Gamma: not scored",
+                                                                                              "rid": "score-three-of-a-kind"
+                                                                                            }
+                                                                                          ]
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                {
+                                                                                  "b": "[1255,134][1285,1012]",
+                                                                                  "a11y": "Vertical scroll bar, 3 pages",
+                                                                                  "txt": "0%",
+                                                                                  "val": "0%",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[1282,137][1285,583]"
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                {
+                                                                                  "b": "[428,979][1288,1009]",
+                                                                                  "a11y": "Horizontal scroll bar, 1 page",
+                                                                                  "txt": "0%",
+                                                                                  "val": "0%",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[571,1006][1329,1009]"
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                {
+                                                                                  "b": "[1255,134][1285,1012]",
+                                                                                  "a11y": "Vertical scroll bar, 3 pages",
+                                                                                  "txt": "0%",
+                                                                                  "val": "0%",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[1282,137][1285,583]"
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                {
+                                                                                  "b": "[428,979][1288,1009]",
+                                                                                  "a11y": "Horizontal scroll bar, 1 page",
+                                                                                  "txt": "0%",
+                                                                                  "val": "0%",
+                                                                                  "c": [
+                                                                                    {
+                                                                                      "b": "[571,1006][1329,1009]"
+                                                                                    }
+                                                                                  ]
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        },
+                                                                        {
+                                                                          "b": "[88,944][428,1012]"
+                                                                        },
+                                                                        {
+                                                                          "b": "[108,952][408,1000]",
+                                                                          "a11y": "Re-roll (2)",
+                                                                          "rid": "reroll-action"
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "b": "[0,0][1376,1032]",
+                                                  "c": [
+                                                    {
+                                                      "b": "[0,0][1376,1032]"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "b": "[0,0][1376,1032]",
+          "c": [
+            {
+              "b": "[0,0][1376,1032]",
+              "c": [
+                {
+                  "b": "[0,0][1376,1032]"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "b": "[1000,0][1032,1376]"
+    },
+    {
+      "b": "[1000,0][1032,1376]",
+      "c": [
+        {
+          "b": "[1000,0][1032,1376]",
+          "c": [
+            {
+              "b": "[1000,0][1032,1376]",
+              "c": [
+                {
+                  "b": "[1011,25][1021,650]",
+                  "c": [
+                    {
+                      "b": "[1007,25][1024,77]",
+                      "a11y": "2:17 PM"
+                    },
+                    {
+                      "b": "[1007,87][1024,145]",
+                      "a11y": "Fri Oct 9"
+                    }
+                  ]
+                },
+                {
+                  "b": "[1011,726][1021,1350]"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

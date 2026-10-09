@@ -21,7 +21,7 @@ Prove one harmless GitHub Agentic Workflow on the isolated Yahtzee runner.
 - [x] LAN, Tailscale, RFC1918, and link-local access remain blocked from the
   guest after Docker installation.
 - [x] Existing manual smoke run
-  [32323195241](https://github.com/HemSoft/yahtzee/actions/runs/32323195241)
+  [32323195241](https://github.com/hemsoft-dev/yahtzee/actions/runs/32323195241)
   succeeded after provisioning.
 
 Node.js is intentionally not installed globally. Current GH AW compilation for
@@ -91,10 +91,10 @@ Node version within the workflow.
 
 ## Monitoring
 
-- Runner status: <https://github.com/HemSoft/yahtzee/settings/actions/runners>
-- Workflow runs: <https://github.com/HemSoft/yahtzee/actions>
+- Runner status: <https://github.com/hemsoft-dev/yahtzee/settings/actions/runners>
+- Workflow runs: <https://github.com/hemsoft-dev/yahtzee/actions>
 - Existing smoke workflow:
-  <https://github.com/HemSoft/yahtzee/actions/workflows/self-hosted-smoke.yml>
+  <https://github.com/hemsoft-dev/yahtzee/actions/workflows/self-hosted-smoke.yml>
 
 ## Current blockers
 

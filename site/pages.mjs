@@ -1,4 +1,4 @@
-const repository = "https://github.com/HemSoft/yahtzee";
+const repository = "https://github.com/hemsoft-dev/yahtzee";
 export const externalLinks = [repository, `${repository}/issues`, `${repository}/issues/38`];
 const notice = `<aside class="preview-notice" aria-label="Release status">Development preview. Not available on the App Store. Public name, contacts and privacy copy await approval.</aside>`;
 const nav = (active) => `<nav aria-label="Main navigation">${[["index.html", "Overview"], ["support.html", "Rules & support"], ["privacy.html", "Privacy draft"]].map(([file, label]) => `<a href="${file}"${file === active ? ' aria-current="page"' : ""}>${label.replace("&", "&amp;")}</a>`).join("")}</nav>`;

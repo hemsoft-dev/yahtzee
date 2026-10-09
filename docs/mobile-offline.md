@@ -35,4 +35,4 @@ Physical backup/restore, uninstall and locked-device behavior still need device 
 - `nativePersistence.test.ts` covers validation, staged retries, concurrency, all modes, completion retention and reset at the storage interface.
 - `nativeSqlite.test.ts` uses real temporary SQLite files through Bun. It covers corruption preservation, schema rejection, SQL binding, restart, acknowledgment loss and explicit reset. It does not run Expo's native module.
 - The [native simulator workflow](native-simulator.md) builds and exercises the actual Expo iOS app, reads its database, compares resume bytes and tests corrupt documents/databases through the native recovery UI.
-- Real iPhone/iPad airplane-mode, VoiceOver, interruption, backup and TestFlight acceptance remain separate requirements in [issue 41](https://github.com/HemSoft/yahtzee/issues/41) and [issue 42](https://github.com/HemSoft/yahtzee/issues/42).
+- Real iPhone/iPad airplane-mode, VoiceOver, interruption, backup and TestFlight acceptance remain separate requirements in [issue 41](https://github.com/hemsoft-dev/yahtzee/issues/41) and [issue 42](https://github.com/hemsoft-dev/yahtzee/issues/42).

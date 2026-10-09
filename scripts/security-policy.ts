@@ -1,3 +1,5 @@
+import type { VerifiedRemediation } from "./security-remediations";
+
 export interface Exception {
   package: string;
   advisory: string;
@@ -7,7 +9,7 @@ export interface Exception {
 }
 
 /** Reject unknown scanner formats, unreviewed advisories and expired exceptions. */
-export function checkAudit(report: unknown, exceptions: Exception[], today: string): string[] {
+export function checkAudit(report: unknown, exceptions: Exception[], today: string, repairs: VerifiedRemediation[] = []): string[] {
   if (!report || typeof report !== "object" || Array.isArray(report)) {
     throw new Error("Invalid audit report");
   }
@@ -28,7 +30,8 @@ export function checkAudit(report: unknown, exceptions: Exception[], today: stri
       if (!advisory || typeof advisory.url !== "string" || typeof advisory.severity !== "string") {
         throw new Error(`Invalid advisory for ${name}`);
       }
-      if (!exceptions.some((entry) => entry.package === name && entry.advisory === advisory.url)) {
+      if (!exceptions.some((entry) => entry.package === name && entry.advisory === advisory.url)
+        && !repairs.some((entry) => entry.package === name && entry.advisory === advisory.url)) {
         failures.push(`${name}: ${advisory.severity} ${advisory.url}`);
       }
     }

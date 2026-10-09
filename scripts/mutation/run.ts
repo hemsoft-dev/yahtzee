@@ -21,7 +21,7 @@ const seconds = (performance.now() - started) / 1000;
 const artifact = { commit, dirty, seconds, thresholds: config.thresholds, ...summary };
 writeFileSync(resolve(directory, "summary.json"), JSON.stringify(artifact, null, 2) + "\n");
 const { metrics } = summary;
-const rows = summary.survivors.map((mutant) => `- [${mutant.file}:${mutant.line}](https://github.com/HemSoft/yahtzee/blob/${commit}/${mutant.file}#L${mutant.line}), mutant ${mutant.id}, ${mutant.operator}`);
+const rows = summary.survivors.map((mutant) => `- [${mutant.file}:${mutant.line}](https://github.com/hemsoft-dev/yahtzee/blob/${commit}/${mutant.file}#L${mutant.line}), mutant ${mutant.id}, ${mutant.operator}`);
 writeFileSync(resolve(directory, "summary.md"), `# Core-rule mutation results\n\nRevision ${commit}. Dirty: ${dirty}. Duration ${seconds.toFixed(1)} seconds.\n\nScore ${metrics.mutationScore.toFixed(4)}%. Break ${config.thresholds.break}%; target ${config.thresholds.high}%.\n\n${metrics.killed} killed, ${metrics.timeout} timed out, ${metrics.survived} survived, ${metrics.noCoverage} uncovered, ${metrics.compileErrors} compile errors, ${metrics.runtimeErrors} runtime errors, ${metrics.ignored} explicitly ignored, ${metrics.pending} pending.\n\n## Surviving mutants\n\n${rows.join("\n") || "None."}\n`);
 console.log(`Mutation score ${metrics.mutationScore.toFixed(4)}%; ${seconds.toFixed(1)} seconds; gate ${summary.passed ? "passed" : "failed"}.`);
 process.exitCode = result.exitCode === 0 && summary.passed ? 0 : 1;

@@ -29,7 +29,7 @@ export function Help() {
     } catch { setError("Could not open the system share sheet. The app version is shown below."); }
   };
   const source = async () => {
-    try { await Linking.openURL("https://github.com/HemSoft/yahtzee"); setError(null); }
+    try { await Linking.openURL("https://github.com/hemsoft-dev/yahtzee"); setError(null); }
     catch { setError("Could not open the source page. Try again when a browser is available."); }
   };
   const reset = () => confirm("Delete all local data", "Delete saved gameplay, completed history, high scores, names and appearance preferences on this device? This cannot be undone in the app.", () => { void store.resetAll(); });

@@ -13,7 +13,7 @@ function harness() {
     capture: async (name) => captures.push(name),
     openSession: async ({ env, deadline, onStderr }) => {
       opened++; childEnv = env;
-      assert(deadline > Date.now() && deadline <= Date.now() + 600000);
+      assert(deadline > Date.now() && deadline <= Date.now() + 1200000);
       onStderr("GITHUB_TOKEN=fixture-secret\n");
       return { call: async (name, args) => {
         calls.push({ name, args });

@@ -1,10 +1,10 @@
 # Mobile privacy engineering inventory
 
-Prepared September 27, 2026 for [issue #48](https://github.com/HemSoft/yahtzee/issues/48). This is an incomplete engineering record, not App Store answers or legal approval. The [policy source](../apps/mobile/PRIVACY.md) is a draft.
+Prepared September 27, 2026 for [issue #48](https://github.com/hemsoft-dev/yahtzee/issues/48). This is an incomplete engineering record, not App Store answers or legal approval. The [policy source](../apps/mobile/PRIVACY.md) is a draft.
 
 ## Observed native package
 
-The first [native build](https://github.com/HemSoft/yahtzee/actions/runs/36355495021), source `53bbfd32e17481f698db75ec2117440ea9d1d089`, produced an unsigned Release simulator app with Xcode 26.6 and SDK 26.5. Its packaged-app SHA-256 is `90d67f5d24e5135d7057d3a402962145e6e2891a09689d5ee1538d65ff364eda`. The build's [artifact](https://github.com/HemSoft/yahtzee/actions/runs/36355495021/artifacts/10944680287) has limited retention. It is not a signed device archive.
+The first [native build](https://github.com/hemsoft-dev/yahtzee/actions/runs/36355495021), source `53bbfd32e17481f698db75ec2117440ea9d1d089`, produced an unsigned Release simulator app with Xcode 26.6 and SDK 26.5. Its packaged-app SHA-256 is `90d67f5d24e5135d7057d3a402962145e6e2891a09689d5ee1538d65ff364eda`. The build's [artifact](https://github.com/hemsoft-dev/yahtzee/actions/runs/36355495021/artifacts/10944680287) has limited retention. It is not a signed device archive.
 
 Reading the actual packaged property lists found:
 
@@ -23,7 +23,7 @@ The installed `expo-file-system` 57.0.7 source does contain the manifest. Its po
 
 The source manifest declares file-timestamp reasons `0A2A.1` and `3B52.1`, and disk-space reasons `E174.1` and `85F4.1`. These are recorded as upstream SDK declarations, not independently approved reasons for this app.
 
-The repair opts only `expo-file-system` into source compilation through the SDK 57 Apple autolinker's `buildFromSource` option. [Native build 36361758690](https://github.com/HemSoft/yahtzee/actions/runs/36361758690), source `bc040c05b0a36ca6e4d214bba7dee14ce939dc86`, passed deployment-mode installation and package inspection. Eleven manifests are present. The SDK resource matches upstream, and all four previously missing reasons appear in the aggregate. The retained build's ten artifact hashes verified after download.
+The repair opts only `expo-file-system` into source compilation through the SDK 57 Apple autolinker's `buildFromSource` option. [Native build 36361758690](https://github.com/hemsoft-dev/yahtzee/actions/runs/36361758690), source `bc040c05b0a36ca6e4d214bba7dee14ce939dc86`, passed deployment-mode installation and package inspection. Eleven manifests are present. The SDK resource matches upstream, and all four previously missing reasons appear in the aggregate. The retained build's ten artifact hashes verified after download.
 
 [The inspection tool](../scripts/ios-native/privacy.mjs) compares each new built resource with the locked SDK source and checks those aggregate reasons. It retains observed manifests and purpose strings without supplying legal answers. This passing simulator inspection does not establish signed-archive contents, SDK signatures or network behavior.
 

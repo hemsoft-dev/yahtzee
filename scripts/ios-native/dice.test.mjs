@@ -75,23 +75,40 @@ function harness(options = {}) {
   let top = 320, held = false, rolls = 2, inspections = 0;
   const data = { preferences: { name: "Fixture" }, active: { revision: 0, game: { id: "fixture", dice: [5, 2, 3, 4, 6], held: [], rollsLeft: 2 } } };
   const calls = [], taps = [], stages = [], records = [];
+  function currentScreen() {
+    if (!options.native) return screen(top, held, rolls);
+    const value = structuredClone(options.native);
+    function update(nodes) {
+      for (const node of nodes) {
+        if (node.rid === "die-0") node.val = held ? "checkbox, checked, Held" : "checkbox, unchecked, Not held";
+        if (node.rid === "reroll-action") node.a11y = `Re-roll (${rolls})`;
+        if (node.c) update(node.c);
+      }
+    }
+    update(value.elements); return value;
+  }
   return { calls, taps, stages, records, inspections: () => inspections,
     io: {
-      inspect: async () => { inspections++; return screen(top, held, rolls); },
+      inspect: async () => { inspections++; return currentScreen(); },
       run: async (commands) => {
         calls.push(commands);
         const swipe = commands[0].swipe;
         if (swipe && !options.stuck) top += Number(swipe.end.split(",")[1]) - Number(swipe.start.split(",")[1]);
         const tap = commands[0].tapOn;
         if (!tap) return;
-        assert.equal(tap.retryTapIfNoChange, false); taps.push(tap.id);
-        if (tap.id === "die-0") {
-          assert.equal(diePosition(screen(top)).action, "tap");
+        assert.equal(tap.retryTapIfNoChange, false);
+        const id = tap.point ? "die-0" : tap.id; taps.push(id);
+        if (id === "die-0") {
+          assert.equal(tap.id, undefined, "A locator can recenter the already inspected die.");
+          const decision = diePosition(currentScreen());
+          assert.equal(decision.action, "tap");
+          const { left, right, top: targetTop, bottom } = decision.target;
+          assert.equal(tap.point, `${Math.round((left + right) / 2)},${Math.round((targetTop + bottom) / 2)}`);
           held = !options.noAcknowledgment; data.active.revision++;
           if (options.wrongHoldSave) data.active.game.rollsLeft--;
           else data.active.game.held = [0];
         } else {
-          assert.equal(tap.id, "reroll-action"); rolls = 1;
+          assert.equal(id, "reroll-action"); rolls = 1;
           data.active.game.rollsLeft = 1; data.active.revision++;
           if (options.changeHeldDie) data.active.game.dice[0] = 6;
           if (options.changeOtherData) data.preferences.name = "Unexpected change";
@@ -109,6 +126,15 @@ test("holding and rerolling tap once each after containment and verify exact sav
   assert.deepEqual(flow.stages, ["before-hold", "after-hold", "after-reroll"]);
   assert.equal(flow.records.filter((item) => item.action === "acknowledged").length, 2);
   // Unheld random dice may legitimately roll the same faces again.
+});
+test("the captured landscape tablet die is tapped once at its reachable center", async () => {
+  // 39fb366 tablet-eight AI run: locator tap left the die unchecked and revision zero.
+  const native = JSON.parse(readFileSync(new URL("./fixtures/tablet-landscape-die.json", import.meta.url), "utf8"));
+  const flow = harness({ native }); await holdAndReroll(flow.io);
+  const dieTap = flow.calls.flat().find((command) => command.tapOn?.point);
+  assert.deepEqual(dieTap.tapOn, { point: "156,368", retryTapIfNoChange: false });
+  assert.deepEqual(flow.taps, ["die-0", "reroll-action"]);
+  assert.equal(flow.records.filter((item) => item.action === "acknowledged").length, 2);
 });
 test("missing UI or save acknowledgment never retries the hold or advances to reroll", async () => {
   for (const options of [{ noAcknowledgment: true }, { wrongHoldSave: true }]) {

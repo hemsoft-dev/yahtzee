@@ -1,6 +1,6 @@
 # Unpublished companion-site preview
 
-Repository preparation for [issue #49](https://github.com/HemSoft/yahtzee/issues/49). This is not a deployed website or an approved privacy notice. There is no deployment workflow, public hosting configuration, App Store link or approved contact address.
+Repository preparation for [issue #49](https://github.com/hemsoft-dev/yahtzee/issues/49). This is not a deployed website or an approved privacy notice. There is no deployment workflow, public hosting configuration, App Store link or approved contact address.
 
 ## Build and inspect
 
@@ -37,7 +37,7 @@ Fresh read-only finish and documentation reviews found no material issues within
 ## Content provenance
 
 - [Shared scoring rules](../packages/game-engine/src/scoring.ts) define the mode counts, bonuses and combinations. Content tests compare the visible mode table with the engine.
-- Native save, reset, diagnostics and backup descriptions refer to [PR #57](https://github.com/HemSoft/yahtzee/pull/57), reviewed against source `22d76f2f90dd04d507506bd448ab64a37a1c0375`. That implementation was not merged when this preview was prepared. These statements concern the native development edition, not a released app or the online/Windows adapters. Recheck them against the accepted native source before publication.
+- Native save, reset, diagnostics and backup descriptions refer to [PR #57](https://github.com/hemsoft-dev/yahtzee/pull/57), reviewed against source `22d76f2f90dd04d507506bd448ab64a37a1c0375`. That implementation was not merged when this preview was prepared. These statements concern the native development edition, not a released app or the online/Windows adapters. Recheck them against the accepted native source before publication.
 - Native simulator evidence is engineering material. No synthetic test screenshots ship on these pages. Genuine privacy-safe captures still need owner approval.
 - The font and its unmodified license come from [the shared asset directory](../packages/ui/src/assets/README.md). The small pip SVG is original vector geometry. There are no shipping raster images or remote fonts.
 - The site's three external destinations are the public repository, issue list and release tracker. Reporting requires a GitHub account. Private vulnerability reporting was disabled when inspected on September 27, 2026; no private contact is advertised.
@@ -48,11 +48,11 @@ No analytics, forms, third-party embeds, scripts, cookie code or browser-storage
 
 Repository maintainers may prepare and review code. The owner must explicitly authorize publication and resolve the following items first:
 
-1. Approve the public name, rights, responsible publisher, release scope and final copy through [#39](https://github.com/HemSoft/yahtzee/issues/39).
-2. Approve a public support destination and a private/security-sensitive reporting route through [#44](https://github.com/HemSoft/yahtzee/issues/44). Do not copy an address from another project or use public issues for private reports.
-3. Approve the privacy notice after the app/SDK/traffic review in [#48](https://github.com/HemSoft/yahtzee/issues/48). Record the host's access logs, retention, processing and policy owner. No legal acceptance is inferred from tests.
+1. Approve the public name, rights, responsible publisher, release scope and final copy through [#39](https://github.com/hemsoft-dev/yahtzee/issues/39).
+2. Approve a public support destination and a private/security-sensitive reporting route through [#44](https://github.com/hemsoft-dev/yahtzee/issues/44). Do not copy an address from another project or use public issues for private reports.
+3. Approve the privacy notice after the app/SDK/traffic review in [#48](https://github.com/hemsoft-dev/yahtzee/issues/48). Record the host's access logs, retention, processing and policy owner. No legal acceptance is inferred from tests.
 4. Select hosting and stable HTTPS marketing/support/privacy URLs, and record the deployment owner, credentials owner, rollback procedure and maintenance responsibility. Configure hosting only after approval. This repository currently has no site deploy command.
-5. Approve genuine native captures through [#51](https://github.com/HemSoft/yahtzee/issues/51). Add a verified store destination only after it exists. Keep the action honest while prerelease.
+5. Approve genuine native captures through [#51](https://github.com/hemsoft-dev/yahtzee/issues/51). Add a verified store destination only after it exists. Keep the action honest while prerelease.
 6. Recheck the accepted app's behavior, unauthenticated links, mobile layouts, keyboard and assistive-technology behavior. Remove draft notices and indexing restrictions only as part of the approved publication change.
 
-A future deployment change must replace the unpublished-only builder contract deliberately, with review and fresh qualification. Do not upload this draft merely because the files are static. [Issue #49](https://github.com/HemSoft/yahtzee/issues/49) remains open for that acceptance work.
+A future deployment change must replace the unpublished-only builder contract deliberately, with review and fresh qualification. Do not upload this draft merely because the files are static. [Issue #49](https://github.com/hemsoft-dev/yahtzee/issues/49) remains open for that acceptance work.

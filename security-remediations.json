@@ -1,0 +1,36 @@
+[
+  {
+    "package": "braces",
+    "version": "3.0.3",
+    "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    "patch": "patches/braces@3.0.3.patch",
+    "patchSha256": "f77aecb6b5505b12225703e5b49c06eb64a44b952ad50a4d17428f7a77c3294d",
+    "files": {
+      "lib/parse.js": "f07d1342cce850dbe643ac18ec318c2a8750ddb21f74c91d0da3c6dacff7dd52",
+      "lib/compile.js": "67d4efd825c1860f3fdb510a948871d2d7223d6d7cc23d56a444365a1a4015d3",
+      "lib/expand.js": "bb45fe1c49b6f9dd40e7b89746c816077c57c0fc7c5b91681c8614eb7eef59ac",
+      "lib/stringify.js": "19a44eb696eb0883efd84f1769bb0b56b85d8c84079402dc8a8c0faa438b5160",
+      "lib/utils.js": "76082e373e92da77c95fcc1233b527c8301e07c096506885f2684936c8756be2"
+    }
+  },
+  {
+    "package": "node-forge",
+    "version": "1.4.0",
+    "advisory": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
+    "patch": "patches/node-forge@1.4.0.patch",
+    "patchSha256": "ed291e22844c1feb80cbfa5ce0f0e48e9c15726bd0859eba5e9067b069d8b95a",
+    "files": {
+      "lib/rsa.js": "4bfba9a21256ecda994bd8da2a3163bd82b04190060503a5165b126c8aa79e7e"
+    }
+  },
+  {
+    "package": "sprintf-js",
+    "version": "1.1.3",
+    "advisory": "https://github.com/advisories/GHSA-hp3w-g68c-fv3c",
+    "patch": "patches/sprintf-js@1.1.3.patch",
+    "patchSha256": "30264ede1ecbc6d3366688e046b527a3bbfadc033dedb2db78ec877921d3461d",
+    "files": {
+      "src/sprintf.js": "58be5f3b7dd2362285575700e63b9a71a04fbce3daaa442c0ea7c61b86a27357"
+    }
+  }
+]
