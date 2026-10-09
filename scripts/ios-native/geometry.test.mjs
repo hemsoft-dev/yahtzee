@@ -87,3 +87,15 @@ test("lack of score acknowledgment never triggers another tap; stuck geometry is
   await assert.rejects(scoreCategories({ ...options, categories: ["ones"], inspect: async () => { inspections++; return screen([row("ones", 750)]); } }), /30 inspections/);
   assert.equal(inspections, 30); assert.equal(taps, 1);
 });
+
+test("the captured tall phone row is tapped once at its inspected center", async () => {
+  let finished = false;
+  const calls = [];
+  await scoreCategories({ categories: ["tower"],
+    inspect: async () => finished ? screen([{ b: "[20,200][382,256]", a11y: "Game Over!" }])
+      : screen([{ rid: "score-tower", a11y: "Score tower, 0 points", b: "[20,563][382,678]" }]),
+    run: async (commands) => { if (commands[0].tapOn) { calls.push(commands[0].tapOn); finished = true; } },
+    capture: async () => {}, record: () => {},
+  });
+  assert.deepEqual(calls, [{ point: "201,621", retryTapIfNoChange: false }]);
+});

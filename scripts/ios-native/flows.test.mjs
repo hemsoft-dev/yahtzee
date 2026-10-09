@@ -81,3 +81,11 @@ test("corruption flow never clears state and reset includes cancellation first",
     if (reset) assert(steps.findIndex((step) => step.value?.text === "Cancel") < steps.findIndex((step) => step.value?.index === 1));
   }
 });
+
+test("a diagnostic text block taller than the viewport need not fit entirely to reach Cancel", () => {
+  const steps = parse(completeEndFlow("com.hemsoft.yahtzee", true));
+  const preview = steps.find((step) => step.command === "scrollUntilVisible" && step.value.element.id === "diagnostics-preview");
+  assert.equal(preview.value.visibilityPercentage, 10);
+  const cancel = steps.find((step) => step.command === "scrollUntilVisible" && step.value.element.text === "Cancel preview");
+  assert.equal(cancel.value.visibilityPercentage, 100);
+});
