@@ -33,7 +33,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HemSoft/yahtzee.git"
+    "url": "git+https://github.com/hemsoft-dev/yahtzee.git"
   },
   "dependencies": {
     "convex": "1.46.0"
