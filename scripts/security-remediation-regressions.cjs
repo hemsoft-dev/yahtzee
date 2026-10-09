@@ -14,6 +14,17 @@ let nestedValue = 'a';
 for (let index = 0; index < 4000; index++) nestedValue = [nestedValue];
 assert.throws(() => braces.expand({ type: 'root', nodes: [{ type: 'text', value: nestedValue }] }), /safe depth/);
 assert.throws(() => require('braces/lib/utils').flatten(nestedValue), /safe depth/);
+for (const cyclic of [true, false]) {
+  const node = { type: 'text', nodes: [] };
+  if (cyclic) node.parent = node;
+  else {
+    let parent = node;
+    for (let index = 0; index < 4000; index++) parent = parent.parent = { type: 'text', nodes: [] };
+  }
+  assert.throws(() => braces.expand(node), /safe depth/);
+  assert.throws(() => braces.expand({ type: 'root', nodes: [node] }), /safe depth/);
+  assert.throws(() => braces.expand({ type: 'root', nodes: [{ ...node, nodes: [{ type: 'root', nodes: [] }] }] }), /safe depth/);
+}
 for (const kind of ['f', 'e', 'g']) assert.doesNotThrow(() => sprintf(`%.1000000000${kind}`, 1));
 assert.equal(sprintf('%.2f', 1.234), '1.23');
 const pair = forge.pki.rsa.generateKeyPair({ bits: 1024, e: 3 });

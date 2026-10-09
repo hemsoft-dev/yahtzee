@@ -22,7 +22,7 @@ index dce69beb90ece5c3b0ca234a949418f9f34eedbc..cc3474749093ed1fd5f3626d30c0f35f
      }
  
 diff --git a/lib/expand.js b/lib/expand.js
-index 35b2c41d6afdb8f0197959e26079f266e48370d3..39af2b2867873f2820472a8cb0db5b0a3f4b9c69 100644
+index 35b2c41d6afdb8f0197959e26079f266e48370d3..28c921bad9db6187e471b3b64fb027bff0480df1 100644
 --- a/lib/expand.js
 +++ b/lib/expand.js
 @@ -4,7 +4,8 @@ const fill = require('fill-range');
@@ -50,7 +50,7 @@ index 35b2c41d6afdb8f0197959e26079f266e48370d3..39af2b2867873f2820472a8cb0db5b0a
        }
      }
    }
-@@ -33,7 +34,8 @@ const append = (queue = '', stash = '', enclose = false) => {
+@@ -33,13 +34,16 @@ const append = (queue = '', stash = '', enclose = false) => {
  const expand = (ast, options = {}) => {
    const rangeLimit = options.rangeLimit === undefined ? 1000 : options.rangeLimit;
  
@@ -60,7 +60,25 @@ index 35b2c41d6afdb8f0197959e26079f266e48370d3..39af2b2867873f2820472a8cb0db5b0a
      node.queue = [];
  
      let p = parent;
-@@ -100,7 +102,7 @@ const expand = (ast, options = {}) => {
+     let q = parent.queue;
+ 
++    let parentHops = 0;
+     while (p.type !== 'brace' && p.type !== 'root' && p.parent) {
++      if (++parentHops >= 128) throw new SyntaxError('Brace parent chain exceeds the safe depth limit');
+       p = p.parent;
+       q = p.queue;
+     }
+@@ -75,7 +79,9 @@ const expand = (ast, options = {}) => {
+     let queue = node.queue;
+     let block = node;
+ 
++    let blockHops = 0;
+     while (block.type !== 'brace' && block.type !== 'root' && block.parent) {
++      if (++blockHops >= 128) throw new SyntaxError('Brace parent chain exceeds the safe depth limit');
+       block = block.parent;
+       queue = block.queue;
+     }
+@@ -100,7 +106,7 @@ const expand = (ast, options = {}) => {
        }
  
        if (child.nodes) {
