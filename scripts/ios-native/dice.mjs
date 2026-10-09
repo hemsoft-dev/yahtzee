@@ -5,7 +5,7 @@ async function reach(kind, position, { inspect, run, record }) {
   for (let attempt = 0; attempt < 30; attempt++) {
     await run([{ waitForAnimationToEnd: { timeout: 5000 } }]);
     const decision = position(await inspect()); record({ kind, attempt, ...decision });
-    if (decision.action === "tap") return;
+    if (decision.action === "tap") return decision.target;
     if (decision.action === "swipe") await run([{ swipe: { start: decision.start, end: decision.end, duration: decision.duration } }]);
   }
   throw new Error(`Native ${kind} did not become reachable within 30 inspections.`);
@@ -19,8 +19,11 @@ export async function holdAndReroll({ readSave, ...io }) {
   const before = await readSave("before-hold");
   assert.equal(before.active?.revision, 0, "Expected a newly started game.");
   assert.equal(before.active.game.rollsLeft, 2); assert.deepEqual(before.active.game.held, []);
-  await reach("die", diePosition, io); await capture("die-ready");
-  await run([{ tapOn: { id: "die-0", enabled: true, retryTapIfNoChange: false } },
+  const die = await reach("die", diePosition, io); await capture("die-ready");
+  // A locator tap missed a fully reachable landscape die without changing the save.
+  // Use the inspected center once, retaining the UI and exact saved-state acknowledgments.
+  const point = `${Math.round((die.left + die.right) / 2)},${Math.round((die.top + die.bottom) / 2)}`;
+  await run([{ tapOn: { point, retryTapIfNoChange: false } },
     { extendedWaitUntil: { visible: { id: "die-0", text: ".*checked, Held" }, timeout: 15000 } }]);
   assertHeld(await inspect());
   const held = await readSave("after-hold"), expected = structuredClone(before);

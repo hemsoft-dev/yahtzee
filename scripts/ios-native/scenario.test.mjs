@@ -35,7 +35,7 @@ function harness({ changedResume = false, missingCompletion = false, failedHold 
         },
         run: async (commands) => {
           const tap = commands[0].tapOn; if (!tap) return;
-          const id = tap.id ?? ({ "686,262": "score-ones", "686,328": "score-chance" })[tap.point];
+          const id = tap.id ?? ({ "68,368": "die-0", "686,262": "score-ones", "686,328": "score-chance" })[tap.point];
           assert.equal(tap.retryTapIfNoChange, false); taps.push(id);
           if (id === "die-0") { if (!failedHold) { data.active.game.held = [0]; data.active.revision++; } }
           else if (id === "reroll-action") { data.active.game.rollsLeft = 1; data.active.revision++; }
