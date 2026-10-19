@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { resetPosition, confirmReset } from "./reset.mjs";
+import { resetPosition, confirmReset, recoveryHelpPosition } from "./reset.mjs";
 
 const fixture = () => JSON.parse(readFileSync(new URL("./fixtures/reset-confirmation.json", import.meta.url)));
 
@@ -25,11 +25,30 @@ test("missing confirmation, disabled action and ambiguous actions fail before ta
   }
 });
 
+const recovery = () => ({ ui_schema: { platform: "ios", defaults: { enabled: true } },
+  elements: [{ b: "[0,0][1032,1376]", c: [{ a11y: "Help", b: "[700,100][850,170]" }] }] });
+
+test("recovery Help must have one reachable action", () => {
+  assert.equal(recoveryHelpPosition(recovery()).point, "775,135");
+  const screen = recovery(); screen.elements[0].c[0].b = "[700,-10][850,170]";
+  assert.throws(() => recoveryHelpPosition(screen), /fit inside/);
+});
+
+test("a missed Help transition stops before scrolling or opening reset", async () => {
+  const calls = [];
+  const io = { runFlow: async () => {}, inspect: async () => recovery(), record: () => {}, capture: async () => {},
+    run: async (commands) => { calls.push(commands); if (commands.some((command) => command.assertVisible === "How to play")) throw new Error("Help did not open"); } };
+  await assert.rejects(confirmReset("fixture.app", io), /Help did not open/);
+  assert.equal(calls.flat().filter((command) => command.tapOn?.point).length, 1);
+  assert(!calls.flat().some((command) => command.scrollUntilVisible));
+});
+
 test("reset taps once and requires dialog dismissal before leaving Help", async () => {
   const calls = [];
-  const io = { runFlow: async () => {}, inspect: async () => fixture(), record: () => {}, capture: async () => {},
-    run: async (commands) => { calls.push(commands); if (commands.some((command) => command.assertNotVisible)) throw new Error("dialog still open"); } };
+  let inspections = 0;
+  const io = { runFlow: async () => {}, inspect: async () => inspections++ ? fixture() : recovery(), record: () => {}, capture: async () => {},
+    run: async (commands) => { calls.push(commands); if (commands.some((command) => command.tapOn?.point === "516,1097")) throw new Error("dialog still open"); } };
   await assert.rejects(confirmReset("fixture.app", io), /dialog still open/);
-  assert.equal(calls.flat().filter((command) => command.tapOn?.point).length, 1);
+  assert.equal(calls.flat().filter((command) => command.tapOn?.point === "516,1097").length, 1);
   assert(!calls.flat().some((command) => command.tapOn?.text === "Done"));
 });
