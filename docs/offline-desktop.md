@@ -1,6 +1,6 @@
 # Portable offline edition
 
-The Windows offline edition runs the existing game locally, without Convex, internet access, an account, or installed developer tools. It uses the shared rules, including the recent scoring, bonus, and suggestion changes. The online desktop, web, and mobile entry points remain separate.
+The Windows offline edition runs the existing game locally, without Convex, internet access, an account, or installed developer tools. It uses the shared rules, including the recent scoring, bonus, and suggestion changes. The online desktop/web entry points and the [separate offline native mobile adapter](mobile-offline.md) remain separate. Native mobile can resume acknowledged active games; this Windows edition stores completed games only.
 
 ## Build and share
 

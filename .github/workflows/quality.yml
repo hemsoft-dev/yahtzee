@@ -44,7 +44,9 @@ jobs:
       - name: iOS release-record consistency tests and draft check
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
-          node --test scripts/ios-release/*.test.mjs scripts/ios-assets/*.test.mjs scripts/ios-native/*.test.mjs
+          node --test scripts/ios-release/*.test.mjs scripts/ios-assets/*.test.mjs scripts/ios-native/*.test.mjs scripts/ios-capture/*.test.mjs
+          bun test scripts/ios-capture/fixtures.test.ts
+          bunx tsc -p scripts/tsconfig.json
           node scripts/ios-release/check.mjs
       - name: Unit and backend tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}

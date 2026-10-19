@@ -1,0 +1,32 @@
+{
+  "provenance": {
+    "runId": "36793367784",
+    "source": "eaae3ecf910a62ca7603e1783c6ba292adfc843b",
+    "profile": "phone-69",
+    "kind": "Native hierarchy excerpts from fictional draft captures, not gameplay evidence"
+  },
+  "cases": [
+    {
+      "anchorLabel": "Numbers",
+      "focus": "score-three-of-a-kind",
+      "screen": {
+        "ui_schema": { "platform": "ios", "defaults": { "enabled": true } },
+        "elements": [{ "rid": "score-viewport", "b": "[0,164][440,854]", "c": [
+          { "a11y": "Numbers", "b": "[20,151][420,175]", "c": [{ "a11y": "Numbers", "b": "[20,151][420,175]" }] },
+          { "rid": "score-three-of-a-kind", "b": "[20,745][420,801]", "a11y": "Score Three of a Kind, 15 points", "enabled": true }
+        ] }]
+      }
+    },
+    {
+      "anchorLabel": "Numbers",
+      "focus": "score-sixes",
+      "screen": {
+        "ui_schema": { "platform": "ios", "defaults": { "enabled": true } },
+        "elements": [{ "rid": "score-viewport", "b": "[0,164][440,854]", "c": [
+          { "a11y": "Numbers", "b": "[20,377][420,401]", "c": [{ "a11y": "Numbers", "b": "[20,377][420,401]" }] },
+          { "rid": "score-sixes", "b": "[20,691][420,762]", "a11y": "Score Sixes, 30 points, suggested", "enabled": true }
+        ] }]
+      }
+    }
+  ]
+}
