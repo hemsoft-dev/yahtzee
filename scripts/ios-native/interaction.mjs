@@ -6,7 +6,7 @@ import { redactDriverLog } from "./driverLogs.mjs";
 
 /** One bounded local driver session for the owned simulator. */
 export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro }) {
-  assert(["complete", "hold", "scenario"].includes(prefix), "Unknown native interaction phase.");
+  assert(["complete", "hold", "scenario", "reset"].includes(prefix), "Unknown native interaction phase.");
   let diagnostics = "", sequence = 0, timingUnavailable = false;
   const timings = [];
   function timingNotice() {
