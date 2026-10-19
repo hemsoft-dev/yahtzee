@@ -22,8 +22,12 @@ export function completeStartFlow(bundleId) {
   return header(bundleId, [command("launchApp", { permissions: { all: "deny" } }), scroll({ text: "Resume Game" }), tap("Resume Game"),
     visible("Re-roll \\(1\\)"), command("waitForAnimationToEnd", { timeout: 5000 }), command("assertVisible", { id: "score-viewport" }), shot("ready-to-score")]);
 }
-export function completeEndFlow(bundleId, previewDiagnostics = false) {
-  return header(bundleId, [command("launchApp", { stopApp: false, clearState: false, permissions: { all: "deny" } }),
+export function completeReadyFlow(bundleId) {
+  return header(bundleId, [visible("Re-roll \\(1\\)"), command("waitForAnimationToEnd", { timeout: 5000 }),
+    command("assertVisible", { id: "score-viewport" }), shot("ready-to-score")]);
+}
+export function completeEndFlow(bundleId, previewDiagnostics = false, alreadyForeground = false) {
+  return header(bundleId, [...(alreadyForeground ? [] : [command("launchApp", { stopApp: false, clearState: false, permissions: { all: "deny" } })]),
     visible("Game Over!"), shot("results"), tap("History"), visible("Local history"), shot("history"),
     command("launchApp", { permissions: { all: "deny" } }), scroll({ text: "Review saved result" }), tap("Review saved result"),
     visible("Game Over!"), tap("Help"), visible("How to play"), shot("help"),
