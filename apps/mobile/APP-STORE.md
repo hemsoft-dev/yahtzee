@@ -20,7 +20,7 @@ The shared UI/rules/Windows work landed in [#55](https://github.com/hemsoft-dev/
 
 The native app also includes Help, local history, preview-only optional diagnostics and original development icon/launch artwork. [Storage contracts](../../docs/mobile-offline.md), [native qualification](../../docs/native-simulator.md), [privacy observations](../../docs/mobile-privacy-audit.md) and [asset provenance](assets/README.md) record the limits. The source-built FileSystem resource and aggregate privacy manifests pass packaging checks, not legal or traffic acceptance.
 
-Release records landed in [#56](https://github.com/hemsoft-dev/yahtzee/pull/56). The [unpublished website](https://github.com/hemsoft-dev/yahtzee/pull/58), [alpha-channel rejection](https://github.com/hemsoft-dev/yahtzee/pull/59) and [bounded PNG validation](https://github.com/hemsoft-dev/yahtzee/pull/60) are delivered repository preparation. [Draft capture automation](https://github.com/hemsoft-dev/yahtzee/pull/61) remains an open PR. Fictional scenes are not played-game evidence or accepted store images.
+Release records landed in [#56](https://github.com/hemsoft-dev/yahtzee/pull/56). The [unpublished website](https://github.com/hemsoft-dev/yahtzee/pull/58), [alpha-channel rejection](https://github.com/hemsoft-dev/yahtzee/pull/59) and [bounded PNG validation](https://github.com/hemsoft-dev/yahtzee/pull/60) are delivered repository preparation. [Draft capture automation](https://github.com/hemsoft-dev/yahtzee/pull/61) is merged preparation; accepted store screenshots remain pending. Fictional scenes are not played-game evidence or accepted store images.
 
 This records source delivery, not a signed release candidate. Live workflow outcomes and recovery receipts belong to the linked PRs; a later failed run is not erased by an earlier pass.
 
@@ -74,7 +74,7 @@ Leave a checkbox open until its linked receipt proves the exact candidate.
 | Data flows, native manifests, privacy/export declarations | Maintainer and owner | [#48](https://github.com/hemsoft-dev/yahtzee/issues/48) |
 | Public marketing/support/privacy URLs | Maintainer and owner | [#49](https://github.com/hemsoft-dev/yahtzee/issues/49) |
 | Listing fields, claims and previews | Maintainer and owner | [#50](https://github.com/hemsoft-dev/yahtzee/issues/50) |
-| Ordered native screenshots | Maintainer and owner | [#51](https://github.com/hemsoft-dev/yahtzee/issues/51), draft automation under review; accepted candidate/listing correspondence pending |
+| Ordered native screenshots | Maintainer and owner | [#51](https://github.com/hemsoft-dev/yahtzee/issues/51), draft automation merged; accepted candidate/listing correspondence pending |
 | Signed TestFlight acceptance | Device tester and owner | [#52](https://github.com/hemsoft-dev/yahtzee/issues/52) |
 | Submission approval, review correspondence and Apple approval | Owner | [#53](https://github.com/hemsoft-dev/yahtzee/issues/53) |
 | Publication, store-installed smoke, source tag and support check | Owner and maintainer | [#54](https://github.com/hemsoft-dev/yahtzee/issues/54) |
