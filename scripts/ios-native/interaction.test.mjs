@@ -24,6 +24,20 @@ function harness() {
     } };
   return { options, calls, captures, state: () => ({ opened, closed, childEnv }), cleanup: () => rmSync(directory, { recursive: true }) };
 }
+test("integration preserves the full-scenario budget and the shorter standalone budgets", async () => {
+  for (const [prefix, budget] of [["scenario", 1200000], ["hold", 600000], ["complete", 600000]]) {
+    const flow = harness(), open = flow.options.openSession;
+    const started = Date.now(); let observedDeadline;
+    try {
+      await nativeInteraction({ ...flow.options, prefix, exercise: async () => {}, openSession: async (options) => {
+        observedDeadline = options.deadline;
+        return open(options);
+      } });
+      assert(observedDeadline >= started + budget && observedDeadline <= Date.now() + budget, `${prefix} must retain its ${budget}ms budget`);
+      assert.equal(flow.state().closed, 1);
+    } finally { flow.cleanup(); }
+  }
+});
 test("multiple authored flows and inspections use exactly one owned bounded session", async () => {
   const flow = harness();
   try {
@@ -56,6 +70,25 @@ test("failure preserves its phase screenshot and closes the same session without
     assert.equal(flow.state().opened, 1); assert.equal(flow.state().closed, 1);
     assert.equal(flow.calls.filter((item) => item.name === "run").length, 1);
     assert.deepEqual(flow.captures, ["scenario-failure"]);
+  } finally { flow.cleanup(); }
+});
+test("call duration stays monotonic when the host wall clock moves backwards", async (context) => {
+  const flow = harness(), open = flow.options.openSession;
+  let wall = 10000000, monotonic = 500;
+  context.mock.method(Date, "now", () => wall);
+  context.mock.method(performance, "now", () => monotonic);
+  try {
+    await nativeInteraction({ ...flow.options, exercise: (io) => io.run([{ waitForAnimationToEnd: { timeout: 5000 } }]), openSession: async (options) => {
+      const client = await open(options), call = client.call;
+      return { ...client, call: async (name, args) => {
+        if (name === "run") { wall -= 3600000; monotonic += 125; }
+        return call(name, args);
+      } };
+    } });
+    const entries = readFileSync(join(flow.options.directory, "scenario-tool-timing.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+    assert.equal(entries.at(-1).started, 10000000);
+    assert.equal(entries.at(-1).elapsedMs, 125);
+    assert.equal(flow.calls.filter((entry) => entry.name === "run").length, 1);
   } finally { flow.cleanup(); }
 });
 test("throwing tool keeps its error and only timing metadata before failure capture", async () => {

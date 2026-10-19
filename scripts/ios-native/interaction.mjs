@@ -21,10 +21,10 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   let client, shutdownFailed = false, shutdownError, diagnosticFailed = false, diagnosticError;
   async function call(name, args) {
     assert(Date.now() < deadline, "Native interaction exceeded its bounded session budget.");
-    const started = Date.now(); let outcome = "threw";
+    const started = Date.now(), monotonicStarted = performance.now(); let outcome = "threw";
     try { const result = await client.call(name, args); outcome = "returned"; return result; }
     finally {
-      if (timings.length < 2048) timings.push(JSON.stringify({ tool: name, flowSequence: sequence, started, elapsedMs: Date.now() - started, outcome }));
+      if (timings.length < 2048) timings.push(JSON.stringify({ tool: name, flowSequence: sequence, started, elapsedMs: performance.now() - monotonicStarted, outcome }));
       else timingNotice();
     }
   }
