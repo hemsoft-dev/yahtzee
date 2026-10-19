@@ -43,7 +43,7 @@ The repair opts only `expo-file-system` into source compilation through the SDK 
 | SDK telemetry and crash behavior | No app-authored telemetry client; declared manifests inspected | Measure every release SDK, including OS-mediated diagnostics |
 | Account, ads, purchases and cloud sync | Not implemented in the native app | Confirm final scope has not changed before declarations |
 
-See [the persistence boundary](mobile-offline.md) for storage and recovery behavior. The Node, browser and Bun SQLite tests do not replace device evidence. The [reviewed native qualification](https://github.com/HemSoft/yahtzee/actions/runs/36795531946) and [merged foundation](https://github.com/HemSoft/yahtzee/pull/57) add unsigned simulator observations, not signed-candidate acceptance. The historical package hashes above remain historical and must not be presented as a new candidate's hashes.
+See [the persistence boundary](mobile-offline.md) for storage and recovery behavior. The Node, browser and Bun SQLite tests do not replace device evidence. The [reviewed native qualification](https://github.com/hemsoft-dev/yahtzee/actions/runs/36795531946) and [merged foundation](https://github.com/hemsoft-dev/yahtzee/pull/57) add unsigned simulator observations, not signed-candidate acceptance. The historical package hashes above remain historical and must not be presented as a new candidate's hashes.
 
 ## Signed-candidate acceptance still required
 

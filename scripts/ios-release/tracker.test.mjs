@@ -24,6 +24,11 @@ test("release tracker reflects the local native root without promoting draft acc
   assert.match(changelog, /## Unreleased/);
   assertDraft(candidate);
 });
+test("active release and reporting documents use canonical repository links", () => {
+  for (const path of ["apps/mobile/APP-STORE.md", "apps/mobile/CHANGELOG.md", "docs/mobile-privacy-audit.md", "docs/native-simulator.md", "SECURITY.md", ".github/ISSUE_TEMPLATE/bug_report.md", ".github/ISSUE_TEMPLATE/feature_request.md"]) {
+    assert.doesNotMatch(read(path), /https:\/\/github\.com\/HemSoft\/yahtzee(?:\/|\b)/i, `${path} must not rely on the former-owner redirect`);
+  }
+});
 test("draft guard rejects a fabricated accepted screenshot manifest hash", () => {
   const candidate = JSON.parse(read("apps/mobile/release/candidate.json"));
   assert.throws(() => assertDraft({ ...candidate, screenshotManifestSha256: "0".repeat(64) }), /screenshotManifestSha256/);
