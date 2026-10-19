@@ -1,6 +1,6 @@
 # iOS release tracker
 
-Status: preparation only. No approved public name, signed candidate, App Store record, TestFlight acceptance or public release is recorded here. The current native app still uses Convex. A JavaScript export does not prove an offline iOS release.
+Status: preparation only. No approved public name, signed candidate, App Store record, TestFlight acceptance or public release is recorded here. The separate native app now uses local acknowledged SQLite saves and the shared rules without required Convex access. Unsigned simulator qualification does not establish signed-device or store acceptance.
 
 Parent: [#38](https://github.com/hemsoft-dev/yahtzee/issues/38). Release records: [#47](https://github.com/hemsoft-dev/yahtzee/issues/47).
 
@@ -12,7 +12,17 @@ The repository maintainer owns implementation, repeatable checks and evidence co
 
 Use the existing Expo/React Native app and shared TypeScript engine. The reversible engineering baseline is one local human, zero to three AI opponents, mobile presets of five/six/eight/ten dice and English. Preserve the current Castle rule of two distinct triples and the all-dice-matching rule in larger games. Do not invent a dedicated six-of-a-kind category or treat these choices as an owner-approved public rules contract.
 
-Proposed v1 excludes accounts, remote multiplayer, cloud scores/sync, analytics, ads, purchases, subscriptions, Game Center, widgets and Watch. Device/orientation/minimum-OS details require native qualification. Keep the current development identifier private to development; do not reserve or publish an App Store identity under it.
+The implemented development scope excludes accounts, remote multiplayer, cloud scores/sync, analytics, ads, purchases, subscriptions, Game Center, widgets and Watch. The native baseline proposes iOS 17, supports iPhone/iPad and automatic orientation/appearance, and uses version 1.0.0/build 1. These are observed development settings, not owner-approved release choices. Keep the current identifier development-only; do not reserve an App Store identity under it.
+
+## Repository preparation delivered
+
+The shared UI/rules/Windows work landed in [#55](https://github.com/hemsoft-dev/yahtzee/pull/55). The native foundation landed in [#57](https://github.com/hemsoft-dev/yahtzee/pull/57), merge `0e3f2fec20148a0f09c14874fae6fe7efe798e60`. Its reviewed source `86011d88d87b264e7b3b09011527842321de1c2b` passed [unsigned simulator qualification](https://github.com/hemsoft-dev/yahtzee/actions/runs/36795531946) across five/six/eight/ten dice, solo/three AI, acknowledged cold resume, largest text, corrupt-data preservation and explicit reset/relaunch. The phone-six group passed a fresh failed-group rerun; its original cold-resume navigation miss remains retained. No existing state-changing tap was replayed.
+
+The native app also includes Help, local history, preview-only optional diagnostics and original development icon/launch artwork. [Storage contracts](../../docs/mobile-offline.md), [native qualification](../../docs/native-simulator.md), [privacy observations](../../docs/mobile-privacy-audit.md) and [asset provenance](assets/README.md) record the limits. The source-built FileSystem resource and aggregate privacy manifests pass packaging checks, not legal or traffic acceptance.
+
+Release records landed in [#56](https://github.com/hemsoft-dev/yahtzee/pull/56). The [unpublished website](https://github.com/hemsoft-dev/yahtzee/pull/58), [alpha-channel rejection](https://github.com/hemsoft-dev/yahtzee/pull/59) and [bounded PNG validation](https://github.com/hemsoft-dev/yahtzee/pull/60) are delivered repository preparation. [Draft capture automation](https://github.com/hemsoft-dev/yahtzee/pull/61) is merged preparation; accepted store screenshots remain pending. Fictional scenes are not played-game evidence or accepted store images.
+
+This records source delivery, not a signed release candidate. Live workflow outcomes and recovery receipts belong to the linked PRs; a later failed run is not erased by an earlier pass.
 
 The release scope and rights decision remains [#39](https://github.com/hemsoft-dev/yahtzee/issues/39). Existing repository branding and its MIT license are not trademark clearance.
 
@@ -54,7 +64,7 @@ Leave a checkbox open until its linked receipt proves the exact candidate.
 | Gate | Owner | Evidence and prerequisite |
 | --- | --- | --- |
 | Public identity, rights, scope, commerce | Owner | [#39](https://github.com/hemsoft-dev/yahtzee/issues/39), not approved |
-| Shared baseline and native configuration | Maintainer | [#40](https://github.com/hemsoft-dev/yahtzee/issues/40), baseline PR under review |
+| Shared baseline and native configuration | Maintainer | [#40](https://github.com/hemsoft-dev/yahtzee/issues/40), unsigned foundation merged; approved identity pending |
 | Offline saves, recovery and resume | Maintainer | [#41](https://github.com/hemsoft-dev/yahtzee/issues/41), real-device evidence required |
 | Native UI and accessibility | Maintainer and device tester | [#42](https://github.com/hemsoft-dev/yahtzee/issues/42) |
 | Team/app record, price, territories, EULA, trader status, age rating | Owner | [#43](https://github.com/hemsoft-dev/yahtzee/issues/43), App Store state not verified |
@@ -64,7 +74,7 @@ Leave a checkbox open until its linked receipt proves the exact candidate.
 | Data flows, native manifests, privacy/export declarations | Maintainer and owner | [#48](https://github.com/hemsoft-dev/yahtzee/issues/48) |
 | Public marketing/support/privacy URLs | Maintainer and owner | [#49](https://github.com/hemsoft-dev/yahtzee/issues/49) |
 | Listing fields, claims and previews | Maintainer and owner | [#50](https://github.com/hemsoft-dev/yahtzee/issues/50) |
-| Ordered native screenshots | Maintainer | [#51](https://github.com/hemsoft-dev/yahtzee/issues/51) |
+| Ordered native screenshots | Maintainer and owner | [#51](https://github.com/hemsoft-dev/yahtzee/issues/51), draft automation merged; accepted candidate/listing correspondence pending |
 | Signed TestFlight acceptance | Device tester and owner | [#52](https://github.com/hemsoft-dev/yahtzee/issues/52) |
 | Submission approval, review correspondence and Apple approval | Owner | [#53](https://github.com/hemsoft-dev/yahtzee/issues/53) |
 | Publication, store-installed smoke, source tag and support check | Owner and maintainer | [#54](https://github.com/hemsoft-dev/yahtzee/issues/54) |
