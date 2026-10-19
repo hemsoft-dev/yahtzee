@@ -2,7 +2,7 @@
 
 ## Authority
 
-This application deliberately uses guest capabilities rather than account login. A nickname is a display label, not proof of identity. `gameSessions.start` creates a 256-bit random secret in a Node action. Only its SHA-256 hash is stored. Each game's read/move endpoint checks the game ID, matching secret and 12-hour expiry. Another game's secret grants no access. Internal creation and expiry functions are not public APIs.
+The online web and Electron editions deliberately use guest capabilities rather than account login. This contract does not describe the separate [offline native mobile adapter](mobile-offline.md) or [portable offline Windows edition](offline-desktop.md). A nickname is a display label, not proof of identity. `gameSessions.start` creates a 256-bit random secret in a Node action. Only its SHA-256 hash is stored. Each game's read/move endpoint checks the game ID, matching secret and 12-hour expiry. Another game's secret grants no access. Internal creation and expiry functions are not public APIs.
 
 Convex owns the dice, held positions, scorecards, turn order, AI choices, timestamps and completion state. Clients send only roll, hold or category-selection requests with the last observed revision. Dice counts are safe integers from 2 through 20; AI counts are 0 through 3. Names are nonempty labels up to 32 characters with no ASCII control characters. Client-supplied totals, completion times and logs are not accepted. The old `highScores.submit` and `gameLogs.add` endpoints reject even otherwise well-shaped requests.
 
@@ -12,7 +12,7 @@ The secret exists only in the shared hook's memory: not local storage, native pr
 
 ## Client behavior
 
-All three clients use `useGameSession`. Requests are serialized. A failed move leaves its exact intent pending and disables further moves; retry reuses its original revision. A lost completion response can therefore recover the already committed result without creating another log or ranking. Quitting invalidates the local request generation, so a late response cannot resurrect that game or replace a newly started one.
+The online web and Electron clients use `useGameSession`. Requests are serialized. A failed move leaves its exact intent pending and disables further moves; retry reuses its original revision. A lost completion response can therefore recover the already committed result without creating another log or ranking. Quitting invalidates the local request generation, so a late response cannot resurrect that game or replace a newly started one.
 
 Network access is required throughout a game. The production Convex SDK controls transport reconnection; the isolated UI suite tests loss/retry through its explicit test transport, not Convex's WebSocket implementation. A dead or expired capability requires a new game.
 

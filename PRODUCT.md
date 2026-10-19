@@ -30,7 +30,9 @@ The current game has a setup, play, and results flow:
 2. Roll, hold dice, reroll, and choose a scorecard category on each turn.
 3. Review final scores and the leaderboard for that dice count, then start another game.
 
-The apps remember recent display names and the light/dark preference locally. Online games require a reachable Convex backend, including solo play. A separate portable Windows edition runs entirely offline and saves completed scores on the player's PC. Reloading or losing the client process abandons access to the active game; saved preferences do not restore it.
+Online web/desktop apps remember recent display names and the light/dark preference locally. Online games require a reachable Convex backend, including solo play. Reloading or losing that client process abandons access to its active game.
+
+The portable Windows edition runs offline and saves completed scores on the player's PC. Its unfinished games are abandoned on close. The separate native mobile app runs the shared rules offline, saves acknowledged active games and resumes them after process loss. Native appearance offers System, Light and Dark. Local scores are not server-verified and do not sync online.
 
 ## Capabilities and constraints
 
@@ -46,6 +48,7 @@ These are repository-verified implementation facts, not newly requested commitme
 - Completed-game history and top-ten leaderboards are separated by dice count. Display names are labels, not authenticated identities; name-based averages are not account statistics.
 - Online guest access expires after 12 hours and stays in client memory. There is no account login or game-access recovery.
 - The portable offline Windows edition needs no Convex service or developer tools. It retains local top-ten scores per dice count and the last 500 completed games, with no online sync. Unfinished games are abandoned on quit or close.
+- Native mobile retains acknowledged active games, the last 500 completed games and local top-ten scores per dice count. Damaged or unavailable saves enter visible recovery without silent replacement. Exact-byte write retry, explicit discard/reset and cold resume are covered by unsigned native simulator qualification, not signed-device or release acceptance.
 - Remote multiplayer is documented as planned, not implemented. The owner has not made it a priority in this product interview.
 
 The owner identified no additional must-preserve requirements. House rules and variable dice counts remain current behavior, but were not confirmed as defining product commitments. This record does not authorize removing or changing them without a scoped request.
