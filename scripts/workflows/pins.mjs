@@ -1,5 +1,6 @@
 /** Generated manifests, runtime references and persisted overrides must agree. */
 export function pinErrors(source, lock) {
+  source = source.replace(/\r\n/g, "\n");
   const errors = [];
   const manifestLine = source.split("\n").find((line) => line.startsWith("# gh-aw-manifest: "));
   if (!manifestLine) return ["Generated workflow action manifest is missing."];
@@ -21,6 +22,11 @@ export function pinErrors(source, lock) {
     const action = actions.get(pin.repo);
     if (key !== `${pin.repo}@${pin.version}` || !action || action.sha !== pin.sha || action.version !== pin.version)
       errors.push(`Persisted action lock differs from manifest: ${key}`);
+  }
+  for (const repo of ["github/gh-aw-actions/setup", "actions/download-artifact"]) {
+    const action = actions.get(repo);
+    if (!action || !Object.hasOwn(lock.entries, `${repo}@${action.version}`))
+      errors.push(`Required action override missing from lock: ${repo}`);
   }
   return errors;
 }

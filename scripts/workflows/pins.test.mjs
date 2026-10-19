@@ -8,6 +8,16 @@ const lock = JSON.parse(readFileSync(new URL("../../.github/aw/actions-lock.json
 
 test("generated runtime actions match the compiler manifest, summary and authoritative action lock", () => {
   assert.deepEqual(pinErrors(source, lock), []);
+  assert.deepEqual(pinErrors(source.replace(/\r?\n/g, "\r\n"), lock), []);
+});
+
+test("removing a persisted required override cannot silently fall back to compiler defaults", () => {
+  assert(pinErrors(source, { entries: {} }).length > 0);
+  for (const repo of ["github/gh-aw-actions/setup", "actions/download-artifact"]) {
+    const missing = structuredClone(lock);
+    delete missing.entries[Object.keys(missing.entries).find((key) => key.startsWith(repo + "@"))];
+    assert.match(pinErrors(source, missing).join("\n"), /Required action override missing/);
+  }
 });
 
 test("a uses-only dependency update cannot pass with stale generated metadata", () => {
