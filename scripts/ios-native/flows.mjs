@@ -43,7 +43,7 @@ export function emptyRelaunchFlow(bundleId) {
 export function corruptFlow(bundleId, reset = false) {
   const commands = [command("launchApp", { permissions: { all: "deny" } }), visible("Your saved data has not been reset."), shot("recovery")];
   if (reset) commands.push(tap("Help"), scroll({ text: "Delete all local data" }), tap("Delete all local data"), tap("Cancel"),
-    tap("Delete all local data"), command("tapOn", { text: "Delete all local data", index: 1 }), tap("Done"), scroll({ text: "Start Game" }), shot("explicit-reset"));
+    tap("Delete all local data"), visible("Cancel"));
   return header(bundleId, commands);
 }
 

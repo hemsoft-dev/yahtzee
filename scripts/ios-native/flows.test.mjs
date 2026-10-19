@@ -78,7 +78,11 @@ test("corruption flow never clears state and reset includes cancellation first",
     assert.equal(steps[0].value.clearState, undefined);
     assert(steps.some((step) => step.value === "Your saved data has not been reset."));
     assert.equal(steps.some((step) => step.value?.text === "Cancel"), reset);
-    if (reset) assert(steps.findIndex((step) => step.value?.text === "Cancel") < steps.findIndex((step) => step.value?.index === 1));
+    if (reset) {
+      assert.deepEqual(steps.at(-1), { command: "assertVisible", value: "Cancel" });
+      assert(!steps.some((step) => step.value?.index !== undefined));
+      assert(!steps.some((step) => step.value?.text === "Done"));
+    }
   }
 });
 
