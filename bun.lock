@@ -70,7 +70,7 @@
         "expo-build-properties": "57.0.21",
         "expo-constants": "57.0.19",
         "expo-file-system": "57.0.7",
-        "expo-linking": "57.0.10",
+        "expo-linking": "58.0.13",
         "expo-router": "57.0.22",
         "expo-splash-screen": "57.0.9",
         "expo-sqlite": "57.0.3",
@@ -1098,7 +1098,7 @@
 
     "expo-keep-awake": ["expo-keep-awake@57.0.2", "", { "peerDependencies": { "expo": "*", "react": "*" } }, "sha512-GqgH746wtJImmsbyHmCQoi7cOslKuWQBbJHXr53S35Bpf5UvxCAztvnitUEd7D0QvFN2rvkOhylbZpgZZfBLlQ=="],
 
-    "expo-linking": ["expo-linking@57.0.10", "", { "dependencies": { "expo-constants": "~57.0.18", "invariant": "^2.2.4" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-RzRi4l4pIYzjgoCJKnqkO+lUI+M2YX6qgcMIQkIbLAXdcWrykBoKYwHGlmAkdFHQm89GaYcq329yfxG+c1hv8w=="],
+    "expo-linking": ["expo-linking@58.0.13", "", { "dependencies": { "expo-constants": "~58.0.12", "invariant": "^2.2.4" }, "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-kQEyBGaKY3d9T4DXYzbkZBo1shJP4MupeboNW2TyM9mFR9hVtmcwUXijgAYaYEFkR+1yl7SJWS9Lq9dQ4rUd7Q=="],
 
     "expo-modules-autolinking": ["expo-modules-autolinking@57.0.13", "", { "dependencies": { "@expo/require-utils": "^57.0.5", "@expo/spawn-async": "^1.8.0", "chalk": "^4.1.0", "commander": "^7.2.0" }, "bin": { "expo-modules-autolinking": "bin/expo-modules-autolinking.js" } }, "sha512-Hj5NjZRlfccazhKab+wK19leRVUr1Y/PUERaRvegIbUSkq4GVxKq6lU9QHlKQyC16MdD/VS4iwsiLivB4o7lvQ=="],
 
@@ -2250,9 +2250,13 @@
 
     "expo/react-refresh": ["react-refresh@0.14.2", "", {}, "sha512-jCvmsr+1IUSMUyzOkRcvnVbX3ZYC6g9TDrDbFuFmRDq7PD4yaGbLKNQL6k2jnArV8hjYxh7hVhAZB6s9HDGpZA=="],
 
+    "expo-linking/expo-constants": ["expo-constants@58.0.13", "", { "dependencies": { "@expo/env": "~2.5.3", "@expo/require-utils": "^58.0.4" }, "peerDependencies": { "expo": "*", "react-native": "*" } }, "sha512-zUj1rcnYg0O2wKF9L32ToEtFujc5OkslZJ4lWeg+fEwoPMLVwldn6kdEkX8zx31KgSwF94Ey1mIFdFX8Brp73Q=="],
+
     "expo-modules-autolinking/chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
 
     "expo-modules-autolinking/commander": ["commander@7.2.0", "", {}, "sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw=="],
+
+    "expo-router/expo-linking": ["expo-linking@57.0.10", "", { "dependencies": { "expo-constants": "~57.0.18", "invariant": "^2.2.4" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-RzRi4l4pIYzjgoCJKnqkO+lUI+M2YX6qgcMIQkIbLAXdcWrykBoKYwHGlmAkdFHQm89GaYcq329yfxG+c1hv8w=="],
 
     "expo-system-ui/@react-native/normalize-colors": ["@react-native/normalize-colors@0.86.3", "", {}, "sha512-Cv3CDkprb67GrzuaS9BGbBJC/6G4lIw3nyKOHRKTqTTum4bn37y5+R0Z04L8mcbQN85eEohNrRwb7IOM4j6uvg=="],
 
@@ -2798,6 +2802,10 @@
 
     "eslint/minimatch/brace-expansion": ["brace-expansion@1.1.21", "", { "dependencies": { "balanced-match": "^1.0.0", "concat-map": "0.0.1" } }, "sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw=="],
 
+    "expo-linking/expo-constants/@expo/env": ["@expo/env@2.5.3", "", { "dependencies": { "chalk": "^4.0.0", "debug": "^4.3.4", "getenv": "^2.0.0" } }, "sha512-dBGu8BAfvUcXvG4HvYth+EhcHEsdC+/fT6HTH/zFvvwfp50LG6uzpzT8TXObwEq/t2B/rvAMV5OolxQ46LWXHg=="],
+
+    "expo-linking/expo-constants/@expo/require-utils": ["@expo/require-utils@58.0.4", "", { "dependencies": { "@babel/code-frame": "^7.20.0", "@babel/core": "^7.25.2", "@babel/plugin-transform-modules-commonjs": "^7.24.8" }, "peerDependencies": { "typescript": "^5.0.0 || ^5.0.0-0 || ^6.0.0 || ^7.0.0" }, "optionalPeers": ["typescript"] }, "sha512-DvjS5NCitXYcad2Woe1EMHJKcbhTbE77HX0BgOQGL2LFHE3q2H0n8kCWDPBOCVJ63Drap3c35nwoJwF5TQL7Tw=="],
+
     "filelist/minimatch/brace-expansion": ["brace-expansion@2.1.7", "", { "dependencies": { "balanced-match": "^1.0.0" } }, "sha512-uZbew1NqdmPDTMJ8ah1y+b+9QEJrfkXFk3RcTQw3X0jW/xRUvFKsg1CfQdSYGdTbXZWExtU3J3ccxtnfw1Fi0g=="],
 
     "finalhandler/debug/ms": ["ms@2.0.0", "", {}, "sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A=="],
@@ -3061,6 +3069,8 @@
     "dir-compare/minimatch/brace-expansion/balanced-match": ["balanced-match@1.0.2", "", {}, "sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw=="],
 
     "eslint/minimatch/brace-expansion/balanced-match": ["balanced-match@1.0.2", "", {}, "sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw=="],
+
+    "expo-linking/expo-constants/@expo/env/chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
 
     "filelist/minimatch/brace-expansion/balanced-match": ["balanced-match@1.0.2", "", {}, "sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw=="],
 
