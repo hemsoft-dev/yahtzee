@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { startFlow, resumeFlow, completeStartFlow, completeEndFlow, corruptFlow, emptyRelaunchFlow, scenarios, GROUPS, scenariosForGroup } from "./flows.mjs";
+import { runAuthoredFlow } from "./batches.mjs";
 
 function parse(flow) {
   const [header, body] = flow.trim().split("\n---\n");
@@ -10,6 +11,36 @@ function parse(flow) {
     return { command: match[1], value: match[2] === undefined ? undefined : JSON.parse(match[2]) };
   });
 }
+
+function setupWithAnimatedHelp(ignoreDone = false) {
+  let help = false, opening = false, doneTaps = 0, started = false;
+  const run = runAuthoredFlow({ runFlow: async (yaml) => {
+    for (const step of parse(yaml)) {
+      if (step.command === "tapOn" && step.value.text === "Help") { help = true; opening = true; }
+      if (step.command === "waitForAnimationToEnd") opening = false;
+      if (step.command === "tapOn" && step.value.text === "Done") {
+        doneTaps++;
+        if (!opening && !ignoreDone) help = false;
+      }
+      if (step.command === "assertNotVisible" && step.value === "How to play") assert.equal(help, false, "Help remains open");
+      if (step.command === "assertVisible" && step.value === "A little time for dice.") assert.equal(help, false, "Setup is covered by Help");
+      if (step.command === "tapOn" && step.value.text === "Start Game") started = true;
+    }
+  } }, startFlow("com.hemsoft.yahtzee", scenarios[0]));
+  return { run, state: () => ({ doneTaps, started }) };
+}
+
+test("setup waits for the presented Help sheet before one Done tap", async () => {
+  const flow = setupWithAnimatedHelp();
+  await flow.run;
+  assert.deepEqual(flow.state(), { doneTaps: 1, started: true });
+});
+
+test("a missed Done tap fails before starting gameplay and is never replayed", async () => {
+  const flow = setupWithAnimatedHelp(true);
+  await assert.rejects(flow.run, /Help remains open/);
+  assert.deepEqual(flow.state(), { doneTaps: 1, started: false });
+});
 test("native matrix covers every mode with solo and three AI, both devices/themes and largest text", () => {
   const completed = scenarios.filter((item) => !item.largeText);
   assert.equal(completed.length, 8);

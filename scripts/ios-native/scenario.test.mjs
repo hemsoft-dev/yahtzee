@@ -55,7 +55,7 @@ test("one scenario preserves real cold relaunch, exact document and complete-gam
   assert.deepEqual(flow.phases, ["start", "hold", "resume", "complete"]);
   assert.deepEqual(flow.taps, ["die-0", "reroll-action", "score-ones", "score-chance"]);
   assert.deepEqual(flow.stages, ["before-hold", "after-hold", "after-reroll", "before-relaunch", "after-relaunch", "completed"]);
-  assert.equal(flow.flows.length, 9);
+  assert.equal(flow.flows.length, 10);
   assert(flow.flows.some((yaml) => yaml.includes("diagnostics-preview")));
   assert(flow.flows.at(-1).includes('"Play Again"'));
   assert(flow.flows.every((yaml) => yaml.split("\n").filter((line) => line.startsWith("- ")).length <= 8));
@@ -86,7 +86,7 @@ test("largest-text scenarios still hold, reroll and resume without claiming a co
   const flow = harness(); flow.options.scenario.largeText = true;
   await exerciseScenario(flow.options);
   assert.equal(flow.terminated(), 1); assert.deepEqual(flow.phases, ["start", "hold", "resume"]);
-  assert.deepEqual(flow.taps, ["die-0", "reroll-action"]); assert.equal(flow.flows.length, 4);
+  assert.deepEqual(flow.taps, ["die-0", "reroll-action"]); assert.equal(flow.flows.length, 5);
 });
 test("all authored mode/AI and largest-text cases retain their required lifecycle without phase restarts", async () => {
   for (const scenario of scenarios) {

@@ -8,7 +8,9 @@ const header = (bundleId, commands) => `appId: ${JSON.stringify(bundleId)}\n---\
 export function startFlow(bundleId, scenario) {
   return header(bundleId, [command("launchApp", { clearState: true, permissions: { all: "deny" } }),
     command("setOrientation", scenario.orientation), visible("A little time for dice."),
-    tap("Help"), visible("How to play"), tap("Done"), visible("A little time for dice."), shot("setup"),
+    tap("Help"), visible("How to play"), command("waitForAnimationToEnd", { timeout: 5000 }),
+    command("tapOn", { text: "Done", enabled: true, retryTapIfNoChange: false }),
+    command("assertNotVisible", "How to play"), visible("A little time for dice."), shot("setup"),
     scroll({ text: "Your name" }), tap("Your name"), command("eraseText"), command("inputText", "Local tester"), command("pressKey", "enter"),
     scroll({ text: "AI opponents" }), tap("AI opponents"), tap(scenario.ai ? "3 AI" : "Solo"),
     scroll({ text: "Dice count" }), tap("Dice count"), tap(`${scenario.dice} dice`),
