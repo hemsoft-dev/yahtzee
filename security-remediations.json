@@ -32,5 +32,16 @@
     "files": {
       "src/sprintf.js": "58be5f3b7dd2362285575700e63b9a71a04fbce3daaa442c0ea7c61b86a27357"
     }
+  },
+  {
+    "package": "deepmerge",
+    "version": "4.3.1",
+    "advisory": "https://github.com/advisories/GHSA-gcqx-w48m-w2h4",
+    "patch": "patches/deepmerge@4.3.1.patch",
+    "patchSha256": "ba77954a3f622d003bcb3a70e7254c71b90886c3c380c6d9ce40b0fc03625099",
+    "files": {
+      "dist/cjs.js": "a2ee5c2b59b3cd864778d4c5a483a265c0b115a715559f75ce243e4f03e31a79",
+      "dist/umd.js": "e6bc0824d988fa25b97d41fb1f20e33637e3d730eb65a64abe929aa112636136"
+    }
   }
 ]
