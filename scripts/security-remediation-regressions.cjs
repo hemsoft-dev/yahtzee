@@ -46,3 +46,14 @@ for (const parameter of [a.create(a.Class.UNIVERSAL, a.Type.NULL, false, 'garbag
 }
 assert.equal(pair.publicKey.verify(md.digest().getBytes(), pair.privateKey.sign(md)), true);
 console.log('Security patch regressions passed.');
+
+const deepmerge = require('deepmerge');
+for (const malicious of [JSON.parse('{"__proto__":{"poisoned":true},"safe":1}'), JSON.parse('{"constructor":{"prototype":{"poisoned":true}},"safe":1}')]) {
+  for (const result of [deepmerge(malicious, {}), deepmerge({}, malicious), deepmerge(Object.create(null), malicious)]) {
+    assert.equal(Object.getPrototypeOf(result), Object.prototype);
+    assert.equal(result.poisoned, undefined);
+    assert.equal(Object.hasOwn(result, 'constructor'), false);
+    assert.equal(result.safe, 1);
+  }
+}
+assert.deepEqual(deepmerge({ nested: { a: 1 }, list: [1] }, { nested: { b: 2 }, list: [2] }), { nested: { a: 1, b: 2 }, list: [1, 2] });

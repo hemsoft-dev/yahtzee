@@ -10,6 +10,8 @@ import { corruptFlow, emptyRelaunchFlow, scenarios, GROUPS, scenariosForGroup } 
 import { nativeInteraction } from "./interaction.mjs";
 import { exerciseScenario } from "./scenario.mjs";
 import { buildSimulator } from "./build.mjs";
+import { confirmReset } from "./reset.mjs";
+import { preserveCorruptionFailure } from "./corruptionEvidence.mjs";
 import { loadBuiltSimulator } from "./artifact.mjs";
 import { retainDriverLogs } from "./driverLogs.mjs";
 import { snapshotEvidence } from "./snapshot.mjs";
@@ -82,13 +84,19 @@ function saved(device, bundleId, directory, stage) {
   writeFileSync(join(directory, `${stage}-save.json`), bytes + "\n");
   return { bytes, data, database };
 }
-function corruption(device, bundleId) {
+async function corruption(device, bundleId) {
   const directory = join(output, "corrupt-save"); mkdirSync(directory);
+  const resetThroughUi = (name) => {
+    const resetDirectory = join(directory, name); mkdirSync(resetDirectory);
+    return nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env,
+      capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
+      exercise: (io) => confirmReset(bundleId, io) });
+  };
   const current = saved(device, bundleId, directory, "before-corruption"); sim("terminate", device, bundleId);
   run("sqlite3", [current.database, "UPDATE local_save SET value = 'damaged-save'"], { capture: true });
   flow(device, directory, "corrupt", corruptFlow(bundleId));
   assert.equal(run("sqlite3", ["-readonly", current.database, "SELECT value FROM local_save"], { capture: true }), "damaged-save");
-  flow(device, directory, "reset", corruptFlow(bundleId, true));
+  await resetThroughUi("reset-document");
   assert(!existsSync(current.database), "Confirmed reset must remove the damaged database.");
   flow(device, directory, "reset-relaunch", emptyRelaunchFlow(bundleId));
   const reset = saved(device, bundleId, directory, "after-reset"); assert.equal(reset.data.active, null); assert.equal(reset.data.history.entries.length, 0);
@@ -96,10 +104,13 @@ function corruption(device, bundleId) {
   run("sqlite3", [reset.database, "PRAGMA wal_checkpoint(TRUNCATE)"], { capture: true });
   const damaged = Buffer.from("Native database corruption fixture. Preserve until explicit reset.");
   writeFileSync(reset.database, damaged);
-  flow(device, directory, "corrupt-database", corruptFlow(bundleId));
-  assert.deepEqual(readFileSync(reset.database), damaged);
-  flow(device, directory, "reset-database", corruptFlow(bundleId, true));
-  assert(!existsSync(reset.database), "Confirmed reset must remove the damaged database.");
+  await preserveCorruptionFailure({ database: reset.database, expected: damaged, evidencePath: join(directory, "failure-database.bin"),
+    report: (evidence) => { receipt.corruptionFailure = evidence; }, exercise: async () => {
+      flow(device, directory, "corrupt-database", corruptFlow(bundleId));
+      assert.deepEqual(readFileSync(reset.database), damaged);
+      await resetThroughUi("reset-database");
+      assert(!existsSync(reset.database), "Confirmed reset must remove the damaged database.");
+    } });
   flow(device, directory, "reset-database-relaunch", emptyRelaunchFlow(bundleId));
   assert.equal(saved(device, bundleId, directory, "after-database-reset").data.history.entries.length, 0);
   receipt.nativeCorruptionAndReset = "passed";
@@ -143,7 +154,7 @@ async function exercise(app, bundleId) {
     await stopRecording();
     result.status = "passed"; result.resumeDocumentSha256 = hash(resumedBytes); checkpoint();
   }
-  if (!group || group === "tablet-10") { receipt.phase = "corruption-and-reset"; checkpoint(); corruption(booted, bundleId); }
+  if (!group || group === "tablet-10") { receipt.phase = "corruption-and-reset"; checkpoint(); await corruption(booted, bundleId); }
   assert.equal(receipt.scenarios.length, selectedScenarios.length);
   assert(receipt.scenarios.every((scenario) => scenario.status === "passed"));
 }
