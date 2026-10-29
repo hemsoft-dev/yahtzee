@@ -68,7 +68,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
       } catch (error) {
         entry.failure = classify(error, operation);
         const retry = error instanceof MaestroError && error.failureClass === "transport-startup"
-          && sequence === 0 && attempt < recovery.maxAttempts;
+          && error.recoverySafe !== false && sequence === 0 && attempt < recovery.maxAttempts;
         if (!retry) throw error;
         // Retire the old process before another connection. Late replies cannot authorize a flow.
         await client?.close(); client = undefined;

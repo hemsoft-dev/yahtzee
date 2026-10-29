@@ -96,3 +96,11 @@ test("an expired deadline sends no command", async () => {
   await assert.rejects(client.request("tools/call", { name: "run" }), (error) => error.code === "deadline-exhausted");
   assert.equal(messages.length, 0); await client.close();
 });
+
+test("failed startup retirement keeps the original timeout and prohibits recovery", async () => {
+  const fixture = processFixture();
+  fixture.child.stdin.removeAllListeners("finish");
+  await assert.rejects(localMaestro({ cwd: "/owned", env: {}, onStderr: () => {},
+    deadline: Date.now() + 10, start: () => fixture.child }),
+  (error) => error instanceof MaestroError && error.code === "rpc-timeout" && error.recoverySafe === false);
+});

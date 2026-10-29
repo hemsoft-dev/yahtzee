@@ -226,7 +226,7 @@ test("unbound or oversized authored flows cannot reach the driver", async () => 
   }
 });
 
-for (const mode of ["transient", "persistent", "flow-timeout", "assertion", "wrong-device", "ambiguous", "deadline"]) {
+for (const mode of ["transient", "transient-timeout", "persistent", "flow-timeout", "assertion", "wrong-device", "ambiguous", "deadline"]) {
   test(`readiness recovery: ${mode}`, async () => {
     const flow = harness(), open = flow.options.openSession;
     let inspections = 0, runs = 0;
@@ -242,6 +242,7 @@ for (const mode of ["transient", "persistent", "flow-timeout", "assertion", "wro
             if (name === "list_devices" && mode === "wrong-device") return { devices: [{ device_id: "other", platform: "ios", connected: true }] };
             if (name === "inspect_screen") {
               assert.equal(args.device_id, "owned"); inspections++;
+              if (mode === "transient-timeout" && inspections === 1) throw new MaestroError("rpc-timeout", "tools/call");
               if (mode === "ambiguous") throw new Error("Device became unreachable during deviceInfo");
               if (mode === "deadline") { wall = options.deadline - 500; throw new MaestroError("rpc-timeout", "tools/call"); }
               if (mode === "persistent" || mode === "transient" && inspections === 1) throw new MaestroError("device-unreachable", name);
@@ -254,17 +255,17 @@ for (const mode of ["transient", "persistent", "flow-timeout", "assertion", "wro
             return call(name, args);
           } };
         }, exercise: async (io) => { await io.run([{ assertVisible: "A little time for dice." }]); await io.run([{ tapOn: "later" }]); } });
-      if (mode === "transient") await result;
+      if (mode.startsWith("transient")) await result;
       else await assert.rejects(result);
-      assert.equal(flow.state().opened, ["transient", "persistent"].includes(mode) ? 2 : 1);
-      assert.equal(runs, mode === "transient" ? 2 : ["flow-timeout", "assertion"].includes(mode) ? 1 : 0);
+      assert.equal(flow.state().opened, ["transient", "transient-timeout", "persistent"].includes(mode) ? 2 : 1);
+      assert.equal(runs, mode.startsWith("transient") ? 2 : ["flow-timeout", "assertion"].includes(mode) ? 1 : 0);
       assert(deadlines.every((value) => value === deadlines[0]));
-      assert.deepEqual(waits, ["transient", "persistent"].includes(mode) ? [1000] : []);
+      assert.deepEqual(waits, ["transient", "transient-timeout", "persistent"].includes(mode) ? [1000] : []);
       assert.equal(reports.length, 1);
       const evidence = JSON.parse(readFileSync(join(flow.options.directory, "scenario-recovery.json")));
       assert.deepEqual(evidence, reports[0]); assert.equal(evidence.maxAttempts, 2);
       assert.equal(evidence.attempts.length, flow.state().opened);
-      if (mode !== "transient") assert(evidence.failure);
+      if (!mode.startsWith("transient")) assert(evidence.failure);
       assert.equal(evidence.attempts[0].outcome, ["flow-timeout", "assertion"].includes(mode) ? "ready" : "failed");
     } finally { flow.cleanup(); }
   });

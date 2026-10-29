@@ -94,7 +94,10 @@ export async function localMaestro({ cwd, env, onStderr, deadline, start = spawn
     assert(["2024-11-05", "2025-03-26", "2025-06-18"].includes(hello.protocolVersion), "Unsupported local protocol version.");
     client.notify("notifications/initialized");
   } catch (error) {
-    try { await client.close(); } catch { onStderr("\nLocal Maestro startup shutdown failed.\n"); }
+    try { await client.close(); } catch {
+      error.recoverySafe = false;
+      onStderr("\nLocal Maestro startup shutdown failed.\n");
+    }
     throw error;
   }
   async function call(name, args = {}) {
