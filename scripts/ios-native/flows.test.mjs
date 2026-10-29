@@ -124,3 +124,49 @@ test("a diagnostic text block taller than the viewport need not fit entirely to 
   const cancel = steps.find((step) => step.command === "scrollUntilVisible" && step.value.element.text === "Cancel preview");
   assert.equal(cancel.value.visibilityPercentage, 100);
 });
+
+// Model native sheets whose accessibility nodes outlive their interactive presentation.
+// This executes the authored, production-batched flow; it does not reproduce UIKit timing.
+function setupWithDelayedChoices({ stuckDismissal = false, lostDiceTap = false } = {}) {
+  let sheet = null, presenting = false, dismissing = false, started = false;
+  const taps = [];
+  const run = runAuthoredFlow({ runFlow: async (yaml) => {
+    for (const { command, value } of parse(yaml)) {
+      if (command === "waitForAnimationToEnd") {
+        presenting = false;
+        if (!stuckDismissal) dismissing = false;
+      }
+      if (command === "assertVisible" && value === "Cancel") assert(sheet, "No choice sheet opened");
+      if (command === "assertNotVisible" && value === "Cancel") assert.equal(dismissing, false, "Choice sheet is still dismissing");
+      if (command !== "tapOn") continue;
+      if (["AI opponents", "Dice count", "Solo", "3 AI", "10 dice"].includes(value.text)) taps.push(value);
+      if (["AI opponents", "Dice count"].includes(value.text)) {
+        if (!dismissing && !(lostDiceTap && value.text === "Dice count")) { sheet = value.text; presenting = value.text === "Dice count"; }
+      }
+      if (["Solo", "3 AI", "10 dice"].includes(value.text)) {
+        assert(sheet && !presenting, `Element not found: ${value.text}, Enabled`);
+        sheet = null; dismissing = true;
+      }
+      if (value.text === "Start Game") started = true;
+    }
+  } }, startFlow("com.hemsoft.yahtzee", scenarios.find((scenario) => scenario.id === "tablet-10-solo-dark")));
+  return { run, state: () => ({ taps, started }) };
+}
+
+test("setup waits for choice presentation and dismissal before touching the next row", async () => {
+  const flow = setupWithDelayedChoices();
+  await flow.run;
+  assert.equal(flow.state().started, true);
+  assert.deepEqual(flow.state().taps.map((tap) => tap.text), ["AI opponents", "Solo", "Dice count", "10 dice"]);
+  assert(flow.state().taps.every((tap) => tap.retryTapIfNoChange === false));
+});
+
+test("a stuck choice dismissal or lost picker tap fails without selecting or replaying", async () => {
+  for (const options of [{ stuckDismissal: true }, { lostDiceTap: true }]) {
+    const flow = setupWithDelayedChoices(options);
+    await assert.rejects(flow.run, /Choice sheet is still dismissing|No choice sheet opened/);
+    assert.equal(flow.state().started, false);
+    assert.equal(flow.state().taps.filter((tap) => tap.text === "10 dice").length, 0);
+    assert(flow.state().taps.filter((tap) => tap.text === "Dice count").length <= 1);
+  }
+});
