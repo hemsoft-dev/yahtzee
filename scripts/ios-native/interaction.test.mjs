@@ -226,7 +226,7 @@ test("unbound or oversized authored flows cannot reach the driver", async () => 
   }
 });
 
-for (const mode of ["transient", "transient-timeout", "persistent", "flow-timeout", "assertion", "wrong-device", "ambiguous", "deadline"]) {
+for (const mode of ["transient", "transient-timeout", "persistent", "flow-timeout", "flow-unreachable", "assertion", "wrong-device", "ambiguous", "deadline"]) {
   test(`readiness recovery: ${mode}`, async () => {
     const flow = harness(), open = flow.options.openSession;
     let inspections = 0, runs = 0;
@@ -249,6 +249,7 @@ for (const mode of ["transient", "transient-timeout", "persistent", "flow-timeou
             }
             if (name === "run") {
               runs++;
+              if (mode === "flow-unreachable") throw new MaestroError("device-unreachable", "run", "transport-uncertain");
               if (mode === "flow-timeout") throw new MaestroError("rpc-timeout", "tools/call");
               if (mode === "assertion") throw new MaestroError("flow-failed", "run", "application-flow");
             }
@@ -258,7 +259,7 @@ for (const mode of ["transient", "transient-timeout", "persistent", "flow-timeou
       if (mode.startsWith("transient")) await result;
       else await assert.rejects(result);
       assert.equal(flow.state().opened, ["transient", "transient-timeout", "persistent"].includes(mode) ? 2 : 1);
-      assert.equal(runs, mode.startsWith("transient") ? 2 : ["flow-timeout", "assertion"].includes(mode) ? 1 : 0);
+      assert.equal(runs, mode.startsWith("transient") ? 2 : ["flow-timeout", "flow-unreachable", "assertion"].includes(mode) ? 1 : 0);
       assert(deadlines.every((value) => value === deadlines[0]));
       assert.deepEqual(waits, ["transient", "transient-timeout", "persistent"].includes(mode) ? [1000] : []);
       assert.equal(reports.length, 1);
@@ -266,7 +267,14 @@ for (const mode of ["transient", "transient-timeout", "persistent", "flow-timeou
       assert.deepEqual(evidence, reports[0]); assert.equal(evidence.maxAttempts, 2);
       assert.equal(evidence.attempts.length, flow.state().opened);
       if (!mode.startsWith("transient")) assert(evidence.failure);
-      assert.equal(evidence.attempts[0].outcome, ["flow-timeout", "assertion"].includes(mode) ? "ready" : "failed");
+      assert.equal(evidence.scenarioRestarts, 0);
+      if (["flow-timeout", "flow-unreachable", "assertion"].includes(mode)) {
+        assert.equal(evidence.failure.failureClass, mode === "assertion" ? "application-flow" : "transport-uncertain");
+        assert.equal(evidence.failure.executionState, mode === "assertion" ? "failed" : "uncertain");
+        assert.equal(evidence.failure.handling, "fail-without-replay");
+        assert.equal(evidence.failure.flowSequence, 1);
+      }
+      assert.equal(evidence.attempts[0].outcome, ["flow-timeout", "flow-unreachable", "assertion"].includes(mode) ? "ready" : "failed");
     } finally { flow.cleanup(); }
   });
 }

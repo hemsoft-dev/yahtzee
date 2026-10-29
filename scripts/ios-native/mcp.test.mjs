@@ -78,14 +78,14 @@ test("late RPC success cannot revive a timed-out session or send another command
   await assert.rejects(client.request("tools/call", { name: "run" }));
   assert.equal(messages.length, 1); await client.close();
 });
-test("only read-only known startup responses receive transport classification", async () => {
+test("known device loss distinguishes readiness from uncertain submitted execution", async () => {
   for (const name of ["inspect_screen", "run"]) {
     const fixture = processFixture((message, child) => {
       if (message.method === "initialize") respond(child, message.id, { serverInfo: { name: "maestro" }, protocolVersion: "2024-11-05" });
       if (message.method === "tools/call") respond(child, message.id, { isError: true, content: [{ type: "text", text: "Failed to run flow: Device became unreachable during deviceInfo" }] });
     });
     const client = await localMaestro({ cwd: "/owned", env: {}, onStderr: () => {}, start: () => fixture.child });
-    await assert.rejects(client.call(name), (error) => error instanceof MaestroError && error.failureClass === (name === "run" ? "application-flow" : "transport-startup"));
+    await assert.rejects(client.call(name), (error) => error instanceof MaestroError && error.failureClass === (name === "run" ? "transport-uncertain" : "transport-startup"));
     await client.close();
   }
 });
@@ -103,4 +103,30 @@ test("failed startup retirement keeps the original timeout and prohibits recover
   await assert.rejects(localMaestro({ cwd: "/owned", env: {}, onStderr: () => {},
     deadline: Date.now() + 10, start: () => fixture.child }),
   (error) => error instanceof MaestroError && error.code === "rpc-timeout" && error.recoverySafe === false);
+});
+
+for (const [text, expectedClass, expectedCode] of [
+  ["Failed to run flow: Device became unreachable during deviceInfo", "transport-uncertain", "device-unreachable"],
+  ["Failed to run flow: Element not found: Text matching regex: 10 dice, Enabled", "application-flow", "flow-failed"],
+  ['Failed to run flow: Assertion is false: "A little time for dice." is visible', "application-flow", "flow-failed"],
+  ["Failed to run flow: Element not found: 10 dice; Device became unreachable during deviceInfo", "application-flow", "flow-failed"],
+]) {
+  test(`retained native run error: ${expectedCode} ${text}`, async () => {
+    const fixture = processFixture((message, child) => {
+      if (message.method === "initialize") respond(child, message.id, { serverInfo: { name: "maestro" }, protocolVersion: "2024-11-05" });
+      if (message.method === "tools/call") respond(child, message.id, { isError: true, content: [{ type: "text", text }] });
+    });
+    const client = await localMaestro({ cwd: "/owned", env: {}, onStderr: () => {}, start: () => fixture.child });
+    try {
+      await assert.rejects(client.call("run"), (error) => error instanceof MaestroError && error.failureClass === expectedClass && error.code === expectedCode);
+      assert.equal(fixture.messages.filter((message) => message.params?.name === "run").length, 1);
+    } finally { await client.close(); }
+  });
+}
+
+test("RPC timeout on a submitted run is uncertain transport", async () => {
+  const { child } = processFixture();
+  const client = rpcClient(child, { timeoutMs: 5 });
+  await assert.rejects(client.request("tools/call", { name: "run" }), (error) => error instanceof MaestroError && error.failureClass === "transport-uncertain" && error.code === "rpc-timeout");
+  await client.close();
 });

@@ -13,9 +13,11 @@ export class MaestroError extends Error {
 function toolFailure(name, result) {
   // A run response can describe a failure after taps or launch. Always terminal.
   const text = result.content?.filter((item) => item.type === "text").map((item) => item.text).join("\n") ?? "";
-  if (name !== "run") {
-    if (/Device became unreachable during deviceInfo/.test(text)) return new MaestroError("device-unreachable", name);
-    if (/driver.*(?:install|connect).*(?:fail|error)|(?:Failed|Unable) to (?:install|connect).*driver/i.test(text)) return new MaestroError("driver-connect", name);
+  const transportClass = name === "run" ? "transport-uncertain" : "transport-startup";
+  // Explicit app failures take precedence if a diagnostic contains both kinds.
+  if (!/Assertion is false:|Element not found:/.test(text)) {
+    if (/Device became unreachable during deviceInfo/.test(text)) return new MaestroError("device-unreachable", name, transportClass);
+    if (/driver.*(?:install|connect).*(?:fail|error)|(?:Failed|Unable) to (?:install|connect).*driver/i.test(text)) return new MaestroError("driver-connect", name, transportClass);
   }
   return new MaestroError(name === "run" ? "flow-failed" : "tool-failed", name, name === "run" ? "application-flow" : "unknown");
 }
@@ -64,7 +66,7 @@ export function rpcClient(child, { timeoutMs = 300000, maxBytes = 8 * 1024 * 102
     if (failure || closing) return Promise.reject(failure ?? new Error("Local Maestro is closing."));
     return new Promise((resolve, reject) => {
       const id = ++nextId;
-      const timer = setTimeout(() => fail(new MaestroError("rpc-timeout", method)), Math.max(1, Math.min(timeoutMs, deadline - Date.now())));
+      const timer = setTimeout(() => fail(new MaestroError("rpc-timeout", params?.name ?? method, params?.name === "run" ? "transport-uncertain" : "transport-startup")), Math.max(1, Math.min(timeoutMs, deadline - Date.now())));
       pending.set(id, { resolve, reject, timer });
       try { send({ jsonrpc: "2.0", id, method, params }); } catch (error) { fail(error); }
     });

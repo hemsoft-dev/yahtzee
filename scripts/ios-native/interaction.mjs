@@ -24,6 +24,13 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     assert(now() < deadline, "Native interaction exceeded its bounded session budget.");
     const started = Date.now(), monotonicStarted = performance.now(); let outcome = "threw";
     try { const result = await client.call(name, args); outcome = "returned"; return result; }
+    catch (error) {
+      // A later read-only failure cannot turn an already submitted scenario into startup.
+      if (sequence > 0 && error instanceof MaestroError && error.failureClass === "transport-startup") {
+        throw new MaestroError(error.code, name, "transport-uncertain");
+      }
+      throw error;
+    }
     finally {
       if (timings.length < 2048) timings.push(JSON.stringify({ tool: name, flowSequence: sequence, started, elapsedMs: performance.now() - monotonicStarted, outcome }));
       else timingNotice();
@@ -46,9 +53,12 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     }).join("\n") + "\n";
     await runFlow(yaml);
   }
-  const recovery = { device, phase: prefix, maxAttempts: 2, deadline, attempts: [], failure: null };
+  const recovery = { device, phase: prefix, maxAttempts: 2, scenarioRestarts: 0, deadline, attempts: [], failure: null };
   function classify(error, operation) {
-    return { operation, failureClass: error instanceof MaestroError ? error.failureClass : "unknown", code: error instanceof MaestroError ? error.code : "unclassified", flowSequence: sequence };
+    return { operation: error instanceof MaestroError ? error.operation : operation,
+      failureClass: error instanceof MaestroError ? error.failureClass : "unknown",
+      executionState: error instanceof MaestroError && error.failureClass === "transport-uncertain" ? "uncertain" : sequence ? "failed" : "not-started",
+      code: error instanceof MaestroError ? error.code : "unclassified", flowSequence: sequence };
   }
   try {
     for (let attempt = 1; attempt <= recovery.maxAttempts; attempt++) {
@@ -83,7 +93,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     }
     await exercise({ inspect, run, runFlow, capture, record: (value) => appendFileSync(join(directory, `${prefix}-geometry.jsonl`), JSON.stringify(value) + "\n") });
   } catch (error) {
-    recovery.failure = classify(error, sequence ? "run-or-exercise" : "readiness");
+    recovery.failure = { ...classify(error, sequence ? "run-or-exercise" : "readiness"), handling: "fail-without-replay" };
     try { await capture(`${prefix}-failure`); } catch { /* Preserve the original error; the runner also reads the saved document. */ }
     throw error;
   } finally {
