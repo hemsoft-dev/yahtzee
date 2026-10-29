@@ -49,7 +49,7 @@ test("multiple authored flows and inspections use exactly one owned bounded sess
       io.record({ action: "fixture" });
     } });
     const { opened, closed, childEnv } = flow.state();
-    assert.equal(opened, 1); assert.equal(closed, 1); assert.deepEqual(childEnv, { PATH: "fixture-path" });
+    assert.equal(opened, 1); assert.equal(closed, 1); assert.deepEqual(childEnv, { PATH: "fixture-path", XDG_STATE_HOME: join(flow.options.directory, ".scenario-driver-state") });
     assert.deepEqual(flow.calls.map((item) => item.name), ["list_devices", "inspect_screen", "run", "run", "inspect_screen", "run"]);
     assert.equal(readdirSync(flow.options.directory).filter((name) => name.endsWith(".yaml")).length, 3);
     assert(!readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8").includes("fixture-secret"));

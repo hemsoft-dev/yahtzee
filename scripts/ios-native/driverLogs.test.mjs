@@ -21,3 +21,21 @@ test("only known driver logs become non-hidden uploaded evidence", () => {
     assert.deepEqual(readdirSync(directory).sort(), [".maestro", "start-driver-0.log"]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("isolated XCTest logs retain bounded redacted complete lines and exclude other files", async () => {
+  const { retainXCTestLogs } = await import("./driverLogs.mjs");
+  const directory = mkdtempSync(join(tmpdir(), "native-xctest-log-"));
+  try {
+    const state = join(directory, ".state"), source = join(state, "maestro/tests/session");
+    mkdirSync(source, { recursive: true });
+    writeFileSync(join(source, "unrelated.json"), "unrelated secret");
+    const secret = "synthetic-runtime-secret";
+    writeFileSync(join(source, "xctest_runner_2026-10-29_123456.log"), "x".repeat(600000) + `\nXCTest started ${secret}\nAuthorization: Bearer fixture-bearer\npartial ${secret.slice(0, 10)}`);
+    const retained = retainXCTestLogs(state, directory, "scenario", { RUNTIME_TOKEN: secret });
+    assert.deepEqual(retained, ["scenario-xctest-0.log"]);
+    const text = readFileSync(join(directory, retained[0]), "utf8");
+    assert.equal(text, "XCTest started <REDACTED>\nAuthorization: Bearer <REDACTED>\n");
+    assert(!text.includes(secret)); assert(!text.includes("unrelated"));
+    assert.deepEqual(retainXCTestLogs(join(directory, "missing"), directory, "scenario", {}), []);
+  } finally { rmSync(directory, { recursive: true }); }
+});
