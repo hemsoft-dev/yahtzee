@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { localMaestro } from "./mcp.mjs";
+import { setTimeout as delay } from "node:timers/promises";
+import { localMaestro, MaestroError } from "./mcp.mjs";
 import { redactDriverLog } from "./driverLogs.mjs";
 
 /** One bounded local driver session for the owned simulator. */
-export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro }) {
+export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay }) {
   assert(["complete", "hold", "scenario", "reset"].includes(prefix), "Unknown native interaction phase.");
   let diagnostics = "", sequence = 0, timingUnavailable = false;
   const timings = [];
@@ -15,12 +16,12 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   }
   // A scenario includes setup, hold/reroll, cold relaunches, all categories and result navigation.
   // Captured native runs reached the former ten-minute deadline while still committing valid scores.
-  const deadline = Date.now() + (prefix === "scenario" ? 1200000 : 600000);
+  const deadline = now() + (prefix === "scenario" ? 1200000 : 600000);
   const childEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
     /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|JAVA_HOME|DEVELOPER_DIR|LANG|LC_ALL|MAESTRO_CLI_NO_ANALYTICS|MAESTRO_DISABLE_UPDATE_CHECK|MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED|MAESTRO_DRIVER_STARTUP_TIMEOUT)$/.test(key)));
   let client, shutdownFailed = false, shutdownError, diagnosticFailed = false, diagnosticError;
   async function call(name, args) {
-    assert(Date.now() < deadline, "Native interaction exceeded its bounded session budget.");
+    assert(now() < deadline, "Native interaction exceeded its bounded session budget.");
     const started = Date.now(), monotonicStarted = performance.now(); let outcome = "threw";
     try { const result = await client.call(name, args); outcome = "returned"; return result; }
     finally {
@@ -45,23 +46,60 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     }).join("\n") + "\n";
     await runFlow(yaml);
   }
+  const recovery = { device, phase: prefix, maxAttempts: 2, deadline, attempts: [], failure: null };
+  function classify(error, operation) {
+    return { operation, failureClass: error instanceof MaestroError ? error.failureClass : "unknown", code: error instanceof MaestroError ? error.code : "unclassified", flowSequence: sequence };
+  }
   try {
-    client = await openSession({ cwd: directory, env: childEnv, deadline, onStderr: (text) => { diagnostics += text.slice(0, Math.max(0, 262144 - diagnostics.length)); } });
-    const devices = await call("list_devices", {});
-    assert(devices.devices?.some((item) => item.device_id === device && item.platform === "ios" && item.connected === true), "Owned simulator is not connected to Maestro.");
+    for (let attempt = 1; attempt <= recovery.maxAttempts; attempt++) {
+      const entry = { attempt, started: now(), outcome: "failed" };
+      recovery.attempts.push(entry);
+      let operation = "initialize";
+      try {
+        assert(now() < deadline, "Native interaction exceeded its bounded session budget.");
+        client = await openSession({ cwd: directory, env: childEnv, deadline, onStderr: (text) => { diagnostics += text.slice(0, Math.max(0, 262144 - diagnostics.length)); } });
+        operation = "list_devices";
+        const devices = await call("list_devices", {});
+        assert(devices.devices?.some((item) => item.device_id === device && item.platform === "ios" && item.connected === true), "Owned simulator is not connected to Maestro.");
+        operation = "inspect_screen";
+        await inspect(); // Read-only deviceInfo/driver readiness, targeted to the owned UDID.
+        entry.outcome = "ready";
+        break;
+      } catch (error) {
+        entry.failure = classify(error, operation);
+        const retry = error instanceof MaestroError && error.failureClass === "transport-startup"
+          && sequence === 0 && attempt < recovery.maxAttempts;
+        if (!retry) throw error;
+        // Retire the old process before another connection. Late replies cannot authorize a flow.
+        await client?.close(); client = undefined;
+        const waitMs = 1000 * attempt;
+        if (now() + waitMs >= deadline) throw error;
+        entry.backoffMs = waitMs;
+        await backoff(waitMs);
+      } finally {
+        entry.finished = now();
+        diagnostics += `\nConnection readiness ${JSON.stringify(entry)}\n`;
+      }
+    }
     await exercise({ inspect, run, runFlow, capture, record: (value) => appendFileSync(join(directory, `${prefix}-geometry.jsonl`), JSON.stringify(value) + "\n") });
   } catch (error) {
+    recovery.failure = classify(error, sequence ? "run-or-exercise" : "readiness");
     try { await capture(`${prefix}-failure`); } catch { /* Preserve the original error; the runner also reads the saved document. */ }
     throw error;
   } finally {
     try { await client?.close(); }
     catch (error) {
       shutdownFailed = true; shutdownError = error;
+      recovery.failure ??= classify(error, "shutdown");
       diagnostics += "\nLocal Maestro shutdown failed.\n";
     }
     finally {
       try { writeFileSync(join(directory, `${prefix}-tool-timing.jsonl`), timings.join("\n") + (timings.length ? "\n" : "")); }
       catch { timingNotice(); }
+      try {
+        writeFileSync(join(directory, `${prefix}-recovery.json`), JSON.stringify(recovery, null, 2) + "\n");
+        report(recovery);
+      } catch (error) { diagnosticFailed = true; diagnosticError = error; }
       try { writeFileSync(join(directory, `${prefix}-mcp.log`), redactDriverLog(diagnostics, env)); }
       catch (error) { diagnosticFailed = true; diagnosticError = error; }
     }

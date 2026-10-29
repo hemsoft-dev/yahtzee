@@ -52,6 +52,7 @@ const receipt = { schemaVersion: 1, kind: buildOnly ? "unsigned-ios-simulator-bu
   startedAt: new Date().toISOString(), runId: process.env.GITHUB_RUN_ID ?? null, runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
   runnerImage: process.env.ImageVersion ?? null, architecture, group: group ?? null, scenarios: [],
   limits: ["Not a signed device archive", "Not TestFlight or physical-device evidence", "No airplane-mode or VoiceOver acceptance claim", "Public identity and release approvals remain unset", "Raw hidden debug trees are excluded; selected driver logs are sanitized and retained"] };
+const recordRecovery = (entry) => { (receipt.connectionRecovery ??= []).push(entry); checkpoint(); };
 const checkpoint = () => json(join(output, "manifest.json"), receipt);
 checkpoint();
 const ownedDevices = [];
@@ -88,7 +89,7 @@ async function corruption(device, bundleId) {
   const directory = join(output, "corrupt-save"); mkdirSync(directory);
   const resetThroughUi = (name) => {
     const resetDirectory = join(directory, name); mkdirSync(resetDirectory);
-    return nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env,
+    return nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery,
       capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
       exercise: (io) => confirmReset(bundleId, io) });
   };
@@ -142,7 +143,7 @@ async function exercise(app, bundleId) {
     receipt.phase = `start-${scenario.id}`; checkpoint();
     if (index === 0) recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-resume.mp4")], { env, stdio: "ignore" });
     let resumedBytes;
-    await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env,
+    await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery,
       capture: (name) => sim("io", device, "screenshot", join(directory, `${name}.png`)),
       exercise: async (io) => {
         resumedBytes = await exerciseScenario({ bundleId, scenario, io,

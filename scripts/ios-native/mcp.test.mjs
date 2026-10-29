@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
-import { localMaestro, rpcClient } from "./mcp.mjs";
+import { localMaestro, rpcClient, MaestroError } from "./mcp.mjs";
 
 function processFixture(reply = () => {}) {
   const child = new EventEmitter();
@@ -68,4 +68,31 @@ test("unknown server and error tool result cannot establish successful qualifica
   });
   const client = await localMaestro({ cwd: "/owned", env: {}, onStderr: () => {}, start: () => fixture.child });
   await assert.rejects(client.call("run", { yaml: "invalid" }), /run failed/); await client.close();
+});
+
+test("late RPC success cannot revive a timed-out session or send another command", async () => {
+  const { child, messages } = processFixture();
+  const client = rpcClient(child, { timeoutMs: 5 });
+  await assert.rejects(client.request("tools/call", { name: "run" }), (error) => error instanceof MaestroError && error.code === "rpc-timeout");
+  respond(child, 1, { success: true });
+  await assert.rejects(client.request("tools/call", { name: "run" }));
+  assert.equal(messages.length, 1); await client.close();
+});
+test("only read-only known startup responses receive transport classification", async () => {
+  for (const name of ["inspect_screen", "run"]) {
+    const fixture = processFixture((message, child) => {
+      if (message.method === "initialize") respond(child, message.id, { serverInfo: { name: "maestro" }, protocolVersion: "2024-11-05" });
+      if (message.method === "tools/call") respond(child, message.id, { isError: true, content: [{ type: "text", text: "Failed to run flow: Device became unreachable during deviceInfo" }] });
+    });
+    const client = await localMaestro({ cwd: "/owned", env: {}, onStderr: () => {}, start: () => fixture.child });
+    await assert.rejects(client.call(name), (error) => error instanceof MaestroError && error.failureClass === (name === "run" ? "application-flow" : "transport-startup"));
+    await client.close();
+  }
+});
+
+test("an expired deadline sends no command", async () => {
+  const { child, messages } = processFixture();
+  const client = rpcClient(child, { deadline: Date.now() - 1 });
+  await assert.rejects(client.request("tools/call", { name: "run" }), (error) => error.code === "deadline-exhausted");
+  assert.equal(messages.length, 0); await client.close();
 });

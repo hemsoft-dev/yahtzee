@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync }
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { MaestroError } from "./mcp.mjs";
 import { nativeInteraction } from "./interaction.mjs";
 import { startFlow, resumeFlow } from "./flows.mjs";
 
@@ -49,14 +50,14 @@ test("multiple authored flows and inspections use exactly one owned bounded sess
     } });
     const { opened, closed, childEnv } = flow.state();
     assert.equal(opened, 1); assert.equal(closed, 1); assert.deepEqual(childEnv, { PATH: "fixture-path" });
-    assert.deepEqual(flow.calls.map((item) => item.name), ["list_devices", "run", "run", "inspect_screen", "run"]);
+    assert.deepEqual(flow.calls.map((item) => item.name), ["list_devices", "inspect_screen", "run", "run", "inspect_screen", "run"]);
     assert.equal(readdirSync(flow.options.directory).filter((name) => name.endsWith(".yaml")).length, 3);
     assert(!readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8").includes("fixture-secret"));
     assert.deepEqual(flow.captures, []);
     const timing = readFileSync(join(flow.options.directory, "scenario-tool-timing.jsonl"), "utf8");
     assert(!timing.includes("fixture-secret"));
     const entries = timing.trim().split("\n").map((line) => JSON.parse(line));
-    assert.deepEqual(entries.map((item) => item.tool), ["list_devices", "run", "run", "inspect_screen", "run"]);
+    assert.deepEqual(entries.map((item) => item.tool), ["list_devices", "inspect_screen", "run", "run", "inspect_screen", "run"]);
     assert(entries.every((item) => item.outcome === "returned" && item.elapsedMs >= 0));
     assert(entries.every((item) => Object.keys(item).sort().join(",") === "elapsedMs,flowSequence,outcome,started,tool"));
   } finally { flow.cleanup(); }
@@ -136,7 +137,7 @@ test("unwritable timing artifact preserves returned tool data and records a fixe
     let received;
     await nativeInteraction({ ...flow.options, exercise: async (io) => { received = await io.inspect(); } });
     assert.deepEqual(received, { ui_schema: { platform: "ios" }, elements: [] });
-    assert.deepEqual(flow.calls.map((call) => call.name), ["list_devices", "inspect_screen"]);
+    assert.deepEqual(flow.calls.map((call) => call.name), ["list_devices", "inspect_screen", "inspect_screen"]);
     assert.equal(flow.state().closed, 1); assert.deepEqual(flow.captures, []);
     const diagnostic = readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8");
     assert.equal((diagnostic.match(/Native timing telemetry unavailable\./g) ?? []).length, 1);
@@ -152,7 +153,7 @@ test("timing metadata is buffered without artifact writes between driver calls a
       await io.run([{ assertVisible: "safe fixture" }]); assert(!existsSync(timingPath));
     } });
     const entries = readFileSync(timingPath, "utf8").trim().split("\n").map(JSON.parse);
-    assert.deepEqual(entries.map((entry) => entry.tool), ["list_devices", "inspect_screen", "run"]);
+    assert.deepEqual(entries.map((entry) => entry.tool), ["list_devices", "inspect_screen", "inspect_screen", "run"]);
     assert(entries.every((entry) => entry.outcome === "returned"));
     assert.equal(flow.state().closed, 1);
   } finally { flow.cleanup(); }
@@ -163,7 +164,7 @@ test("timing buffer caps retained entries and reports overflow or failed flush e
     if (failedFlush) mkdirSync(timingPath);
     try {
       await nativeInteraction({ ...flow.options, exercise: async (io) => { for (let index = 0; index < 2050; index++) await io.inspect(); } });
-      assert.equal(flow.calls.length, 2051); assert.equal(flow.state().closed, 1);
+      assert.equal(flow.calls.length, 2052); assert.equal(flow.state().closed, 1);
       if (!failedFlush) {
         const entries = readFileSync(timingPath, "utf8").trim().split("\n").map(JSON.parse);
         assert.equal(entries.length, 2048); assert.equal(entries[0].tool, "list_devices");
@@ -224,3 +225,47 @@ test("unbound or oversized authored flows cannot reach the driver", async () => 
     } finally { flow.cleanup(); }
   }
 });
+
+for (const mode of ["transient", "persistent", "flow-timeout", "assertion", "wrong-device", "ambiguous", "deadline"]) {
+  test(`readiness recovery: ${mode}`, async () => {
+    const flow = harness(), open = flow.options.openSession;
+    let inspections = 0, runs = 0;
+    const reports = [], deadlines = [], waits = [];
+    let wall = Date.now();
+    try {
+      const result = nativeInteraction({ ...flow.options, now: () => wall,
+        backoff: async (ms) => { waits.push(ms); wall += ms; }, report: (entry) => reports.push(entry),
+        openSession: async (options) => {
+          deadlines.push(options.deadline);
+          const client = await open(options), call = client.call;
+          return { ...client, call: async (name, args) => {
+            if (name === "list_devices" && mode === "wrong-device") return { devices: [{ device_id: "other", platform: "ios", connected: true }] };
+            if (name === "inspect_screen") {
+              assert.equal(args.device_id, "owned"); inspections++;
+              if (mode === "ambiguous") throw new Error("Device became unreachable during deviceInfo");
+              if (mode === "deadline") { wall = options.deadline - 500; throw new MaestroError("rpc-timeout", "tools/call"); }
+              if (mode === "persistent" || mode === "transient" && inspections === 1) throw new MaestroError("device-unreachable", name);
+            }
+            if (name === "run") {
+              runs++;
+              if (mode === "flow-timeout") throw new MaestroError("rpc-timeout", "tools/call");
+              if (mode === "assertion") throw new MaestroError("flow-failed", "run", "application-flow");
+            }
+            return call(name, args);
+          } };
+        }, exercise: async (io) => { await io.run([{ assertVisible: "A little time for dice." }]); await io.run([{ tapOn: "later" }]); } });
+      if (mode === "transient") await result;
+      else await assert.rejects(result);
+      assert.equal(flow.state().opened, ["transient", "persistent"].includes(mode) ? 2 : 1);
+      assert.equal(runs, mode === "transient" ? 2 : ["flow-timeout", "assertion"].includes(mode) ? 1 : 0);
+      assert(deadlines.every((value) => value === deadlines[0]));
+      assert.deepEqual(waits, ["transient", "persistent"].includes(mode) ? [1000] : []);
+      assert.equal(reports.length, 1);
+      const evidence = JSON.parse(readFileSync(join(flow.options.directory, "scenario-recovery.json")));
+      assert.deepEqual(evidence, reports[0]); assert.equal(evidence.maxAttempts, 2);
+      assert.equal(evidence.attempts.length, flow.state().opened);
+      if (mode !== "transient") assert(evidence.failure);
+      assert.equal(evidence.attempts[0].outcome, ["flow-timeout", "assertion"].includes(mode) ? "ready" : "failed");
+    } finally { flow.cleanup(); }
+  });
+}
