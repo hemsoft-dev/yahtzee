@@ -182,7 +182,7 @@ try {
     const removed = spawnSync("xcrun", ["simctl", "delete", device], { env, stdio: "ignore", timeout: 60000, killSignal: "SIGKILL" });
     if (removed.status !== 0) { (receipt.cleanupErrors ??= []).push(device); receipt.status = "failed"; process.exitCode = 1; }
   }
-  stopHostTelemetry();
+  await stopHostTelemetry();
   receipt.finishedAt = new Date().toISOString(); checkpoint();
   snapshotEvidence(output, publishedOutput, receipt);
 }

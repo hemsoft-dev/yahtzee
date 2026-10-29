@@ -18,8 +18,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: quality-${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
-  cancel-in-progress: true
+  group: quality-${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && 'native-trial' || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   validate:
