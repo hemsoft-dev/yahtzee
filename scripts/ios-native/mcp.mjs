@@ -73,10 +73,14 @@ export function rpcClient(child, { timeoutMs = 300000, maxBytes = 8 * 1024 * 102
     if (closing) return stopped;
     closing = true; fail(new Error("Local Maestro session closed.")); child.stdin.end();
     const controller = new AbortController();
+    let timedOut = false;
     try {
       await Promise.race([stopped, delay(Math.max(1, Math.min(60000, deadline - Date.now())), undefined, { signal: controller.signal }).then(() => {
-        child.kill("SIGKILL"); throw new Error("Local Maestro did not close within 60 seconds.");
+        timedOut = true;
+        child.kill("SIGKILL");
       })]);
+      if (timedOut) throw new Error("Local Maestro did not close within its shutdown budget.");
+
     } finally { controller.abort(); }
   }
   return { request, notify: (method) => send({ jsonrpc: "2.0", method }), close };
