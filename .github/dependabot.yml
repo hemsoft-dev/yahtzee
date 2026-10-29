@@ -5,6 +5,18 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    # Expo SDK upgrades are coordinated separately; group SDK patch updates.
+    ignore:
+      - dependency-name: expo
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "expo-*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@expo/metro-runtime"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    groups:
+      expo-sdk-patches:
+        patterns: ["expo", "expo-*", "@expo/metro-runtime"]
+        update-types: [patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:
