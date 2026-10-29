@@ -79,7 +79,7 @@ jobs:
         run: bun run quality:measure
       - name: Retain revision-bound qualification evidence
         if: ${{ always() && steps.install.outcome == 'success' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qualification-${{ matrix.os }}-${{ github.sha }}
           path: |
@@ -113,7 +113,7 @@ jobs:
         run: bun run mutation
       - name: Retain revision-bound mutation evidence
         if: ${{ always() && steps.install.outcome == 'success' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mutation-${{ github.sha }}
           path: |
@@ -153,7 +153,7 @@ jobs:
         run: node scripts/ios-native/snapshot.mjs
       - name: Retain native build or dependency-refresh evidence
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-native-build-${{ github.event.pull_request.head.sha || github.sha }}
           path: reports/native-evidence/
@@ -207,7 +207,7 @@ jobs:
         run: node scripts/ios-native/snapshot.mjs
       - name: Retain unsigned native evidence, including failed-run diagnostics
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-native-${{ matrix.group }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: reports/native-evidence/
