@@ -15,6 +15,7 @@ import { preserveCorruptionFailure } from "./corruptionEvidence.mjs";
 import { loadBuiltSimulator } from "./artifact.mjs";
 import { retainDriverLogs } from "./driverLogs.mjs";
 import { snapshotEvidence } from "./snapshot.mjs";
+import { checkedCommandOutput } from "./commandResult.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
@@ -43,15 +44,14 @@ function run(executable, commandArgs, { cwd = root, capture = false, timeout = 1
   try { result = spawnSync(executable, commandArgs, { cwd, env, encoding: "utf8", timeout, killSignal: "SIGKILL", maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", capture ? "pipe" : fd, fd] }); }
   finally { closeSync(fd); }
   if (capture && result.stdout) appendFileSync(join(output, log), result.stdout);
-  if (result.error) throw result.error;
-  assert.equal(result.status, 0, `${executable} failed with ${result.status}; see ${log}`);
-  return result.stdout?.trim() ?? "";
+  return checkedCommandOutput(result, executable, log);
 }
 const sim = (...commandArgs) => run("xcrun", ["simctl", ...commandArgs], { capture: true, timeout: commandArgs[0] === "bootstatus" ? 600000 : 180000 });
 const receipt = { schemaVersion: 1, kind: buildOnly ? "unsigned-ios-simulator-build" : "unsigned-ios-simulator-tests", status: "running", source: run("git", ["rev-parse", "HEAD"], { capture: true }),
   startedAt: new Date().toISOString(), runId: process.env.GITHUB_RUN_ID ?? null, runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
   runnerImage: process.env.ImageVersion ?? null, architecture, group: group ?? null, scenarios: [],
   limits: ["Not a signed device archive", "Not TestFlight or physical-device evidence", "No airplane-mode or VoiceOver acceptance claim", "Public identity and release approvals remain unset", "Raw hidden debug trees are excluded; selected driver logs are sanitized and retained"] };
+const recordRecovery = (entry) => { (receipt.connectionRecovery ??= []).push(entry); checkpoint(); };
 const checkpoint = () => json(join(output, "manifest.json"), receipt);
 checkpoint();
 const ownedDevices = [];
@@ -88,7 +88,7 @@ async function corruption(device, bundleId) {
   const directory = join(output, "corrupt-save"); mkdirSync(directory);
   const resetThroughUi = (name) => {
     const resetDirectory = join(directory, name); mkdirSync(resetDirectory);
-    return nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env,
+    return nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery,
       capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
       exercise: (io) => confirmReset(bundleId, io) });
   };
@@ -142,7 +142,7 @@ async function exercise(app, bundleId) {
     receipt.phase = `start-${scenario.id}`; checkpoint();
     if (index === 0) recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-resume.mp4")], { env, stdio: "ignore" });
     let resumedBytes;
-    await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env,
+    await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery,
       capture: (name) => sim("io", device, "screenshot", join(directory, `${name}.png`)),
       exercise: async (io) => {
         resumedBytes = await exerciseScenario({ bundleId, scenario, io,

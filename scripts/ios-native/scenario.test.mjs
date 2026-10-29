@@ -55,7 +55,7 @@ test("one scenario preserves real cold relaunch, exact document and complete-gam
   assert.deepEqual(flow.phases, ["start", "hold", "resume", "complete"]);
   assert.deepEqual(flow.taps, ["die-0", "reroll-action", "score-ones", "score-chance"]);
   assert.deepEqual(flow.stages, ["before-hold", "after-hold", "after-reroll", "before-relaunch", "after-relaunch", "completed"]);
-  assert.equal(flow.flows.length, 10);
+  assert.equal(flow.flows.length, 11);
   assert(flow.flows.some((yaml) => yaml.includes("diagnostics-preview")));
   assert(flow.flows.at(-1).includes('"Play Again"'));
   assert(flow.flows.every((yaml) => yaml.split("\n").filter((line) => line.startsWith("- ")).length <= 8));
@@ -86,7 +86,7 @@ test("largest-text scenarios still hold, reroll and resume without claiming a co
   const flow = harness(); flow.options.scenario.largeText = true;
   await exerciseScenario(flow.options);
   assert.equal(flow.terminated(), 1); assert.deepEqual(flow.phases, ["start", "hold", "resume"]);
-  assert.deepEqual(flow.taps, ["die-0", "reroll-action"]); assert.equal(flow.flows.length, 5);
+  assert.deepEqual(flow.taps, ["die-0", "reroll-action"]); assert.equal(flow.flows.length, 6);
 });
 test("all authored mode/AI and largest-text cases retain their required lifecycle without phase restarts", async () => {
   for (const scenario of scenarios) {
@@ -97,8 +97,8 @@ test("all authored mode/AI and largest-text cases retain their required lifecycl
       const match = /^- (\w+): (.*)$/.exec(line);
       return match ? { [match[1]]: JSON.parse(match[2]) } : { [line.slice(2)]: undefined };
     });
-    assert.deepEqual(commands.filter((command) => /^(5|6|8|10) dice$/.test(command.tapOn?.text)).map((command) => command.tapOn), [{ text: `${scenario.dice} dice`, enabled: true }]);
-    assert.deepEqual(commands.filter((command) => ["Solo", "3 AI"].includes(command.tapOn?.text)).map((command) => command.tapOn), [{ text: scenario.ai ? "3 AI" : "Solo", enabled: true }]);
+    assert.deepEqual(commands.filter((command) => /^(5|6|8|10) dice$/.test(command.tapOn?.text)).map((command) => command.tapOn), [{ text: `${scenario.dice} dice`, enabled: true, retryTapIfNoChange: false }]);
+    assert.deepEqual(commands.filter((command) => ["Solo", "3 AI"].includes(command.tapOn?.text)).map((command) => command.tapOn), [{ text: scenario.ai ? "3 AI" : "Solo", enabled: true, retryTapIfNoChange: false }]);
     assert.deepEqual(commands.filter((command) => command.setOrientation).map((command) => command.setOrientation), [scenario.orientation]);
     assert.equal(flow.terminated(), 1);
     assert.equal(flow.flows.flatMap((yaml) => yaml.split("\n")).filter((line) => line.startsWith("- launchApp:")).length, scenario.largeText ? 2 : 3);

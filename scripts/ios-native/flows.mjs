@@ -1,6 +1,15 @@
 const command = (name, value) => `- ${name}${value === undefined ? "" : `: ${JSON.stringify(value)}`}`;
 const visible = (text) => command("assertVisible", text);
 const tap = (text) => command("tapOn", { text, enabled: true });
+// iOS choices are native action sheets. Accessibility visibility alone does not
+// prove their presentation/dismissal has finished and the next row can receive taps.
+// iPad popovers omit Cancel; the Current message exists on both iOS device families.
+const choose = (title, option) => [
+  command("tapOn", { text: title, enabled: true, retryTapIfNoChange: false }),
+  visible("Current: .*"), command("waitForAnimationToEnd", { timeout: 5000 }), visible(option),
+  command("tapOn", { text: option, enabled: true, retryTapIfNoChange: false }),
+  command("waitForAnimationToEnd", { timeout: 5000 }), command("assertNotVisible", "Current: .*"),
+];
 const scroll = (element, visibilityPercentage = 100) => command("scrollUntilVisible", { element, direction: "DOWN", timeout: 60000, visibilityPercentage });
 const shot = (name) => command("takeScreenshot", name);
 const header = (bundleId, commands) => `appId: ${JSON.stringify(bundleId)}\n---\n${commands.join("\n")}\n`;
@@ -12,8 +21,8 @@ export function startFlow(bundleId, scenario) {
     command("tapOn", { text: "Done", enabled: true, retryTapIfNoChange: false }),
     command("assertNotVisible", "How to play"), visible("A little time for dice."), shot("setup"),
     scroll({ text: "Your name" }), tap("Your name"), command("eraseText"), command("inputText", "Local tester"), command("pressKey", "enter"),
-    scroll({ text: "AI opponents" }), tap("AI opponents"), tap(scenario.ai ? "3 AI" : "Solo"),
-    scroll({ text: "Dice count" }), tap("Dice count"), tap(`${scenario.dice} dice`),
+    scroll({ text: "AI opponents" }), ...choose("AI opponents", scenario.ai ? "3 AI" : "Solo"),
+    scroll({ text: "Dice count" }), ...choose("Dice count", `${scenario.dice} dice`),
     scroll({ text: "Start Game" }), tap("Start Game"), visible("Re-roll \\(2\\)"), shot("started-game")]);
 }
 export function resumeFlow(bundleId) {
