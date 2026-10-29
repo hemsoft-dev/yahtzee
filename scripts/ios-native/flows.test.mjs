@@ -136,8 +136,8 @@ function setupWithDelayedChoices({ stuckDismissal = false, lostDiceTap = false }
         presenting = false;
         if (!stuckDismissal) dismissing = false;
       }
-      if (command === "assertVisible" && value === "Cancel") assert(sheet, "No choice sheet opened");
-      if (command === "assertNotVisible" && value === "Cancel") assert.equal(dismissing, false, "Choice sheet is still dismissing");
+      if (command === "assertVisible" && value === "Current: .*") assert(sheet, "No choice sheet opened");
+      if (command === "assertNotVisible" && value === "Current: .*") assert.equal(dismissing, false, "Choice sheet is still dismissing");
       if (command !== "tapOn") continue;
       if (["AI opponents", "Dice count", "Solo", "3 AI", "10 dice"].includes(value.text)) taps.push(value);
       if (["AI opponents", "Dice count"].includes(value.text)) {

@@ -3,11 +3,12 @@ const visible = (text) => command("assertVisible", text);
 const tap = (text) => command("tapOn", { text, enabled: true });
 // iOS choices are native action sheets. Accessibility visibility alone does not
 // prove their presentation/dismissal has finished and the next row can receive taps.
+// iPad popovers omit Cancel; the Current message exists on both iOS device families.
 const choose = (title, option) => [
   command("tapOn", { text: title, enabled: true, retryTapIfNoChange: false }),
-  visible("Cancel"), command("waitForAnimationToEnd", { timeout: 5000 }), visible(option),
+  visible("Current: .*"), command("waitForAnimationToEnd", { timeout: 5000 }), visible(option),
   command("tapOn", { text: option, enabled: true, retryTapIfNoChange: false }),
-  command("waitForAnimationToEnd", { timeout: 5000 }), command("assertNotVisible", "Cancel"),
+  command("waitForAnimationToEnd", { timeout: 5000 }), command("assertNotVisible", "Current: .*"),
 ];
 const scroll = (element, visibilityPercentage = 100) => command("scrollUntilVisible", { element, direction: "DOWN", timeout: 60000, visibilityPercentage });
 const shot = (name) => command("takeScreenshot", name);
