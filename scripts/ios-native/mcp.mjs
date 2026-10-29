@@ -16,7 +16,7 @@ function toolFailure(name, result) {
   const transportClass = name === "run" ? "transport-uncertain" : "transport-startup";
   // Explicit app failures take precedence if a diagnostic contains both kinds.
   if (!/Assertion is false:|Element not found:/.test(text)) {
-    if (/Device became unreachable during deviceInfo/.test(text)) return new MaestroError("device-unreachable", name, transportClass);
+    if (/Device became unreachable during \S+/.test(text)) return new MaestroError("device-unreachable", name, transportClass);
     if (/driver.*(?:install|connect).*(?:fail|error)|(?:Failed|Unable) to (?:install|connect).*driver/i.test(text)) return new MaestroError("driver-connect", name, transportClass);
   }
   return new MaestroError(name === "run" ? "flow-failed" : "tool-failed", name, name === "run" ? "application-flow" : "unknown");

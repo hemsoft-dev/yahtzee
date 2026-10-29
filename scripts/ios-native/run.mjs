@@ -15,6 +15,7 @@ import { preserveCorruptionFailure } from "./corruptionEvidence.mjs";
 import { loadBuiltSimulator } from "./artifact.mjs";
 import { retainDriverLogs } from "./driverLogs.mjs";
 import { snapshotEvidence } from "./snapshot.mjs";
+import { checkedCommandOutput } from "./commandResult.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
@@ -43,9 +44,7 @@ function run(executable, commandArgs, { cwd = root, capture = false, timeout = 1
   try { result = spawnSync(executable, commandArgs, { cwd, env, encoding: "utf8", timeout, killSignal: "SIGKILL", maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", capture ? "pipe" : fd, fd] }); }
   finally { closeSync(fd); }
   if (capture && result.stdout) appendFileSync(join(output, log), result.stdout);
-  if (result.error) throw result.error;
-  assert.equal(result.status, 0, `${executable} failed with ${result.status}; see ${log}`);
-  return result.stdout?.trim() ?? "";
+  return checkedCommandOutput(result, executable, log);
 }
 const sim = (...commandArgs) => run("xcrun", ["simctl", ...commandArgs], { capture: true, timeout: commandArgs[0] === "bootstatus" ? 600000 : 180000 });
 const receipt = { schemaVersion: 1, kind: buildOnly ? "unsigned-ios-simulator-build" : "unsigned-ios-simulator-tests", status: "running", source: run("git", ["rev-parse", "HEAD"], { capture: true }),

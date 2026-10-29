@@ -79,10 +79,10 @@ test("late RPC success cannot revive a timed-out session or send another command
   assert.equal(messages.length, 1); await client.close();
 });
 test("known device loss distinguishes readiness from uncertain submitted execution", async () => {
-  for (const name of ["inspect_screen", "run"]) {
+  for (const name of ["inspect_screen", "run"]) for (const operation of ["deviceInfo", "isScreenStatic", "futureDriverOperation"]) {
     const fixture = processFixture((message, child) => {
       if (message.method === "initialize") respond(child, message.id, { serverInfo: { name: "maestro" }, protocolVersion: "2024-11-05" });
-      if (message.method === "tools/call") respond(child, message.id, { isError: true, content: [{ type: "text", text: "Failed to run flow: Device became unreachable during deviceInfo" }] });
+      if (message.method === "tools/call") respond(child, message.id, { isError: true, content: [{ type: "text", text: `Failed to run flow: Device became unreachable during ${operation}` }] });
     });
     const client = await localMaestro({ cwd: "/owned", env: {}, onStderr: () => {}, start: () => fixture.child });
     await assert.rejects(client.call(name), (error) => error instanceof MaestroError && error.failureClass === (name === "run" ? "transport-uncertain" : "transport-startup"));
@@ -107,6 +107,8 @@ test("failed startup retirement keeps the original timeout and prohibits recover
 
 for (const [text, expectedClass, expectedCode] of [
   ["Failed to run flow: Device became unreachable during deviceInfo", "transport-uncertain", "device-unreachable"],
+  ["Failed to run flow: Device became unreachable during isScreenStatic", "transport-uncertain", "device-unreachable"],
+  ["Failed to run flow: Device became unreachable during futureDriverOperation", "transport-uncertain", "device-unreachable"],
   ["Failed to run flow: Element not found: Text matching regex: 10 dice, Enabled", "application-flow", "flow-failed"],
   ['Failed to run flow: Assertion is false: "A little time for dice." is visible', "application-flow", "flow-failed"],
   ["Failed to run flow: Element not found: 10 dice; Device became unreachable during deviceInfo", "application-flow", "flow-failed"],
