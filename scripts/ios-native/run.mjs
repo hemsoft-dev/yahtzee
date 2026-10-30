@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { getScorecardCategories } from "../../packages/game-engine/src/presentation.ts";
 import { decodeSave } from "../../apps/mobile/src/local/save.ts";
 import { corruptFlow, emptyRelaunchFlow, scenarios, GROUPS, scenariosForGroup } from "./flows.mjs";
@@ -16,6 +15,7 @@ import { loadBuiltSimulator } from "./artifact.mjs";
 import { retainDriverLogs } from "./driverLogs.mjs";
 import { snapshotEvidence } from "./snapshot.mjs";
 import { checkedCommandOutput } from "./commandResult.mjs";
+import { startHostTelemetry } from "./hostTelemetry.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
@@ -55,17 +55,8 @@ const recordRecovery = (entry) => { (receipt.connectionRecovery ??= []).push(ent
 const checkpoint = () => json(join(output, "manifest.json"), receipt);
 checkpoint();
 const ownedDevices = [];
-let recording = null;
-async function stopRecording() {
-  if (!recording) return;
-  const child = recording; recording = null;
-  if (child.exitCode !== null) { assert.equal(child.exitCode, 0, "Simulator recording exited with an error."); return; }
-  const stopped = new Promise((done) => child.once("close", done));
-  const controller = new AbortController();
-  child.kill("SIGINT");
-  try { await Promise.race([stopped, delay(15000, undefined, { signal: controller.signal }).then(() => { child.kill("SIGKILL"); throw new Error("Simulator recording did not stop."); })]); }
-  finally { controller.abort(); }
-}
+const stopHostTelemetry = buildOnly ? () => {} : startHostTelemetry(join(output, "host-telemetry.json"));
+receipt.capture = { mode: "screenshots", continuousVideo: false, reason: "Avoid concurrent full-resolution H.264 encoding during simulator qualification" };
 function flow(device, directory, name, content) {
   const file = join(directory, `${name}.yaml`); writeFileSync(file, content);
   const debug = join(directory, `${name}-debug`);
@@ -124,7 +115,7 @@ async function exercise(app, bundleId) {
     const device = sim("create", `Dice-${process.pid}-${name}`, type.identifier, runtime); ownedDevices.push(device); devices.set(name, device);
   }
   let booted = null;
-  for (const [index, scenario] of selectedScenarios.entries()) {
+  for (const scenario of selectedScenarios) {
     const device = devices.get(scenario.device);
     receipt.phase = `prepare-${scenario.id}`; checkpoint();
     if (booted !== device) {
@@ -140,7 +131,6 @@ async function exercise(app, bundleId) {
     const directory = join(output, scenario.id); mkdirSync(directory, { recursive: true });
     const result = { ...scenario, udid: device, runtime, locale: "en-US", status: "running" }; receipt.scenarios.push(result);
     receipt.phase = `start-${scenario.id}`; checkpoint();
-    if (index === 0) recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-resume.mp4")], { env, stdio: "ignore" });
     let resumedBytes;
     await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery,
       capture: (name) => sim("io", device, "screenshot", join(directory, `${name}.png`)),
@@ -151,7 +141,6 @@ async function exercise(app, bundleId) {
           terminate: () => sim("terminate", device, bundleId),
           phase: (name) => { receipt.phase = `${name}-${scenario.id}`; checkpoint(); } });
       } });
-    await stopRecording();
     result.status = "passed"; result.resumeDocumentSha256 = hash(resumedBytes); checkpoint();
   }
   if (!group || group === "tablet-10") { receipt.phase = "corruption-and-reset"; checkpoint(); await corruption(booted, bundleId); }
@@ -187,13 +176,13 @@ try {
   }
   console.error(receipt.error);
 } finally {
-  try { await stopRecording(); } catch (error) { receipt.recordingError = String(error); receipt.status = "failed"; process.exitCode = 1; }
   for (const device of ownedDevices) {
     // Only devices created by this process are shut down or deleted.
     spawnSync("xcrun", ["simctl", "shutdown", device], { env, stdio: "ignore", timeout: 60000, killSignal: "SIGKILL" });
     const removed = spawnSync("xcrun", ["simctl", "delete", device], { env, stdio: "ignore", timeout: 60000, killSignal: "SIGKILL" });
     if (removed.status !== 0) { (receipt.cleanupErrors ??= []).push(device); receipt.status = "failed"; process.exitCode = 1; }
   }
+  await stopHostTelemetry();
   receipt.finishedAt = new Date().toISOString(); checkpoint();
   snapshotEvidence(output, publishedOutput, receipt);
 }

@@ -1,17 +1,25 @@
 name: Application quality
+run-name: Application quality${{ inputs.native_trial && format(' - native trial {0}', inputs.native_trial) || '' }}
 
 on:
   pull_request:
   push:
     branches: [main]
   merge_group:
+  workflow_dispatch:
+    inputs:
+      native_trial:
+        description: 'Native reliability trial identifier, 1 through 10'
+        required: true
+        type: choice
+        options: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
 
 permissions:
   contents: read
 
 concurrency:
-  group: quality-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: quality-${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && 'native-trial' || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   validate:

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { localMaestro, MaestroError } from "./mcp.mjs";
-import { redactDriverLog } from "./driverLogs.mjs";
+import { redactDriverLog, retainXCTestLogs } from "./driverLogs.mjs";
 
 /** One bounded local driver session for the owned simulator. */
 export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay }) {
@@ -19,6 +19,9 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   const deadline = now() + (prefix === "scenario" ? 1200000 : 600000);
   const childEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
     /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|JAVA_HOME|DEVELOPER_DIR|LANG|LC_ALL|MAESTRO_CLI_NO_ANALYTICS|MAESTRO_DISABLE_UPDATE_CHECK|MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED|MAESTRO_DRIVER_STARTUP_TIMEOUT)$/.test(key)));
+  // An isolated hidden state directory keeps raw driver output out of published evidence.
+  childEnv.XDG_STATE_HOME = join(directory, `.${prefix}-driver-state`);
+  mkdirSync(childEnv.XDG_STATE_HOME, { recursive: true });
   let client, shutdownFailed = false, shutdownError, diagnosticFailed = false, diagnosticError;
   async function call(name, args) {
     assert(now() < deadline, "Native interaction exceeded its bounded session budget.");
@@ -104,6 +107,8 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
       diagnostics += "\nLocal Maestro shutdown failed.\n";
     }
     finally {
+      try { recovery.xctestLogs = retainXCTestLogs(childEnv.XDG_STATE_HOME, directory, prefix, env); }
+      catch { diagnostics += "\nXCTest diagnostic retention unavailable.\n"; }
       try { writeFileSync(join(directory, `${prefix}-tool-timing.jsonl`), timings.join("\n") + (timings.length ? "\n" : "")); }
       catch { timingNotice(); }
       try {
