@@ -14,16 +14,6 @@
     }
   },
   {
-    "package": "node-forge",
-    "version": "1.4.0",
-    "advisory": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
-    "patch": "patches/node-forge@1.4.0.patch",
-    "patchSha256": "ed291e22844c1feb80cbfa5ce0f0e48e9c15726bd0859eba5e9067b069d8b95a",
-    "files": {
-      "lib/rsa.js": "4bfba9a21256ecda994bd8da2a3163bd82b04190060503a5165b126c8aa79e7e"
-    }
-  },
-  {
     "package": "sprintf-js",
     "version": "1.1.3",
     "advisory": "https://github.com/advisories/GHSA-hp3w-g68c-fv3c",

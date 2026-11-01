@@ -1,6 +1,6 @@
 # Dependency security
 
-The September 18, 2026 baseline contained 24 affected package names and 116 distinct advisory URLs. That baseline was repaired to an empty `bun audit --json` report. The October 9 additions below address newly published advisories. No exceptions are accepted.
+The September 18, 2026 baseline contained 24 affected package names and 116 distinct advisory URLs. That baseline was repaired to an empty `bun audit --json` report. The October 9 and November 1 additions below address newly published advisories. One exception is accepted, for minimatch; see [November 1 repairs](#november-1-repairs).
 
 - [Original scanner report](audit-before.json)
 - [Updated scanner report](audit-after.json)
@@ -34,16 +34,24 @@ The regression suite resolves `qs` through the actual Stryker REST-client depend
 
 Dependabot alerts and security updates are enabled. [The updater configuration](../../.github/dependabot.yml) uses the supported **bun** ecosystem at the workspace root, plus GitHub Actions updates. Earlier automatic npm scanning of the nested desktop manifest failed because it lacked a recognized lockfile or exact Electron requirement. The Bun configuration uses the actual text lockfile. See [GitHub's supported ecosystems](https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-ecosystems-and-repositories).
 
-Future exceptions require an exact package/advisory URL, owner, concrete rationale and expiry in [security-exceptions.json](../../security-exceptions.json), reviewed in a PR. The empty list is intentional. A negative validation temporarily restored vulnerable UUID 8.3.2; the real security command exited 1 on GHSA-w5hq-g745-h8pq. Restoring the reviewed manifest/lockfile returned the check to green.
+Future exceptions require an exact package/advisory URL, owner, concrete rationale and expiry in [security-exceptions.json](../../security-exceptions.json), reviewed in a PR. A negative validation temporarily restored vulnerable UUID 8.3.2; the real security command exited 1 on GHSA-w5hq-g745-h8pq. Restoring the reviewed manifest/lockfile returned the check to green.
 
 ## October 9 repairs
 
 Pinned overrides update http-cache-semantics to 4.3.0, shell-quote to 1.12.0 and source-map-js to 1.2.2. Three packages still lack published patched releases, so frozen installs apply checked-in Bun patches:
 
 - braces 3.0.3: bound parser, recursive AST traversal and nested expansion-array depth for [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
-- node-forge 1.4.0: reject additional RSA DigestInfo algorithm-sequence elements and nonempty or non-NULL parameters for [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv).
+- node-forge 1.4.0: reject additional RSA DigestInfo algorithm-sequence elements and nonempty or non-NULL parameters for [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv). Replaced by upstream 1.4.2 on November 1.
 - sprintf-js 1.1.3: bound numeric precision to the supported JavaScript range for [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c).
 
-Bun's version scanner still reports those three versions. The audit recognizes only their exact package/advisory identities after verifying the pinned override, patch registration, patch SHA-256, installed version and repaired source hashes for every matching Bun package-store copy. It also runs exploit regressions and ordinary-input checks. Missing or changed patches, vulnerable duplicate versions, failed regressions and every other advisory fail the command. The exception list remains empty.
+Bun's version scanner still reports those three versions. The audit recognizes only their exact package/advisory identities after verifying the pinned override, patch registration, patch SHA-256, installed version and repaired source hashes for every matching Bun package-store copy. It also runs exploit regressions and ordinary-input checks. Missing or changed patches, vulnerable duplicate versions, failed regressions and every other advisory fail the command.
 
 [security-remediations.json](../../security-remediations.json) records the delivered hashes. [Policy regressions](../../packages/game-engine/tests/securityRemediations.test.ts) prove tampering and unrelated advisories remain errors. Remove each patch, override and matching remediation record together when a compatible upstream release incorporates the fix; run the exploit regressions and full audit before merging that replacement.
+
+## November 1 repairs
+
+Advisories published on October 30 turned the daily audit red on `main`.
+
+- node-forge: 1.4.2 fixes the eleven new advisories. It also rejects every GHSA-86w9-cpqp-85rv fixture in the exploit regressions without a local patch, so the patch, override and remediation record were removed together and the regressions stay in place.
+- glob: 14.0.3 fixes [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4). Expo's packages ask for `^13.0.0`, while `@electron/asar` and `rimraf` need the unaffected glob 7 API, so the overrides are scoped to the five Expo consumers. Glob 14 keeps the exports Expo calls. Scoped overrides require `lockfileVersion` 3, which Bun 1.4.2 and Dependabot both read. Remove them when Expo depends on a fixed glob.
+- minimatch: [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) is accepted as an exception until February 1, 2027. HemSoft owns it. The scanner flags everything below 11.0.1, and 11 removes `makeRe` and changes the matcher, so it cannot replace the versions ESLint, electron-builder, Stryker and Expo require. The affected preprocessing runs only at `optimizationLevel` 2 or higher. minimatch 3.1.5 and 5.1.9 do not contain it, no installed direct caller of 9.0.9 or 10.2.6 sets that option, and glob, which does, now uses minimatch 11. These are developer and build tools that read repository-owned patterns, never player input. Before the expiry, recheck whether those consumers have moved to a fixed release.

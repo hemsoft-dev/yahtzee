@@ -84,7 +84,7 @@ bun run test          # Engine and isolated backend tests
 bun run test:watch    # Watch mode
 bun run typecheck     # All workspaces, Convex and validation tools
 bun run lint          # TypeScript, React Hooks and ESM configuration
-bun run security      # Dependency advisories, no exceptions currently accepted
+bun run security      # Dependency advisories; accepted exceptions are in security-exceptions.json
 bun run build:web
 bun run build:desktop
 bun run build:mobile   # Android/iOS JavaScript and Hermes, not signed native packages
