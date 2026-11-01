@@ -3155,7 +3155,7 @@
       }
     ],
     "current": [
-      "node-forge@1.4.0"
+      "node-forge@1.4.2"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development/signing tooling uses certificate code. No application-provided certificate verification endpoint was identified; fixed compatible release installed."
@@ -3186,7 +3186,7 @@
       }
     ],
     "current": [
-      "node-forge@1.4.0"
+      "node-forge@1.4.2"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development/signing tooling uses certificate code. No application-provided certificate verification endpoint was identified; fixed compatible release installed."
@@ -3217,7 +3217,7 @@
       }
     ],
     "current": [
-      "node-forge@1.4.0"
+      "node-forge@1.4.2"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development/signing tooling uses certificate code. No application-provided certificate verification endpoint was identified; fixed compatible release installed."
@@ -3249,7 +3249,7 @@
       }
     ],
     "current": [
-      "node-forge@1.4.0"
+      "node-forge@1.4.2"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development/signing tooling uses certificate code. No application-provided certificate verification endpoint was identified; fixed compatible release installed."
