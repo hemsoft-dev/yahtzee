@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "package": "minimatch",
+    "advisory": "https://github.com/advisories/GHSA-g3hv-75wg-m249",
+    "owner": "HemSoft",
+    "rationale": "Only minimatch 11.0.1 and later is fixed, and its API differs from the 3.1.5, 5.1.9, 9.0.9 and 10.2.6 copies that ESLint, electron-builder, Stryker and Expo require; 3.1.5 and 5.1.9 do not contain the affected code, and no installed caller of 9.0.9 or 10.2.6 sets optimizationLevel 2. Glob, which does, now uses minimatch 11 through its override. These are developer and build tools that read repository-owned patterns, never player input.",
+    "expires": "2027-02-01"
+  }
+]
