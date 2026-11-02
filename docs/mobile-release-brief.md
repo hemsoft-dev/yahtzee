@@ -69,9 +69,10 @@ all faces 1 through 6 and scores 50. Castle means two triples of distinct faces,
 with the entire hand summed, including extras in eight/ten dice. Six identical
 dice are not two distinct triples. Eight/ten-dice games have no dedicated
 six-of-a-kind category. All of a Kind requires the whole hand to match and
-scores 50 at five dice, 100 in the larger-hand category. Existing base and
-larger-hand rows retain their ordering and IDs, including both All of a Kind
-rows at six or more dice. No category is silently removed.
+scores 50 at five dice under the internal ID `yahtzee`. At six or more dice,
+`maxi-yahtzee` replaces that row and scores 100. Each scorecard exposes only
+one All of a Kind row. The existing category ordering and internal IDs remain
+unchanged.
 
 Chance sums the hand. Suggestions preserve it when a made combination or an
 upper score at bonus pace is available, count a bonus secured now, and prefer
