@@ -16,6 +16,7 @@ import { loadBuiltSimulator } from "./artifact.mjs";
 import { retainDriverLogs } from "./driverLogs.mjs";
 import { snapshotEvidence } from "./snapshot.mjs";
 import { checkedCommandOutput } from "./commandResult.mjs";
+import { startHostTelemetry } from "./hostTelemetry.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
@@ -55,6 +56,7 @@ const recordRecovery = (entry) => { (receipt.connectionRecovery ??= []).push(ent
 const checkpoint = () => json(join(output, "manifest.json"), receipt);
 checkpoint();
 const ownedDevices = [];
+const stopHostTelemetry = buildOnly ? () => {} : startHostTelemetry(join(output, "host-telemetry.json"));
 let recording = null;
 async function stopRecording() {
   if (!recording) return;
@@ -194,6 +196,7 @@ try {
     const removed = spawnSync("xcrun", ["simctl", "delete", device], { env, stdio: "ignore", timeout: 60000, killSignal: "SIGKILL" });
     if (removed.status !== 0) { (receipt.cleanupErrors ??= []).push(device); receipt.status = "failed"; process.exitCode = 1; }
   }
+  await stopHostTelemetry();
   receipt.finishedAt = new Date().toISOString(); checkpoint();
   snapshotEvidence(output, publishedOutput, receipt);
 }

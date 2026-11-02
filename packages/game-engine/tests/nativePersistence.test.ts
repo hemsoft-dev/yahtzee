@@ -39,6 +39,33 @@ describe("durable native storage boundary, without a native-runtime claim", () =
     expect(await restarted.preferences({ appearance: "purple" } as never)).toBe(false);
   });
 
+  test("selecting the current Solo or dice preference never locks setup or writes storage", async () => {
+    const f = fixture(); await f.store.load();
+    const before = f.store.getSnapshot(), writes = f.state.attempts.length;
+    let notices = 0; f.store.subscribe(() => { notices++; });
+    // A cold/pressured SQLite write may not acknowledge before the next row tap.
+    f.state.pause = new Promise(() => {});
+    const solo = f.store.preferences({ aiOpponents: 0 });
+    expect(f.store.getSnapshot().busy).toBe(false);
+    expect(await solo).toBe(true);
+    expect(await f.store.preferences({ diceCount: 5 })).toBe(true);
+    expect(f.state.attempts.length).toBe(writes);
+    expect(f.store.getSnapshot()).toBe(before); expect(notices).toBe(0);
+  });
+
+  test("no-op preferences cannot bypass an in-flight or unacknowledged write", async () => {
+    const f = fixture(); await f.store.load();
+    let release!: () => void;
+    f.state.pause = new Promise<void>((resolve) => { release = resolve; });
+    const changed = f.store.preferences({ aiOpponents: 3 });
+    expect(f.store.getSnapshot().busy).toBe(true);
+    expect(await f.store.preferences({ diceCount: 5 })).toBe(false);
+    f.state.fail = "before"; release(); expect(await changed).toBe(false);
+    expect(f.store.getSnapshot().canRetry).toBe(true);
+    expect(await f.store.preferences({ diceCount: 5 })).toBe(false);
+    expect(f.store.getSnapshot().canRetry).toBe(true);
+  });
+
   test("acknowledged dice, holds, rolls and revision survive process recreation", async () => {
     const f = fixture(); await f.store.load(); await f.store.start(options);
     expect(await f.store.move({ kind: "hold", index: 0 })).toBe(true);

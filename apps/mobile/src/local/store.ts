@@ -119,11 +119,20 @@ export function createLocalStore(storage: StoragePort, newId = () => `${Date.now
     move: (move: Move) => update((data) => nextMove(data, move)),
     retry: () => attempt(writePending),
     discard: () => update((data) => ({ ...data, active: null })),
-    preferences: (patch: Partial<Preferences>) => update((data) => {
-      const preferences = { ...data.preferences, ...patch };
-      if (!validPreferences(preferences)) throw new Error("Invalid local preferences.");
-      return { ...data, preferences };
-    }),
+    preferences: (patch: Partial<Preferences>) => {
+      // Re-selecting Solo/current dice count must not disable the next setup row
+      // while an unnecessary SQLite write waits for acknowledgement.
+      const current = view.data?.preferences;
+      if (!view.busy && !pending && !view.error && current) {
+        const next = { ...current, ...patch };
+        if (validPreferences(next) && JSON.stringify(next) === JSON.stringify(current)) return Promise.resolve(true);
+      }
+      return update((data) => {
+        const preferences = { ...data.preferences, ...patch };
+        if (!validPreferences(preferences)) throw new Error("Invalid local preferences.");
+        return { ...data, preferences };
+      });
+    },
     // The UI must confirm deletion of games, results, names and preferences first.
     resetAll: () => attempt(async () => { stage(emptySave(), true); await writePending(); }),
   };
