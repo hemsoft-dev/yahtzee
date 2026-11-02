@@ -10,7 +10,7 @@ Scanner severity is not evidence that an application endpoint is exploitable. El
 
 ## Updated toolchain
 
-Direct toolchain versions are pinned. Expo 57.0.24 uses its published React 19.2.3, React Native 0.86.3 and native-module compatibility set. `expo install --check` passes. TypeScript 6.0.3 matches that SDK. Explicit repository root directories in the web/desktop typechecks accommodate TypeScript 6's changed root-directory default and Convex's typed API imports.
+Direct toolchain versions are pinned. Expo 57.0.31 uses its published React 19.2.3, React Native 0.86.3 and native-module compatibility set, apart from three pins. `expo install --check` exits 1 on those: AsyncStorage 3.1.1 (expected 2.2.0), react-native-safe-area-context 5.9.1 (expected ~5.7.0) and @types/react 19.3.0 (expected ~19.2.4). TypeScript 6.0.3 matches that SDK. Explicit repository root directories in the web/desktop typechecks accommodate TypeScript 6's changed root-directory default and Convex's typed API imports.
 
 On desktop, Electron 44.9.1, electron-vite 5.0.0, Vite 7.3.7 and plugin-react 5.2.0 have compatible peer ranges. Desktop stays on Vite 7 because electron-vite 5 supports Vite 5 through 7, and plugin-react 6 requires Vite 8. Web uses Vite 8.3.3 and plugin-react 6.1.2. Convex 1.46.0 and convex-test 0.0.59 are aligned. The lockfile was regenerated from the pinned manifests to refresh stale compatible transitive versions; subsequent frozen installs preserve it.
 
@@ -18,7 +18,7 @@ Node must satisfy the root `engines` field. Qualification uses Node 24 and Bun 1
 
 ## Compatibility patch
 
-The original two transitive overrides removed the final advisories in that baseline. UUID 11.1.1 retains CommonJS and ESM entry points. decode-uri-component is ESM-only in 0.5.0, the fixed release this override first selected, and in 0.5.1, the installed version, while Expo Router's query-string 7 consumer expects a CommonJS function. [The one-line patch](../../patches/query-string@7.1.3.patch) selects its default export. Bun applies this checked-in patch during frozen installs; editing node_modules by hand is not the delivery mechanism.
+The original two transitive overrides removed the final advisories in that baseline. UUID 11.1.1 retains CommonJS and ESM entry points. Since Expo 57.0.31, `xcode` 4 no longer depends on uuid, so no locked package installs it and that override currently has no effect. decode-uri-component is ESM-only in 0.5.0, the fixed release this override first selected, and in 0.5.1, the installed version, while Expo Router's query-string 7 consumer expects a CommonJS function. [The one-line patch](../../patches/query-string@7.1.3.patch) selects its default export. Bun applies this checked-in patch during frozen installs; editing node_modules by hand is not the delivery mechanism.
 
 The test suite resolves query-string through the actual Expo Router installation and checks parsing, encoding, repeated values, Unicode and malformed input. Remove the override/patch together when the upstream router consumes a compatible fixed query-string release. HemSoft owns this follow-up. Review it by October 18, 2026; it is a compatibility patch, not an advisory suppression.
 

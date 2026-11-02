@@ -8,7 +8,7 @@ The iOS and Android app uses the shared rules through a small asynchronous stora
 
 The store computes each move once, including AI turns, and stages its exact serialized document. It publishes state only after storage acknowledges the write. A failed acknowledgment blocks further moves. Retry writes the same bytes; it does not roll again or append another result. Explicit reload reads the stored state and abandons only the pending in-memory move. An unacknowledged move may be absent after process termination.
 
-Native builds select `platformStorage.native.ts`. Expo SQLite 57.0.3 stores the document as one parameter-bound SQL value in the dedicated `hemsoft-local-dice.db` database. Writes use SQLite autocommit with WAL and `synchronous=FULL`. Database format version 1 is separate from the document/rules versions. Loading checks integrity and the database version before schema or journal changes. Unsupported databases, unreadable storage, invalid JSON and invalid game state produce a visible recovery error rather than a reset.
+Native builds select `platformStorage.native.ts`. Expo SQLite 57.0.4 stores the document as one parameter-bound SQL value in the dedicated `hemsoft-local-dice.db` database. Writes use SQLite autocommit with WAL and `synchronous=FULL`. Database format version 1 is separate from the document/rules versions. Loading checks integrity and the database version before schema or journal changes. Unsupported databases, unreadable storage, invalid JSON and invalid game state produce a visible recovery error rather than a reset.
 
 The web development adapter uses AsyncStorage's web implementation. Browser journeys are supplementary and do not test native SQLite, UIKit navigation, safe areas or VoiceOver.
 
