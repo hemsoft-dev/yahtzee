@@ -12,7 +12,7 @@ Scanner severity is not evidence that an application endpoint is exploitable. El
 
 Direct toolchain versions are pinned. Expo 57.0.24 uses its published React 19.2.3, React Native 0.86.3 and native-module compatibility set. `expo install --check` passes. TypeScript 6.0.3 matches that SDK. Explicit repository root directories in the web/desktop typechecks accommodate TypeScript 6's changed root-directory default and Convex's typed API imports.
 
-Electron 44.4.3, electron-vite 5.0.0, Vite 7.3.6 and plugin-react 5.2.0 have compatible peer ranges. Vite 8 is intentionally not selected because electron-vite 5 supports Vite 5 through 7. Convex 1.46.0 and convex-test 0.0.59 are aligned. The lockfile was regenerated from the pinned manifests to refresh stale compatible transitive versions; subsequent frozen installs preserve it.
+On desktop, Electron 44.9.1, electron-vite 5.0.0, Vite 7.3.7 and plugin-react 5.2.0 have compatible peer ranges. Desktop stays on Vite 7 because electron-vite 5 supports Vite 5 through 7, and plugin-react 6 requires Vite 8. Web uses Vite 8.3.3 and plugin-react 6.1.2. Convex 1.46.0 and convex-test 0.0.59 are aligned. The lockfile was regenerated from the pinned manifests to refresh stale compatible transitive versions; subsequent frozen installs preserve it.
 
 Node must satisfy the root `engines` field. Qualification uses Node 24 and Bun 1.4.2. Expo Android JavaScript/Hermes export passes; that is not a native device, signing or installation test.
 
