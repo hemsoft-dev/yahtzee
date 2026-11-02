@@ -1369,7 +1369,7 @@
       }
     ],
     "current": [
-      "decode-uri-component@0.5.0"
+      "decode-uri-component@0.5.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo navigation parses URL query strings. Malformed external navigation input is plausible; fixed decoder and actual-consumer regression are included."
@@ -1399,7 +1399,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1428,7 +1428,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1458,7 +1458,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1487,7 +1487,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1516,7 +1516,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1545,7 +1545,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1574,7 +1574,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1604,7 +1604,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1633,7 +1633,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1662,7 +1662,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1691,7 +1691,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1720,7 +1720,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1750,7 +1750,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1779,7 +1779,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1808,7 +1808,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1837,7 +1837,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1866,7 +1866,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1896,7 +1896,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1925,7 +1925,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1954,7 +1954,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -1983,7 +1983,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2013,7 +2013,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2042,7 +2042,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2071,7 +2071,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2100,7 +2100,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2129,7 +2129,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2158,7 +2158,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2187,7 +2187,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2217,7 +2217,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2246,7 +2246,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2275,7 +2275,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2304,7 +2304,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -2334,7 +2334,7 @@
       }
     ],
     "current": [
-      "electron@44.4.3"
+      "electron@44.9.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Desktop Chromium/Node runtime is used. Individual affected APIs vary; no remote exploit was demonstrated. Upgrade the runtime rather than declaring every API reachable."
@@ -3677,7 +3677,7 @@
       }
     ],
     "current": [
-      "shell-quote@1.10.0"
+      "shell-quote@1.12.0"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "React Native/Expo developer tooling constructs shell commands. No application endpoint forwards user input to this API; untrusted development inputs remain a concern."
@@ -3708,7 +3708,7 @@
       }
     ],
     "current": [
-      "shell-quote@1.10.0"
+      "shell-quote@1.12.0"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "React Native/Expo developer tooling constructs shell commands. No application endpoint forwards user input to this API; untrusted development inputs remain a concern."
@@ -4091,7 +4091,8 @@
       }
     ],
     "current": [
-      "undici@7.29.1"
+      "undici@6.29.1",
+      "undici@7.30.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development CLI HTTP client, not the application backend server. Malicious upstream responses are a possible developer-tool threat."
@@ -4122,7 +4123,8 @@
       }
     ],
     "current": [
-      "undici@7.29.1"
+      "undici@6.29.1",
+      "undici@7.30.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development CLI HTTP client, not the application backend server. Malicious upstream responses are a possible developer-tool threat."
@@ -4153,7 +4155,8 @@
       }
     ],
     "current": [
-      "undici@7.29.1"
+      "undici@6.29.1",
+      "undici@7.30.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development CLI HTTP client, not the application backend server. Malicious upstream responses are a possible developer-tool threat."
@@ -4184,7 +4187,8 @@
       }
     ],
     "current": [
-      "undici@7.29.1"
+      "undici@6.29.1",
+      "undici@7.30.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development CLI HTTP client, not the application backend server. Malicious upstream responses are a possible developer-tool threat."
@@ -4216,7 +4220,8 @@
       }
     ],
     "current": [
-      "undici@7.29.1"
+      "undici@6.29.1",
+      "undici@7.30.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development CLI HTTP client, not the application backend server. Malicious upstream responses are a possible developer-tool threat."
@@ -4247,7 +4252,8 @@
       }
     ],
     "current": [
-      "undici@7.29.1"
+      "undici@6.29.1",
+      "undici@7.30.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development CLI HTTP client, not the application backend server. Malicious upstream responses are a possible developer-tool threat."
@@ -4278,7 +4284,8 @@
       }
     ],
     "current": [
-      "undici@7.29.1"
+      "undici@6.29.1",
+      "undici@7.30.1"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo development CLI HTTP client, not the application backend server. Malicious upstream responses are a possible developer-tool threat."
@@ -4351,7 +4358,8 @@
       }
     ],
     "current": [
-      "vite@7.3.6"
+      "vite@7.3.7",
+      "vite@8.3.3"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Development server is used with its default localhost binding. Malicious requests to an exposed development server are a relevant threat; production static assets do not contain that server."
@@ -4381,7 +4389,8 @@
       }
     ],
     "current": [
-      "vite@7.3.6"
+      "vite@7.3.7",
+      "vite@8.3.3"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Development server is used with its default localhost binding. Malicious requests to an exposed development server are a relevant threat; production static assets do not contain that server."
@@ -4411,7 +4420,8 @@
       }
     ],
     "current": [
-      "vite@7.3.6"
+      "vite@7.3.7",
+      "vite@8.3.3"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Development server is used with its default localhost binding. Malicious requests to an exposed development server are a relevant threat; production static assets do not contain that server."
@@ -4441,7 +4451,8 @@
       }
     ],
     "current": [
-      "vite@7.3.6"
+      "vite@7.3.7",
+      "vite@8.3.3"
     ],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Development server is used with its default localhost binding. Malicious requests to an exposed development server are a relevant threat; production static assets do not contain that server."
