@@ -39,3 +39,20 @@ test("isolated XCTest logs retain bounded redacted complete lines and exclude ot
     assert.deepEqual(retainXCTestLogs(join(directory, "missing"), directory, "scenario", {}), []);
   } finally { rmSync(directory, { recursive: true }); }
 });
+test("the XCTest log bound still holds when redaction lengthens the retained text", async () => {
+  const { retainXCTestLogs } = await import("./driverLogs.mjs");
+  const directory = mkdtempSync(join(tmpdir(), "native-xctest-bound-"));
+  try {
+    const state = join(directory, ".state"), source = join(state, "maestro/tests/session");
+    mkdirSync(source, { recursive: true });
+    const secret = "abcdefgh";
+    writeFileSync(join(source, "xctest_runner_2026-11-02_123456.log"), `${secret}\n`.repeat(100000));
+    const [name] = retainXCTestLogs(state, directory, "scenario", { RUNTIME_TOKEN: secret });
+    const text = readFileSync(join(directory, name), "utf8");
+    assert(Buffer.byteLength(text) <= 512 * 1024);
+    assert(Buffer.byteLength(text) > 500 * 1024);
+    assert.equal(new Set(text.slice(0, -1).split("\n")).size, 1);
+    assert(text.startsWith("<REDACTED>\n") && text.endsWith("<REDACTED>\n"));
+    assert(!text.includes(secret));
+  } finally { rmSync(directory, { recursive: true }); }
+});
