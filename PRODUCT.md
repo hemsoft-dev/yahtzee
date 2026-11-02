@@ -71,3 +71,7 @@ No audience research, testimonials, or comparative product claims were supplied 
 ## Open decisions
 
 No product-specific accessibility needs or conformance target were established. The public name and first-release scope are recorded in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39). Multiplayer priority, distribution beyond the App Store, and changes to the existing rules remain undecided.
+
+## iOS 1.0 decision record
+
+The versioned [mobile release brief](docs/mobile-release-brief.md) records Third Roll's public identity, conflict-screen limits, asset rights, frozen rules and launch scope. It preserves the delegated decision without claiming store-name reservation or legal clearance.
