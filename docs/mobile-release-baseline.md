@@ -83,17 +83,25 @@ JavaScript, and retains a source-bound simulator artifact. The Application
 quality workflow tests the same artifact across four gameplay/lifecycle groups.
 See [native-simulator.md](native-simulator.md) for test-only commands and receipts.
 
-For production preparation, generate and install the same locked project as in
-development, then use the Release device destination:
+For production preparation, start in another fresh macOS checkout at the
+candidate commit. Select Xcode before generating and installing the locked
+project, then archive for the Release device destination:
 
 ```sh
+export DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer
+export EXPO_NO_TELEMETRY=1
+bun install --frozen-lockfile --ignore-scripts
+cd apps/mobile
+node node_modules/expo/bin/cli prebuild --platform ios --no-install
+cp native/Podfile.lock ios/Podfile.lock
+(cd ios && pod install --deployment)
 xcodebuild -workspace ios/ThirdRoll.xcworkspace -scheme ThirdRoll \
   -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
   -archivePath ../../reports/ThirdRoll-unsigned.xcarchive \
   CODE_SIGNING_ALLOWED=NO archive
 ```
 
-Run that command from `apps/mobile`. It prepares an **unsigned** device archive;
+This block changes into `apps/mobile` before archiving. It prepares an **unsigned** device archive;
 it cannot produce an installable distribution IPA. Archive automation and actual
 artifact inspection belong to #46. No certificate, provisioning, export,
 upload or submission command is authorized by this baseline.
