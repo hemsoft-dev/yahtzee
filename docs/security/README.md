@@ -18,13 +18,13 @@ Node must satisfy the root `engines` field. Qualification uses Node 24 and Bun 1
 
 ## Compatibility patch
 
-The original two transitive overrides removed the final advisories in that baseline. UUID 11.1.1 retains CommonJS and ESM entry points. The fixed decode-uri-component 0.5.0 is ESM-only, while Expo Router's query-string 7 consumer expects a CommonJS function. [The one-line patch](../../patches/query-string@7.1.3.patch) selects its default export. Bun applies this checked-in patch during frozen installs; editing node_modules by hand is not the delivery mechanism.
+The original two transitive overrides removed the final advisories in that baseline. UUID 11.1.1 retains CommonJS and ESM entry points. decode-uri-component is ESM-only in 0.5.0, the fixed release this override first selected, and in 0.5.1, the installed version, while Expo Router's query-string 7 consumer expects a CommonJS function. [The one-line patch](../../patches/query-string@7.1.3.patch) selects its default export. Bun applies this checked-in patch during frozen installs; editing node_modules by hand is not the delivery mechanism.
 
 The test suite resolves query-string through the actual Expo Router installation and checks parsing, encoding, repeated values, Unicode and malformed input. Remove the override/patch together when the upstream router consumes a compatible fixed query-string release. HemSoft owns this follow-up. Review it by October 18, 2026; it is a compatibility patch, not an advisory suppression.
 
 ## Mutation-tool dependency
 
-Stryker 10 adds `typed-rest-client`, which selected vulnerable `qs` 6.15.1. The third root override selects 6.16.0 to address [array-limit bypass](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [attacker-controlled isBuffer](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) and [null/undefined comma-array serialization](https://github.com/advisories/GHSA-q8mj-m7cp-5q26). No exception is accepted.
+Stryker 10 adds `typed-rest-client`, which selected vulnerable `qs` 6.15.1. The third root override first selected 6.16.0 to address [array-limit bypass](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [attacker-controlled isBuffer](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g) and [null/undefined comma-array serialization](https://github.com/advisories/GHSA-q8mj-m7cp-5q26), and it now pins 6.17.0. No exception is accepted for `qs`.
 
 The regression suite resolves `qs` through the actual Stryker REST-client dependency, verifies its version against the override and checks normal encoding, null-array serialization and bounded comma parsing. This caught a stale local Bun dependency link even after the lockfile scanner was green. Reinstalling with `bun install --frozen-lockfile --ignore-scripts --force` repaired that link. Fresh CI installs and the consumer regression verify the delivered graph.
 
