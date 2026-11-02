@@ -16,6 +16,7 @@ test("publication is main-only, uses a site artifact and scopes deployment permi
   assert.match(workflow, /if: github.ref == 'refs\/heads\/main'/);
   assert.doesNotMatch(workflow, /pull_request/);
   assert.match(workflow, /path: reports\/site-public/);
+  assert.match(workflow, /paths:.*"packages\/game-engine\/src\/scoring\.ts"/);
   assert.match(workflow, /needs: build/);
   assert.match(workflow, /name: github-pages/);
   assert.match(workflow, /pages: write/);

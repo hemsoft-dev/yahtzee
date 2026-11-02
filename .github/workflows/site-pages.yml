@@ -3,7 +3,7 @@ name: Publish companion site
 on:
   push:
     branches: [main]
-    paths: ["site/**", "packages/ui/src/assets/**", ".github/workflows/site-pages.yml"]
+    paths: ["site/**", "packages/game-engine/src/scoring.ts", "packages/ui/src/assets/**", ".github/workflows/site-pages.yml"]
   workflow_dispatch:
 
 permissions:

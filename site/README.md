@@ -37,7 +37,7 @@ conformance. Run commands under a hard timeout on shared laptops.
 ## Deployment and rollback
 
 [Publication workflow](../.github/workflows/site-pages.yml) publishes only main
-pushes affecting the site, font assets or deployment workflow. Maintainers can
+pushes affecting the site, scoring source, font assets or deployment workflow. Maintainers can
 also dispatch it on main. It builds only allowlisted static content into
 `reports/site-public`, uploads that directory, and deploys with a short-lived
 GitHub Pages OIDC token scoped to the `github-pages` environment. There are no
