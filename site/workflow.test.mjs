@@ -10,3 +10,17 @@ test("preview workflow actions use exact immutable commit identifiers", () => {
   assert(actions.length >= 4);
   for (const action of actions) assert.match(action, /^[\w.-]+\/[\w.-]+@[a-f0-9]{40}$/, action);
 });
+
+test("publication is main-only, uses a site artifact and scopes deployment permissions", () => {
+  const workflow = readFileSync(join(repositoryRoot, ".github/workflows/site-pages.yml"), "utf8");
+  assert.match(workflow, /if: github.ref == 'refs\/heads\/main'/);
+  assert.doesNotMatch(workflow, /pull_request/);
+  assert.match(workflow, /path: reports\/site-public/);
+  assert.match(workflow, /needs: build/);
+  assert.match(workflow, /name: github-pages/);
+  assert.match(workflow, /pages: write/);
+  assert.match(workflow, /id-token: write/);
+  for (const [, action] of workflow.matchAll(/\buses:\s+(\S+)/g)) {
+    assert.match(action, /^[\w.-]+\/[\w.-]+@[a-f0-9]{40}$/);
+  }
+});

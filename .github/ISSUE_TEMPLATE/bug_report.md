@@ -5,7 +5,7 @@ about: Report a non-sensitive gameplay or app problem
 
 ## Before posting
 
-This issue is public and requires a GitHub account. Do not include player names, saved games, score history, device identifiers, credentials or unreviewed logs and screenshots. For security or privacy-sensitive findings, read the [security reporting policy](https://github.com/hemsoft-dev/yahtzee/blob/main/SECURITY.md). An approved private reporting contact is not available yet.
+This issue is public and requires a GitHub account. Do not include player names, saved games, score history, device identifiers, credentials or unreviewed logs and screenshots. For security or privacy-sensitive findings, read the [security reporting policy](https://github.com/hemsoft-dev/yahtzee/blob/main/SECURITY.md). General private support without GitHub is not available yet. Security vulnerabilities can be reported privately using the linked policy.
 
 ## What happened?
 

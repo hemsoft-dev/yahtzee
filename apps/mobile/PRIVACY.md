@@ -1,6 +1,6 @@
-# Privacy policy draft
+# Privacy policy source and release verification
 
-Prepared September 27, 2026. This is development copy, not an approved policy for a published app. The public name is decided in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39). Franz must approve contact information and final declarations after the signed candidate is measured. See the [privacy acceptance issue](https://github.com/hemsoft-dev/yahtzee/issues/48).
+Updated November 2, 2026 EST. The published development-app and hosting policy is authored in [site/pages.mjs](../../site/pages.mjs) and served at the [public privacy URL](https://hemsoft-dev.github.io/yahtzee/privacy.html). This companion engineering record preserves release-verification limits. No signed-candidate declaration is approved here; see [issue #48](https://github.com/hemsoft-dev/yahtzee/issues/48).
 
 ## Data on the device
 
@@ -22,10 +22,10 @@ Choosing Share opens the operating system's share controls with exactly the prev
 
 The repository's [GitHub issue page](https://github.com/hemsoft-dev/yahtzee/issues) is public. Do not post player names, save files, credentials or screenshots containing private information there. GitHub handles information submitted to it under [GitHub's privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
 
-An owner-approved private support contact and final public policy URL have not been selected. They must be provided before this draft is published as the release policy.
+The public policy uses HemSoft's existing repository support identity. [Private security reports](https://github.com/hemsoft-dev/yahtzee/security/advisories/new) are enabled and require GitHub. General private support without GitHub remains unavailable. No personal contact address is published.
 
 ## Native SDKs and release verification
 
 The first unsigned simulator build contains an embedded JavaScript bundle and has Expo updates disabled in its compiled configuration. Static inspection is not proof of zero network traffic or a completed privacy audit. Bundled SDK behavior, manifests and signatures, signed-archive permissions, and measured traffic still require release verification.
 
-The [engineering inventory](../../docs/mobile-privacy-audit.md) records observations and open work. App Store privacy answers and export-compliance classification remain unset. No legal attestation is supplied by this draft.
+The [engineering inventory](../../docs/mobile-privacy-audit.md) records observations and open work. App Store privacy answers and export-compliance classification remain unset. No legal attestation is supplied by this engineering record.
