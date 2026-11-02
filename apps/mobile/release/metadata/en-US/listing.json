@@ -6,7 +6,7 @@
     "releaseNotes": { "status": "draft", "sha256": null },
     "testNotes": { "status": "draft", "sha256": null }
   },
-  "name": null,
+  "name": "Third Roll",
   "subtitle": null,
   "promotionalText": null,
   "keywords": null,
@@ -17,5 +17,5 @@
   "accessibilityUrl": null,
   "primaryCategory": null,
   "secondaryCategory": null,
-  "notes": "Owner-approved identity, contact details, commercial/legal decisions and tested claims are required. Null is deliberately incomplete, not an upload value."
+  "notes": "Approved contact details, commercial/legal decisions and tested claims are required. Null is deliberately incomplete, not an upload value."
 }

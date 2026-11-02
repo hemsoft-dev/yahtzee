@@ -48,7 +48,7 @@ No analytics, forms, third-party embeds, scripts, cookie code or browser-storage
 
 Repository maintainers may prepare and review code. The owner must explicitly authorize publication and resolve the following items first:
 
-1. Approve the public name, rights, responsible publisher, release scope and final copy through [#39](https://github.com/hemsoft-dev/yahtzee/issues/39).
+1. Confirm the responsible publisher and final copy. The public name, scope and rights basis are decided in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39).
 2. Approve a public support destination and a private/security-sensitive reporting route through [#44](https://github.com/hemsoft-dev/yahtzee/issues/44). Do not copy an address from another project or use public issues for private reports.
 3. Approve the privacy notice after the app/SDK/traffic review in [#48](https://github.com/hemsoft-dev/yahtzee/issues/48). Record the host's access logs, retention, processing and policy owner. No legal acceptance is inferred from tests.
 4. Select hosting and stable HTTPS marketing/support/privacy URLs, and record the deployment owner, credentials owner, rollback procedure and maintenance responsibility. Configure hosting only after approval. This repository currently has no site deploy command.

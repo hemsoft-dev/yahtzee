@@ -1,5 +1,5 @@
 ---
-name: Yahtzee desktop and web
+name: Third Roll desktop and web
 description: A sampler-style dice console with an evergreen play deck and split scorecard.
 colors:
   page: "#eff2ee"
@@ -157,7 +157,7 @@ components:
     padding: "22px 24px 16px"
 ---
 
-# Design System: Yahtzee desktop and web
+# Design System: Third Roll desktop and web
 
 ## Overview
 

@@ -5,7 +5,7 @@ import { runAuthoredFlow } from "./batches.mjs";
 
 function parse(flow) {
   const [header, body] = flow.trim().split("\n---\n");
-  assert.equal(JSON.parse(header.slice("appId: ".length)), "com.hemsoft.yahtzee");
+  assert.equal(JSON.parse(header.slice("appId: ".length)), "com.hemsoft.thirdroll");
   return body.split("\n").map((line) => {
     const match = /^- ([a-zA-Z]+)(?:: (.*))?$/.exec(line); assert(match, line);
     return { command: match[1], value: match[2] === undefined ? undefined : JSON.parse(match[2]) };
@@ -26,7 +26,7 @@ function setupWithAnimatedHelp(ignoreDone = false) {
       if (step.command === "assertVisible" && step.value === "A little time for dice.") assert.equal(help, false, "Setup is covered by Help");
       if (step.command === "tapOn" && step.value.text === "Start Game") started = true;
     }
-  } }, startFlow("com.hemsoft.yahtzee", scenarios[0]));
+  } }, startFlow("com.hemsoft.thirdroll", scenarios[0]));
   return { run, state: () => ({ doneTaps, started }) };
 }
 
@@ -62,24 +62,24 @@ test("bounded native groups cover every scenario exactly once and never mix devi
 });
 test("generated flows use valid JSON-in-YAML commands and real semantic controls", () => {
   for (const scenario of scenarios) {
-    const steps = parse(startFlow("com.hemsoft.yahtzee", scenario));
+    const steps = parse(startFlow("com.hemsoft.thirdroll", scenario));
     assert.deepEqual(steps[0].value, { clearState: true, permissions: { all: "deny" } });
     assert(steps.some((step) => step.command === "tapOn" && step.value?.text === `${scenario.dice} dice`));
     assert(!steps.some((step) => step.command === "tapOn" && step.value?.id === "die-0"));
     assert(steps.some((step) => step.command === "assertVisible" && new RegExp(step.value).test("Re-roll (2)")));
   }
-  const resumed = parse(resumeFlow("com.hemsoft.yahtzee"));
+  const resumed = parse(resumeFlow("com.hemsoft.thirdroll"));
   assert.equal(resumed[0].value.clearState, undefined);
   assert(resumed.some((step) => step.value?.text === "Resume Game"));
-  const completed = parse(completeEndFlow("com.hemsoft.yahtzee"));
+  const completed = parse(completeEndFlow("com.hemsoft.thirdroll"));
   assert.deepEqual(completed[0], { command: "launchApp", value: { stopApp: false, clearState: false, permissions: { all: "deny" } } });
   assert(completed.some((step) => step.command === "assertVisible" && step.value === "Game Over!"));
-  const preview = parse(completeEndFlow("com.hemsoft.yahtzee", true));
+  const preview = parse(completeEndFlow("com.hemsoft.thirdroll", true));
   assert(preview.some((step) => step.command === "assertVisible" && step.value?.id === "diagnostics-preview"));
   assert(preview.some((step) => step.value?.text === "Cancel preview"));
 });
 test("diagnostic cancellation scrolls to its action and requires the preview to disappear", () => {
-  const steps = parse(completeEndFlow("com.hemsoft.yahtzee", true));
+  const steps = parse(completeEndFlow("com.hemsoft.thirdroll", true));
   const cancel = steps.findIndex((step) => step.command === "tapOn" && step.value?.text === "Cancel preview");
   assert(cancel > 0);
   assert.deepEqual(steps[cancel - 1], { command: "scrollUntilVisible", value: { element: { text: "Cancel preview" }, direction: "DOWN", timeout: 60000, visibilityPercentage: 100 } });
@@ -88,12 +88,12 @@ test("diagnostic cancellation scrolls to its action and requires the preview to 
   assert.deepEqual(steps[cancel + 3], { command: "assertVisible", value: "Preview diagnostics" });
 });
 test("native name entry submits the keyboard instead of issuing dismissal swipes", () => {
-  const steps = parse(startFlow("com.hemsoft.yahtzee", scenarios[0]));
+  const steps = parse(startFlow("com.hemsoft.thirdroll", scenarios[0]));
   assert(!steps.some((step) => step.command === "hideKeyboard"));
   assert(steps.some((step) => step.command === "pressKey" && step.value === "enter"));
 });
 test("scoring starts only after resume settles and exposes its actual viewport", () => {
-  const steps = parse(completeStartFlow("com.hemsoft.yahtzee"));
+  const steps = parse(completeStartFlow("com.hemsoft.thirdroll"));
   const ready = steps.findIndex((step) => step.command === "assertVisible" && step.value === "Re-roll \\(1\\)");
   assert(ready >= 0);
   assert.equal(steps[ready + 1].command, "waitForAnimationToEnd");
@@ -101,11 +101,11 @@ test("scoring starts only after resume settles and exposes its actual viewport",
   assert(!steps.some((step) => step.value?.centerElement || step.value?.id?.startsWith("score-") && step.command === "tapOn"));
 });
 test("corruption flow never clears state and reset includes cancellation first", () => {
-  const relaunch = parse(emptyRelaunchFlow("com.hemsoft.yahtzee"));
+  const relaunch = parse(emptyRelaunchFlow("com.hemsoft.thirdroll"));
   assert.deepEqual(relaunch[0].value, { clearState: false, stopApp: true });
   assert(relaunch.some((step) => step.command === "assertVisible" && step.value === "A little time for dice."));
   for (const reset of [false, true]) {
-    const steps = parse(corruptFlow("com.hemsoft.yahtzee", reset));
+    const steps = parse(corruptFlow("com.hemsoft.thirdroll", reset));
     assert.equal(steps[0].value.clearState, undefined);
     assert(steps.some((step) => step.value === "Your saved data has not been reset."));
     assert.equal(steps.some((step) => step.value?.text === "Cancel"), reset);
@@ -118,7 +118,7 @@ test("corruption flow never clears state and reset includes cancellation first",
 });
 
 test("a diagnostic text block taller than the viewport need not fit entirely to reach Cancel", () => {
-  const steps = parse(completeEndFlow("com.hemsoft.yahtzee", true));
+  const steps = parse(completeEndFlow("com.hemsoft.thirdroll", true));
   const preview = steps.find((step) => step.command === "scrollUntilVisible" && step.value.element.id === "diagnostics-preview");
   assert.equal(preview.value.visibilityPercentage, 10);
   const cancel = steps.find((step) => step.command === "scrollUntilVisible" && step.value.element.text === "Cancel preview");
@@ -149,7 +149,7 @@ function setupWithDelayedChoices({ stuckDismissal = false, lostDiceTap = false }
       }
       if (value.text === "Start Game") started = true;
     }
-  } }, startFlow("com.hemsoft.yahtzee", scenarios.find((scenario) => scenario.id === "tablet-10-solo-dark")));
+  } }, startFlow("com.hemsoft.thirdroll", scenarios.find((scenario) => scenario.id === "tablet-10-solo-dark")));
   return { run, state: () => ({ taps, started }) };
 }
 

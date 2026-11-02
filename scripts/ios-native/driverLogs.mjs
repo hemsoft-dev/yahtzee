@@ -21,6 +21,16 @@ export function retainDriverLogs(debug, destination, name, env) {
   }
 }
 
+const XCTEST_LOG_BYTES = 512 * 1024;
+/** Redaction can lengthen short secrets, so the bound applies to the text actually retained. */
+function boundedTail(text) {
+  const bytes = Buffer.from(text, "utf8");
+  if (bytes.length <= XCTEST_LOG_BYTES) return text;
+  const tail = bytes.subarray(bytes.length - XCTEST_LOG_BYTES).toString("utf8");
+  const start = tail.indexOf("\n");
+  return start < 0 ? "" : tail.slice(start + 1);
+}
+
 /** Only this phase's isolated XCTest logs; bounded complete lines, no symlinks. */
 export function retainXCTestLogs(state, destination, prefix, env) {
   const tests = join(state, "maestro/tests"), retained = [];
@@ -33,7 +43,7 @@ export function retainXCTestLogs(state, destination, prefix, env) {
       if (!log.isFile() || !/^xctest_runner_[0-9_-]+\.log$/.test(log.name)) continue;
       const source = join(folder, log.name), stat = lstatSync(source);
       if (!stat.isFile() || stat.isSymbolicLink()) continue;
-      const bytes = Buffer.alloc(Math.min(stat.size, 512 * 1024));
+      const bytes = Buffer.alloc(Math.min(stat.size, XCTEST_LOG_BYTES));
       const fd = openSync(source, "r"); let count;
       try { count = readSync(fd, bytes, 0, bytes.length, Math.max(0, stat.size - bytes.length)); }
       finally { closeSync(fd); }
@@ -42,7 +52,7 @@ export function retainXCTestLogs(state, destination, prefix, env) {
       // A detached writer may be halfway through a credential-bearing line.
       text = text.slice(0, text.lastIndexOf("\n") + 1);
       const name = `${prefix}-xctest-${retained.length}.log`;
-      writeFileSync(join(destination, name), redactDriverLog(text, env)); retained.push(name);
+      writeFileSync(join(destination, name), boundedTail(redactDriverLog(text, env))); retained.push(name);
     }
   }
   return retained;

@@ -9,7 +9,7 @@ function Navigation() {
     <StatusBar style={dark ? "light" : "dark"} />
     <Stack screenOptions={{ headerLargeTitle: false, headerStyle: { backgroundColor: colors.page }, headerTintColor: colors.text,
       contentStyle: { backgroundColor: colors.page }, freezeOnBlur: true }}>
-      <Stack.Screen name="index" options={{ title: "Yahtzee" }} />
+      <Stack.Screen name="index" options={{ title: "Third Roll" }} />
       <Stack.Screen name="history" options={{ title: "Local history" }} />
       <Stack.Screen name="help" options={{ title: "Help", presentation: "modal" }} />
     </Stack>

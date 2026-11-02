@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "Yahtzee",
-    "slug": "yahtzee",
+    "name": "Third Roll",
+    "slug": "third-roll",
     "version": "1.0.0",
-    "scheme": "yahtzee",
+    "scheme": "thirdroll",
     "platforms": ["ios", "android"],
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
     "ios": {
-      "bundleIdentifier": "com.hemsoft.yahtzee",
+      "bundleIdentifier": "com.hemsoft.thirdroll",
       "buildNumber": "1",
       "supportsTablet": true,
       "requireFullScreen": false,
@@ -20,7 +20,7 @@
       }
     },
     "android": {
-      "package": "com.hemsoft.yahtzee",
+      "package": "com.hemsoft.thirdroll",
       "adaptiveIcon": {
         "foregroundImage": "./assets/launch-mark.png",
         "backgroundColor": "#1e453a"

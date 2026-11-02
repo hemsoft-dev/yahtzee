@@ -18,4 +18,4 @@ node --test scripts/ios-assets/check.test.mjs
 
 The generator changes colors from the SVG source, strips export metadata and records the renderer plus source/export hashes in `provenance.json`. The source hash normalizes line endings to LF. Tests fully decode the PNGs, check hashes/dimensions/opacity, enforce grayscale for the tinted variant and check app-configuration references.
 
-Inspect native launch, small home-screen, dark and tinted rendering before release. File validation and local image inspection do not prove every system treatment. `publicIdentityApproved` remains false. Do not treat the development name, icon files or source license as public-brand or App Store approval.
+Inspect native launch, small home-screen, dark and tinted rendering before release. File validation and local image inspection do not prove every system treatment. `publicIdentityApproved` records the name decision in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39). It is not legal clearance. Do not treat the icon files or source license as App Store approval.

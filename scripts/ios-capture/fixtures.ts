@@ -24,7 +24,7 @@ function hand(category: Category, dice: number, variation: number): number[] {
       return index < matches ? face : other === face ? face % 6 + 1 : other;
     });
   }
-  const pattern = COMBINATIONS[category.id] ?? [1, 2, 3, 4, 5, 6]; // Scratched Yahtzee, not a perfect demo game.
+  const pattern = COMBINATIONS[category.id] ?? [1, 2, 3, 4, 5, 6]; // Scratched All of a Kind, not a perfect demo game.
   return Array.from({ length: dice }, (_, index) => {
     const face = pattern[index % pattern.length];
     return variation % 2 && index === 0 ? face % 6 + 1 : face;

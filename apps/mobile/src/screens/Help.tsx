@@ -11,7 +11,7 @@ const rules = [
   ["Numbers and bonus", "Add matching dice in Ones through Sixes. Five dice need 63 upper points for a 35-point bonus. Six or eight dice need 84 for a 100-point bonus; ten dice need 105. Only the combined upper score must meet the target."],
   ["Pairs and matching dice", "One Pair scores the highest pair. Two Pairs needs two different faces and scores those four dice. Three, Four and Five of a Kind score only the matching dice, using the highest qualifying face. Full House needs a triple and a different pair for 25 points."],
   ["Straights and Chance", "Four consecutive faces earn 30 for Small Straight; five earn 40 for Large Straight. All six faces earn 50 for Full Straight. Chance adds every die. The suggestion considers this roll and bonus progress; it is not an optimal strategy."],
-  ["Larger hands", "Three Pairs needs at least three distinct pairs. Castle needs at least two distinct triples. Tower needs four of one face and two of another. These combinations score the sum of all dice. Maxi Yahtzee requires the entire hand to match for 100 points; five-dice Yahtzee earns 50. There is no separate six-of-a-kind slot in eight- or ten-dice play."],
+  ["Larger hands", "Three Pairs needs at least three distinct pairs. Castle needs at least two distinct triples. Tower needs four of one face and two of another. These combinations score the sum of all dice. All of a Kind requires the entire hand to match: 100 points with six or more dice, 50 with five. There is no separate six-of-a-kind slot in eight- or ten-dice play."],
 ];
 
 export function Help() {

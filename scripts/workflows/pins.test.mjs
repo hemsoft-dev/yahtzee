@@ -30,6 +30,6 @@ test("stale lock pins and action summaries cannot pass", () => {
   const key = Object.keys(stale.entries)[0];
   stale.entries[key].sha = "b".repeat(40);
   assert.match(pinErrors(source, stale).join("\n"), /Persisted action lock/);
-  assert.match(pinErrors(source.replace(/^# {3}- actions\/setup-node@.*\n/m, ""), lock).join("\n"), /Action summary/);
-  assert.match(pinErrors(source.replace(/^# gh-aw-manifest: .*\n/m, ""), lock).join("\n"), /manifest is missing/);
+  assert.match(pinErrors(source.replace(/^# {3}- actions\/setup-node@.*\r?\n/m, ""), lock).join("\n"), /Action summary/);
+  assert.match(pinErrors(source.replace(/^# gh-aw-manifest: .*\r?\n/m, ""), lock).join("\n"), /manifest is missing/);
 });

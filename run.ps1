@@ -1,4 +1,4 @@
-# Launch Yahtzee — Convex backend + Electron desktop app (same terminal)
+# Launch Third Roll — Convex backend + Electron desktop app (same terminal)
 Set-Location "$PSScriptRoot"
 
 Write-Host "Starting Convex backend..." -ForegroundColor Cyan

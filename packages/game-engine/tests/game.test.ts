@@ -159,7 +159,7 @@ describe("pickAiCategory", () => {
     const player = { id: "ai", name: "Bot", scores: {} as Record<string, number>, isAi: true };
     const dice = [6, 6, 6, 6, 6]; // All sixes → sixes=30 should be strong
     const choice = pickAiCategory(dice, player);
-    // Yahtzee is 50, should beat sixes=30
+    // All of a Kind is 50, should beat sixes=30
     expect(choice).toBe("yahtzee");
   });
 

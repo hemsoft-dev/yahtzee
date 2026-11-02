@@ -1,8 +1,8 @@
 /**
- * Yahtzee scoring categories.
+ * Third Roll scoring categories.
  *
  * Upper section: ones–sixes (extendable for N dice).
- * Lower section: classic combos + Maxi Yatzy extras for 6+ dice.
+ * Lower section: classic combos + larger-hand categories for 6+ dice.
  */
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -141,7 +141,7 @@ export function tower(dice: number[]): number {
   return findFace(c, 2, quadFace) > 0 ? sum(dice) : 0;
 }
 
-/** Maxi Yahtzee: all dice the same — 100 points. */
+/** All of a Kind at 6+ dice: all dice the same — 100 points. */
 export function maxiYahtzee(dice: number[]): number {
   return hasNOfAKind(dice, dice.length) ? 100 : 0;
 }
@@ -198,16 +198,16 @@ export const ALL_CATEGORIES: Category[] = [
   { id: "full-house", label: "Full House", section: "lower", score: fullHouse, minDice: 1 },
   { id: "small-straight", label: "Small Straight", section: "lower", score: smallStraight, minDice: 1 },
   { id: "large-straight", label: "Large Straight", section: "lower", score: largeStraight, minDice: 1 },
-  { id: "yahtzee", label: "Yahtzee", section: "lower", score: yahtzee, minDice: 1 },
+  { id: "yahtzee", label: "All of a Kind", section: "lower", score: yahtzee, minDice: 1 },
   { id: "chance", label: "Chance", section: "lower", score: chance, minDice: 1 },
 
-  // Lower section – Maxi Yatzy extras (6+ dice)
+  // Lower section – larger-hand categories (6+ dice)
   { id: "three-pairs", label: "Three Pairs", section: "lower", score: threePairs, minDice: 6 },
   { id: "five-of-a-kind", label: "Five of a Kind", section: "lower", score: fiveOfAKind, minDice: 6 },
   { id: "full-straight", label: "Full Straight", section: "lower", score: fullStraight, minDice: 6 },
   { id: "castle", label: "Castle", section: "lower", score: castle, minDice: 6 },
   { id: "tower", label: "Tower", section: "lower", score: tower, minDice: 6 },
-  { id: "maxi-yahtzee", label: "Maxi Yahtzee", section: "lower", score: maxiYahtzee, minDice: 6 },
+  { id: "maxi-yahtzee", label: "All of a Kind", section: "lower", score: maxiYahtzee, minDice: 6 },
 ];
 
 /** Backwards-compatible: standard 5-dice categories. */

@@ -89,8 +89,8 @@ for (const diceCount of [5, 6]) {
       await expectNoDocumentOverflow(client);
     }
     const lowerOrder = diceCount === 5
-      ? ["One Pair", "Two Pairs", "Three of a Kind", "Four of a Kind", "Full House", "Small Straight", "Large Straight", "Yahtzee", "Chance"]
-      : ["One Pair", "Two Pairs", "Three Pairs", "Three of a Kind", "Four of a Kind", "Five of a Kind", "Full House", "Castle", "Small Straight", "Large Straight", "Full Straight", "Chance", "Tower", "Maxi Yahtzee"];
+      ? ["One Pair", "Two Pairs", "Three of a Kind", "Four of a Kind", "Full House", "Small Straight", "Large Straight", "All of a Kind", "Chance"]
+      : ["One Pair", "Two Pairs", "Three Pairs", "Three of a Kind", "Four of a Kind", "Five of a Kind", "Full House", "Castle", "Small Straight", "Large Straight", "Full Straight", "Chance", "Tower", "All of a Kind"];
     await expect(client.locator(".score-section.lower .yahtzee-score-action")).toHaveText(lowerOrder);
     const firstDie = client.getByRole("button", { name: /^Die showing / }).first();
     const heldValue = await firstDie.getAttribute("aria-label");

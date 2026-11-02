@@ -6,7 +6,7 @@
   "sourceNormalization": "LF",
   "renderer": "Version: ImageMagick 7.1.2-13 Q16-HDRI x64 dd991e2:20260119 https://imagemagick.org",
   "generator": "scripts/ios-assets/generate.mjs",
-  "publicIdentityApproved": false,
+  "publicIdentityApproved": true,
   "externalArtwork": [],
   "fonts": [],
   "sound": [],

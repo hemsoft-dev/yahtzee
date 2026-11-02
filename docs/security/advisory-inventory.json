@@ -4327,9 +4327,7 @@
         ]
       }
     ],
-    "current": [
-      "uuid@11.1.1"
-    ],
+    "current": [],
     "disposition": "Resolved in refreshed lockfile; current native Bun audit returns no advisories.",
     "reachability": "Expo CLI telemetry uses UUIDs. No caller using attacker-supplied output buffers was identified; retain the fix instead of accepting an exception."
   },

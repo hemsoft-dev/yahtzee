@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-09-21T19:25:59.938Z",
-  "title": "Design System: Yahtzee desktop and web",
+  "title": "Design System: Third Roll desktop and web",
   "extensions": {
     "colorMeta": {
       "page": { "role": "neutral", "displayName": "Mineral shell" },

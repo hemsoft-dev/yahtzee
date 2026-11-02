@@ -36,7 +36,7 @@ function savePreference(key: string, value: string) {
 function AppHeader({ game, playing, onQuit, onToggle }: { game: Session["game"]; playing: boolean; onQuit: () => void; onToggle: () => void }) {
   const context = game ? `${game.diceCount} dice · ${game.players.length === 1 ? "Solo game" : `${game.players.length} players`}` : "A little luck. A little strategy.";
   return <header className="app-header">
-    <div className="brand"><span className="brand-mark"><Icon name="dice" size={26} /></span><h1>yahtzee<span>.</span></h1></div>
+    <div className="brand"><span className="brand-mark"><Icon name="dice" size={26} /></span><h1>third roll<span>.</span></h1></div>
     <div className="header-context">{context}</div>
     <div className="header-actions">
       {playing && <button type="button" className="button quiet quit-button" onClick={onQuit}><Icon name="close" size={16} /> Quit Game</button>}
@@ -63,7 +63,7 @@ function WelcomeDeck() {
 function AppFooter({ offline, playing }: { offline: boolean; playing: boolean }) {
   const message = offline ? "Offline edition · Scores stay on this PC"
     : playing ? "Guest game · Keep this window open to continue" : "Roll. Hold. Make your move.";
-  return <footer className="app-footer"><span>Yahtzee, your way.</span><span>{message}</span></footer>;
+  return <footer className="app-footer"><span>Third Roll, your way.</span><span>{message}</span></footer>;
 }
 
 export function GameApp({ desktop = false, offline = false, session, diceCount, onDiceCountChange, highScores, history }: GameAppProps) {

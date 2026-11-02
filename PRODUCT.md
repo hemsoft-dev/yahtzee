@@ -14,11 +14,11 @@ The product spans a React web app, an Electron desktop app, and an Expo/React Na
 
 ## Users
 
-The owner and his wife are the intended users. The owner requested a self-contained offline Windows build to send to his wife. No broader audience or public-growth goal has been established.
+The owner and his wife were the first users. The owner requested a self-contained offline Windows build to send to his wife. The first App Store release is free and open to anyone, as decided in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39), with no public-growth goal.
 
 ## Product purpose
 
-A Yahtzee-style dice game for personal and household use. Current play supports solo score chasing or competition against AI opponents.
+Third Roll is a house-rules dice game for personal and household use. Current play supports solo score chasing or competition against AI opponents.
 
 The owner has not specified a competitive positioning claim or measurable success target. Do not invent either.
 
@@ -41,7 +41,7 @@ These are repository-verified implementation facts, not newly requested commitme
 - One local human can play against zero to three AI opponents. There is no remote human multiplayer or room/join flow.
 - Web and desktop expose custom dice counts from 2 to 20. Mobile offers 5, 6, 8, and 10.
 - Turns allow up to three rolls, with dice holding and category selection. Scorecards include totals and upper-section bonuses.
-- The scoring uses house rules. Five-dice play has 15 categories rather than the standard 13; pairs are included, and three/four of a kind score matching dice only. Do not describe the current rules as standard Yahtzee.
+- The scoring uses house rules. Five-dice play has 15 categories rather than the standard 13; pairs are included, and three/four of a kind score matching dice only. Do not describe the current rules as any trademarked game's standard rules.
 - Upper-section bonus targets are 63 for five dice, 84 for six to eight, 105 for nine or ten, and 210 for twenty. Larger games target half the dice per number, rounded up, with a four-match minimum. Only the combined upper score must reach the target. The bonus remains 35 points for five dice and 100 for six or more.
 - Suggested picks and AI category selection preserve Chance when a made combination or an upper score at bonus pace is available. They include any bonus secured by the choice, and use Chance rather than a zero or weak upper score when no preferred pick remains. This is a current-roll heuristic, not a full-game optimizer.
 - In the online edition, Convex owns game state, dice rolls, move validation, AI turns, and completed results. Clients request moves rather than submitting trusted totals.
@@ -70,4 +70,4 @@ No audience research, testimonials, or comparative product claims were supplied 
 
 ## Open decisions
 
-No product-specific accessibility needs or conformance target were established. No new brand or visual commitments were made. Multiplayer priority, broader distribution, and changes to the existing rules remain undecided.
+No product-specific accessibility needs or conformance target were established. The public name and first-release scope are recorded in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39). Multiplayer priority, distribution beyond the App Store, and changes to the existing rules remain undecided.
