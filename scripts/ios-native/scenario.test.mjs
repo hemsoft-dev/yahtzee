@@ -55,7 +55,10 @@ test("one scenario preserves real cold relaunch, exact document and complete-gam
   assert.deepEqual(flow.phases, ["start", "hold", "resume", "complete"]);
   assert.deepEqual(flow.taps, ["die-0", "reroll-action", "score-ones", "score-chance"]);
   assert.deepEqual(flow.stages, ["before-hold", "after-hold", "after-reroll", "before-relaunch", "after-relaunch", "completed"]);
-  assert.equal(flow.flows.length, 11);
+  assert.equal(flow.flows.length, 14);
+  assert(flow.flows.some((yaml) => yaml.includes("support-problem-preview")));
+  assert(flow.flows.some((yaml) => yaml.includes("support-improvement-preview")));
+  assert(flow.flows.some((yaml) => yaml.includes("support-private-unavailable")));
   assert(flow.flows.some((yaml) => yaml.includes("diagnostics-preview")));
   assert(flow.flows.at(-1).includes('"Play Again"'));
   assert(flow.flows.every((yaml) => yaml.split("\n").filter((line) => line.startsWith("- ")).length <= 8));

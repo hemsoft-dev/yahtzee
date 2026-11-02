@@ -45,7 +45,17 @@ export function completeEndFlow(bundleId, previewDiagnostics = false, alreadyFor
     ...(previewDiagnostics ? [scroll({ text: "Preview diagnostics" }), tap("Preview diagnostics"), scroll({ id: "diagnostics-preview" }, 10),
       command("assertVisible", { id: "diagnostics-preview" }), shot("diagnostics-preview"), scroll({ text: "Cancel preview" }), tap("Cancel preview"),
       command("assertNotVisible", "Cancel preview"), command("assertNotVisible", { id: "diagnostics-preview" }), visible("Preview diagnostics"), shot("diagnostics-cancelled")] : []),
-    scroll({ text: "Open source repository" }), shot("help-source"), tap("Done"),
+    scroll({ text: "Open source repository" }), shot("help-source"),
+    scroll({ text: "Report a Problem" }), tap("Report a Problem"),
+    scroll({ id: "support-preview" }, 10), command("assertVisible", { id: "support-preview" }), shot("support-problem-preview"),
+    scroll({ text: "Cancel report" }), tap("Cancel report"), command("assertNotVisible", { id: "support-preview" }),
+    // Return upward to the next report action after the inline preview collapses.
+    command("scrollUntilVisible", { element: { text: "Suggest an Improvement" }, direction: "UP", timeout: 60000, visibilityPercentage: 100 }),
+    tap("Suggest an Improvement"), scroll({ id: "support-preview" }, 10), command("assertVisible", { id: "support-preview" }), shot("support-improvement-preview"),
+    scroll({ text: "Cancel report" }), tap("Cancel report"), command("assertNotVisible", { id: "support-preview" }),
+    command("scrollUntilVisible", { element: { text: "Private support" }, direction: "UP", timeout: 60000, visibilityPercentage: 100 }),
+    tap("Private support"), scroll({ text: "A private support address.*" }, 10), visible("A private support address.*"), shot("support-private-unavailable"),
+    scroll({ text: "Cancel report" }), tap("Cancel report"), tap("Done"),
     scroll({ text: "Play Again" }), tap("Play Again"), scroll({ text: "Start Game" }), shot("play-again")]);
 }
 export function emptyRelaunchFlow(bundleId) {
