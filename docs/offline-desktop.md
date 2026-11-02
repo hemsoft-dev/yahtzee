@@ -19,7 +19,7 @@ Building may download Electron and packaging tools. Running the resulting applic
 
 ## Local data
 
-Electron keeps the offline edition's data in `%APPDATA%\Yahtzee Offline`, separate from the online app. To back up or move scores, close the app and copy that entire directory. The executable's temporary extraction directory does not hold saved scores.
+Electron keeps the offline edition's data in `%APPDATA%\Yahtzee Offline`, separate from the online app. The folder keeps the game's earlier name, so existing scores carry over. To back up or move scores, close the app and copy that entire directory. The executable's temporary extraction directory does not hold saved scores.
 
 Completed scores and history persist across app restarts. High scores retain the top ten per dice count; history retains the last 500 games. Unfinished games stay in memory and are abandoned when the window closes or the player chooses Quit Game. Local scores do not sync to Convex and are not presented as server-verified scores.
 

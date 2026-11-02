@@ -1,3 +1,3 @@
-# Build Yahtzee Desktop App for production
+# Build Third Roll Desktop App for production
 Set-Location "$PSScriptRoot\.."
 bun run build:desktop

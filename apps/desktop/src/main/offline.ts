@@ -2,14 +2,15 @@ import { app, BrowserWindow, Menu, session } from "electron";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-app.setName("Yahtzee Offline");
+app.setName("Third Roll Offline");
+// Existing scores live in this folder, so it keeps the earlier name.
 const dataPath = process.env.YAHTZEE_OFFLINE_DATA_DIR || join(app.getPath("appData"), "Yahtzee Offline");
 mkdirSync(dataPath, { recursive: true });
 app.setPath("userData", dataPath);
 
 function createOfflineWindow() {
   const win = new BrowserWindow({
-    width: 960, height: 750, minWidth: 800, minHeight: 600, title: "Yahtzee Offline",
+    width: 960, height: 750, minWidth: 800, minHeight: 600, title: "Third Roll Offline",
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

@@ -21,6 +21,22 @@ import {
   getUpperBonusValue,
 } from "../src/scoring";
 
+describe("All of a Kind", () => {
+  const find = (diceCount: number, id: string) => getCategories(diceCount).find((category) => category.id === id);
+
+  test("the public label changes without changing saved IDs or scores", () => {
+    const five = find(5, "yahtzee");
+    expect(five?.label).toBe("All of a Kind");
+    expect(five?.score([4, 4, 4, 4, 4])).toBe(50);
+    for (const diceCount of [6, 8, 10]) {
+      const larger = find(diceCount, "maxi-yahtzee");
+      expect(larger?.label).toBe("All of a Kind");
+      expect(larger?.score(Array(diceCount).fill(4))).toBe(100);
+      expect(find(diceCount, "yahtzee")).toBeUndefined();
+    }
+  });
+});
+
 describe("onePair", () => {
   test("includes face one when searching for matching dice", () => {
     expect(onePair([1, 1, 3, 4, 5])).toBe(2);
@@ -190,7 +206,7 @@ describe("chance", () => {
   });
 });
 
-// ─── Maxi Yatzy (6+ dice) ─────────────────────────────────
+// ─── Larger hands (6+ dice) ─────────────────────────────────
 
 describe("threePairs", () => {
   test("scores three different pairs", () => {

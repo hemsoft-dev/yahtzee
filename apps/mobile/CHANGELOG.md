@@ -11,6 +11,10 @@ No iOS version has shipped. Windows and web changes have their own release histo
 - Original development icon/launch artwork and source-bound unsigned simulator CI with gameplay, storage-recovery and privacy-manifest packaging checks. Brand approval, signing and release evidence remain open in [#45](https://github.com/hemsoft-dev/yahtzee/issues/45) and [#46](https://github.com/hemsoft-dev/yahtzee/issues/46).
 - Draft release records, editable listing sources and a fail-closed candidate check. Tracked in [#47](https://github.com/hemsoft-dev/yahtzee/issues/47).
 
+### Changed
+
+- The app is now Third Roll, with bundle identifier `com.hemsoft.thirdroll`. The two whole-hand categories are labeled All of a Kind, with unchanged scores and internal IDs. Decided in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39).
+
 ## Release entry format
 
 After public-store verification, move the applicable Unreleased entries under `## 1.0.0 - YYYY-MM-DD`, using the release date in Eastern Time. Include the exact iOS build, source commit, source tag and public listing link. Link implementation PRs; do not list planned features as shipped.

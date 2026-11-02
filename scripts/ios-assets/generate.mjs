@@ -27,7 +27,7 @@ try {
   writeFileSync(join(folder, "provenance.json"), JSON.stringify({
     schemaVersion: 1, origin: "Repository-authored SVG geometry, adapted from the game's pip controls",
     source: "icon-source.svg", sourceSha256: hash(source), sourceNormalization: "LF",
-    renderer, generator: "scripts/ios-assets/generate.mjs", publicIdentityApproved: false,
+    renderer, generator: "scripts/ios-assets/generate.mjs", publicIdentityApproved: true,
     externalArtwork: [], fonts: [], sound: [],
     exports: variants.map(({ file, role, transparent }) => ({ file, role, width: 1024, height: 1024, transparencyAllowed: !!transparent, sha256: hash(readFileSync(join(folder, file))) })),
   }, null, 2) + "\n");

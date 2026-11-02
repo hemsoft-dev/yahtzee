@@ -72,9 +72,9 @@ async function finishGame(page: Page, count: number) {
 test("distributed EXE plays offline and retains scores after an actual restart", async () => {
   const info = test.info();
   const directory = mkdtempSync(join(tmpdir(), "yahtzee portable test "));
-  const executable = join(directory, "Yahtzee.exe");
+  const executable = join(directory, "Third Roll.exe");
   const profile = join(directory, "profile");
-  const source = process.env.YAHTZEE_OFFLINE_EXE ?? resolve("apps/desktop/release/Yahtzee-Offline-0.1.0-win-x64.exe");
+  const source = process.env.YAHTZEE_OFFLINE_EXE ?? resolve("apps/desktop/release/Third-Roll-Offline-0.1.0-win-x64.exe");
   copyFileSync(source, executable);
   let running: { close(): Promise<void> } | undefined;
   try {

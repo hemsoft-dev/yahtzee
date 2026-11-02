@@ -17,11 +17,11 @@ mkdirSync(resolve(stage, "licenses"), { recursive: true });
 cpSync(resolve(root, "LICENSE"), resolve(stage, "licenses/LICENSE.txt"));
 cpSync(resolve(root, "packages/ui/src/assets/OFL.txt"), resolve(stage, "licenses/Manrope-OFL.txt"));
 writeFileSync(resolve(stage, "package.json"), JSON.stringify({
-  name: "yahtzee-offline", productName: "Yahtzee Offline", version: source.version,
-  description: "Offline Yahtzee with local scores and AI opponents", author: "HemSoft", license: "MIT", main: "main/index.cjs",
+  name: "third-roll-offline", productName: "Third Roll Offline", version: source.version,
+  description: "Offline Third Roll with local scores and AI opponents", author: "HemSoft", license: "MIT", main: "main/index.cjs",
 }, null, 2));
 run("bun", ["run", "electron-builder", "--config", "electron-builder.offline.json", "--win", "portable", "--x64", "--publish", "never"], desktop);
-const artifact = `Yahtzee-Offline-${source.version}-win-x64`;
+const artifact = `Third-Roll-Offline-${source.version}-win-x64`;
 const release = resolve(desktop, "release");
 const desktopRequire = createRequire(resolve(desktop, "package.json"));
 const builderRequire = createRequire(desktopRequire.resolve("electron-builder"));

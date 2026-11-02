@@ -1,6 +1,6 @@
 # Privacy policy draft
 
-Prepared September 27, 2026. This is development copy, not an approved policy for a published app. The owner must approve the public identity, contact information and final declarations after the signed candidate is measured. See the [privacy acceptance issue](https://github.com/hemsoft-dev/yahtzee/issues/48).
+Prepared September 27, 2026. This is development copy, not an approved policy for a published app. The public name is decided in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39). Franz must approve contact information and final declarations after the signed candidate is measured. See the [privacy acceptance issue](https://github.com/hemsoft-dev/yahtzee/issues/48).
 
 ## Data on the device
 

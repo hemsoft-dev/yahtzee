@@ -4,4 +4,4 @@ Proposed first-release copy, contingent on native implementation and device qual
 
 Play a local dice game on iPhone or iPad. Roll, hold dice and choose a scoring combination. Play solo or against up to three computer opponents. The proposed release keeps games and scores on your device and works offline.
 
-Replace this draft only after the supported modes, house rules, resume behavior, original public name and rights are approved. Do not claim remote multiplayer, cloud leaderboards, licensed affiliation or unqualified accessibility support.
+Replace this draft only after resume behavior and device qualification are confirmed. The name, modes and house rules are decided in #39. Do not claim remote multiplayer, cloud leaderboards, licensed affiliation or unqualified accessibility support.

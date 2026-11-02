@@ -1,4 +1,6 @@
-# Yahtzee
+# Third Roll
+
+Third Roll is the public name, decided in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39). The repository, internal IDs, storage keys and `@yahtzee/*` packages keep the earlier name.
 
 A dice game for web, Electron desktop and Expo mobile, sharing a TypeScript game engine. Play one local human against zero to three AI opponents. Convex owns active games and persists their computed results.
 
@@ -9,7 +11,7 @@ Remote play with friends is not implemented. There is no room creation or join f
 - Five-dice play and extended six-or-more-dice modes. Web and desktop offer custom counts from 2 to 20; mobile offers 5, 6, 8 and 10.
 - One human player and up to three AI opponents. The shared engine generates rolls, validates moves and runs AI turns using a single roll and a category-selection heuristic. The online version executes these rules in Convex; the offline edition executes them locally.
 - Dice holding, up to three rolls per turn, scorecard totals and upper-section bonuses.
-- House-rule scoring includes pairs and scores three/four of a kind using matching dice only. The five-dice scorecard has 15 categories, rather than the standard 13-category Yahtzee sheet.
+- House-rule scoring includes pairs and scores three/four of a kind using matching dice only. The five-dice scorecard has 15 categories, rather than the usual 13.
 - Verified completed-game history and top-ten leaderboards per dice count. Display names are not authenticated account identities. Guest capabilities stay in memory, expire after 12 hours and are lost on reload; see [the security and migration contract](docs/guest-games.md).
 
 ## Stack and layout

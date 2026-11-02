@@ -1,4 +1,4 @@
-YAHTZEE OFFLINE
+THIRD ROLL OFFLINE
 
 For Windows 10 or 11, 64-bit.
 
@@ -11,6 +11,7 @@ The first roll is automatic. Click dice to hold them, reroll, then choose a scor
 Completed scores are saved on this PC under your Windows user profile, in
 %APPDATA%\Yahtzee Offline. Copy that entire folder while the app is closed if
 you want to back it up. Moving the executable does not move or erase your scores.
+The folder keeps the game's earlier name, so existing scores carry over.
 The top ten scores for each dice count are kept, along with your last 500 games.
 These scores are local only and are not shared with an online leaderboard.
 
