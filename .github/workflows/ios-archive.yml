@@ -1,0 +1,49 @@
+name: Unsigned iOS device archive
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/ios-archive.yml'
+      - 'scripts/ios-archive/**'
+      - 'scripts/ios-native/**'
+      - 'scripts/ios-assets/**'
+      - 'apps/mobile/**'
+      - 'packages/game-engine/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'patches/**'
+      - 'tsconfig.base.json'
+permissions:
+  contents: read
+concurrency:
+  group: ios-device-archive-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  archive:
+    name: Prepare unsigned iOS device archive
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.12.0'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile --ignore-scripts
+        timeout-minutes: 5
+      - name: Check archive rejection rules and original artwork
+        run: node --test scripts/ios-archive/*.test.mjs scripts/ios-assets/*.test.mjs
+      - name: Archive and inspect the clean source revision without signing
+        run: node scripts/ios-archive/run.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: unsigned-ios-device-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/device-archive-evidence/
+          retention-days: 1
+          if-no-files-found: warn
