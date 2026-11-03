@@ -11,6 +11,7 @@ export function draftErrors(record) {
   if (!/^\d+\.\d+\.\d+$/.test(record.version ?? "")) errors.push("Invalid marketing version");
   if (typeof record.buildNumber !== "string" || !/^[1-9]\d*$/.test(record.buildNumber)) errors.push("Build number must be a positive integer string");
   if (record.tag !== `ios/v${record.version}`) errors.push("Tag does not match the iOS version");
+  if (record.versionNotes !== `release/notes/${record.version}.md`) errors.push("Version notes path does not match the marketing version");
   if (record.appStoreVersion !== record.version) errors.push("App Store version mismatch");
   if (!["draft", "candidate"].includes(record.status)) errors.push("Unknown candidate status");
   return errors;
@@ -35,7 +36,7 @@ export function releaseBlockers(record, context) {
 
 function sourceFiles(record, mobile, committedBytes) {
   const metadata = record.metadataDirectory;
-  const sources = { changelog: record.changelog, testNotes: record.testNotes, screenshots: record.screenshots,
+  const sources = { versionNotes: record.versionNotes, changelog: record.changelog, testNotes: record.testNotes, screenshots: record.screenshots,
     listing: `${metadata}/listing.json`, description: `${metadata}/description.txt`,
     reviewNotes: `${metadata}/review_notes.txt`, releaseNotes: `${metadata}/release_notes.txt` };
   return Object.entries(sources).map(([role, path]) => ({ ...readSource(mobile, path, committedBytes), role }));

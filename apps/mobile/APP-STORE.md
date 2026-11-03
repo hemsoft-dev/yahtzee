@@ -12,7 +12,7 @@ The repository maintainer owns implementation, repeatable checks and evidence co
 
 Use the existing Expo/React Native app and shared TypeScript engine. The first release has one local human, zero to three AI opponents, mobile presets of five/six/eight/ten dice and English. [#39](https://github.com/hemsoft-dev/yahtzee/issues/39) freezes the rules: Castle is two distinct triples, All of a Kind needs the whole hand to match, and there is no dedicated six-of-a-kind category.
 
-The first release is free and available in all storefronts except China mainland. It excludes accounts, remote multiplayer, cloud scores/sync, analytics, ads, purchases, subscriptions, Game Center, widgets, Watch and the Android release. It targets iOS 17, supports iPhone/iPad and automatic orientation/appearance, and uses version 1.0.0/build 1. The bundle identifier is `com.hemsoft.thirdroll`. Creating the App Store record is what confirms the name is available.
+The first release is planned to be free and available in all storefronts except China mainland. It excludes accounts, remote multiplayer, cloud scores/sync, analytics, ads, purchases, subscriptions, Game Center, widgets, Watch and the Android release. It targets iOS 17, supports iPhone/iPad and automatic orientation/appearance, and uses version 1.0.0/build 1. The bundle identifier is `com.hemsoft.thirdroll`. Creating the App Store record is what confirms the name is available.
 
 ## Repository preparation delivered
 
@@ -20,15 +20,34 @@ The shared UI/rules/Windows work landed in [#55](https://github.com/hemsoft-dev/
 
 The native app also includes Help, local history, preview-only optional diagnostics and original development icon/launch artwork. [Storage contracts](../../docs/mobile-offline.md), [native qualification](../../docs/native-simulator.md), [privacy observations](../../docs/mobile-privacy-audit.md) and [asset provenance](assets/README.md) record the limits. The source-built FileSystem resource and aggregate privacy manifests pass packaging checks, not legal or traffic acceptance.
 
-Release records landed in [#56](https://github.com/hemsoft-dev/yahtzee/pull/56). The [unpublished website](https://github.com/hemsoft-dev/yahtzee/pull/58), [alpha-channel rejection](https://github.com/hemsoft-dev/yahtzee/pull/59) and [bounded PNG validation](https://github.com/hemsoft-dev/yahtzee/pull/60) are delivered repository preparation. [Draft capture automation](https://github.com/hemsoft-dev/yahtzee/pull/61) is merged preparation; accepted store screenshots remain pending. Fictional scenes are not played-game evidence or accepted store images.
+Release records landed in [#56](https://github.com/hemsoft-dev/yahtzee/pull/56). The [initial website preview](https://github.com/hemsoft-dev/yahtzee/pull/58), [alpha-channel rejection](https://github.com/hemsoft-dev/yahtzee/pull/59) and [bounded PNG validation](https://github.com/hemsoft-dev/yahtzee/pull/60) are delivered repository preparation. [Draft capture automation](https://github.com/hemsoft-dev/yahtzee/pull/61) is merged preparation; accepted store screenshots remain pending. Fictional scenes are not played-game evidence or accepted store images.
 
 This records source delivery, not a signed release candidate. Live workflow outcomes and recovery receipts belong to the linked PRs; a later failed run is not erased by an earlier pass.
 
 The release scope and name are decided in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39), which records a conflict screen, not legal clearance. The MIT license is not trademark clearance.
 
+## Current public-site evidence
+
+[PR #100](https://github.com/hemsoft-dev/yahtzee/pull/100) merged at
+`754d0f9806cf04d6c45b96ebee957cef444c0a17`. Its
+[Pages deployment](https://github.com/hemsoft-dev/yahtzee/actions/runs/41574244090)
+passed. On November 2, 2026 EST, a fresh unauthenticated Chromium context and
+independent HTTPS requests verified 200 responses for
+[marketing](https://hemsoft-dev.github.io/yahtzee/),
+[support](https://hemsoft-dev.github.io/yahtzee/support.html) and
+[privacy](https://hemsoft-dev.github.io/yahtzee/privacy.html), working navigation
+and both unchanged screenshot assets. HTTPS is enforced. No store download is
+advertised. App Store Connect has not been accessed in this session.
+
+The reviewed source `dee3455` passed
+[unsigned qualification attempt 2](https://github.com/hemsoft-dev/yahtzee/actions/runs/41558133101/attempts/2).
+Phone-six and tablet-eight required the single authorized fresh failed-job
+rerun; original device-unreachable and score-acknowledgment failures remain
+retained. This is source evidence, not a signed release candidate.
+
 ## Candidate mapping and checks
 
-[release/candidate.json](release/candidate.json) is an explicitly incomplete 1.0.0, build 1 proposal, separate from Windows 0.1.0. It links the [iOS changelog](CHANGELOG.md), [TestFlight notes](release/testflight-notes.md), [listing sources](release/metadata/en-US/listing.json) and [screenshot manifest](release/screenshots.json).
+[release/candidate.json](release/candidate.json) is an explicitly incomplete 1.0.0, build 1 proposal, separate from Windows 0.1.0. It includes the approved bundle identity and [versioned 1.0 notes](release/notes/1.0.0.md). The checker rejects a version-note path for another marketing version and verifies the tracked source bytes in release mode. It links the [iOS changelog](CHANGELOG.md), [TestFlight notes](release/testflight-notes.md), [listing sources](release/metadata/en-US/listing.json) and [screenshot manifest](release/screenshots.json).
 
 From the repository root:
 
@@ -52,6 +71,15 @@ The release check fails on an incomplete record, dirty source, mismatched native
 The tracked screenshot JSON is a scene plan, not a capture receipt. Generate the accepted capture manifest beside the images after freezing the source commit, then store its SHA-256 in the external candidate record. Give it status `accepted`, matching sourceCommit/version/buildNumber, and a nonempty captures array. Each capture needs filename relative to that artifact folder, sourceCommit, deviceFamily `iphone` or `ipad`, locale, appearance `light` or `dark`, pixel width/height, and SHA-256. The checker verifies each file's PNG signature, dimensions and hash; capture paths and symlinks cannot escape that folder. This does not replace visual review or Apple's current device-size requirements. Set listing status to `approved` only after the owner approves the copy. Each `sourceReviews` role also needs `approved` and the SHA-256 of its accepted UTF-8 text with LF line endings. Any later text change invalidates that receipt. Remove draft instructions and placeholders from accepted test and store notes. These recorded statuses do not grant legal authority; the maintainer must verify the owner's evidence separately. This is a consistency guard, not a signing validator or proof that cited owner/device evidence is genuine. Review those receipts separately. If dynamic Expo configuration replaces app.json, update the checker to consume the resolved configuration before using it for release.
 
 Retain the accepted JSON beside the archive and sanitized QA receipts. Its iOS tag must point to the source SHA. On public release, verify the matching GitHub tag/release, public App Store version and dated changelog entry. No automatic release/changelog workflow currently publishes these files; do not duplicate Unreleased entries in generated notes if one is introduced.
+
+## Session authority and store boundary
+
+On November 2 Franz authorized PR #100's merge and website publication only.
+Every later Yahtzee PR remains under a merge hold until he explicitly confirms
+PR #98 has merged. Continue reviews and checks while held. This session never
+accesses App Store Connect, uploads, submits, invites testers or publishes an
+app. Keep the store record, signing, TestFlight, export/legal attestations and
+post-store smoke checks unchecked until separate evidence exists.
 
 ## Editable content
 
