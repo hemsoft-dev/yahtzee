@@ -2,6 +2,10 @@
 
 The native jobs in [Application quality](../.github/workflows/quality.yml) use standard public GitHub-hosted macOS runners. They do not use Apple credentials, a paid device cloud, signing, upload, TestFlight or App Store submission. The result is a simulator app, not an installable iPhone archive.
 
+See the [mobile release baseline](mobile-release-baseline.md) for the accepted
+source revision, identity/version policy, and local Xcode development,
+simulator and production-preparation profiles.
+
 ## Inputs
 
 - macOS 26 runner, with the actual runner image version recorded in the receipt.
@@ -25,7 +29,7 @@ The initial bootstrap retains its generated Podfile.lock as an artifact and rema
 
 For hosted regeneration, apply the `native-pods-refresh` PR label before pushing the dependency change. Download its retained lock, inspect and commit the change, remove the label, then repeat normal qualification. Adding a label alone does not start this workflow, and reruns retain the original event's label snapshot. The refresh job intentionally fails and cannot satisfy the required quality gate. Do not bypass that check or call a bootstrap a qualified release.
 
-Build configuration is Release, `CODE_SIGNING_ALLOWED=NO`, with an embedded Hermes/JavaScript bundle. The simulator app targets the current host architecture, recorded in the manifest, rather than compiling an unused second simulator slice. It is not a universal Mac distribution. No Metro server is started. The compiled bundle identifier, version, build and minimum iOS 17.0 must match source. The proposed 1.0.0/build 1 and existing development identifiers are not approved public identity or an App Store reservation.
+Build configuration is Release, `CODE_SIGNING_ALLOWED=NO`, with an embedded Hermes/JavaScript bundle. The simulator app targets the current host architecture, recorded in the manifest, rather than compiling an unused second simulator slice. It is not a universal Mac distribution. No Metro server is started. The compiled bundle identifier, version, build and minimum iOS 17.0 must match source. Third Roll uses version 1.0.0/build 1 and `com.hemsoft.thirdroll`; configuration does not prove an App Store reservation or signed-release acceptance.
 
 ## Packaged privacy resources
 
