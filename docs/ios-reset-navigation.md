@@ -9,7 +9,8 @@ section, with the action below the viewport. Largest Dynamic Type remains enable
 after the preceding scenario. These observations establish the failing search,
 not a storage defect or a general Maestro root cause.
 
-The reset helper now identifies the actual `help-viewport`. Before opening the
+The reset helper now identifies the actual `help-viewport` and intersects its
+bounds with every ancestor to obtain the visible scroll area. Before opening the
 confirmation, it requires one enabled action entirely inside that viewport and
 every ancestor. An absent or offscreen action causes an interior swipe across
 80% of the measured viewport height; an overshot action reverses direction.
@@ -33,7 +34,7 @@ Focused checks:
 
 ```sh
 node --test scripts/ios-native/reset.test.mjs
-node --test scripts/ios-native/*.test.mjs scripts/workflows/*.test.mjs
+node --test --test-concurrency=1 scripts/ios-native/*.test.mjs scripts/workflows/*.test.mjs scripts/ios-capture/*.test.mjs
 ```
 
 Current-head hosted qualification must still pass at largest text, exercise

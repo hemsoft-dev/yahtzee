@@ -59,9 +59,29 @@ test("reset action visibility rejects wrong page, ambiguity, clipping and an imp
   assert.throws(() => resetActionPosition(clipped), /clipped by an ancestor/);
   const disabled = help(); disabled.elements[0].c[0].c[0].enabled = false;
   assert.equal(resetActionPosition(disabled).action, "wait");
+  for (const enabled of ["true", "false", 0, 1]) {
+    const invalid = help(); invalid.elements[0].c[0].c[0].enabled = enabled;
+    assert.throws(() => resetActionPosition(invalid), /invalid enabled/);
+  }
   assert.equal(resetActionPosition(help("[220,1320][900,1400]")).action, "swipe");
   const up = resetActionPosition(help("[220,0][900,80]"));
   assert(Number(up.start.split(",")[1]) < Number(up.end.split(",")[1]));
+});
+
+test("a clipped viewport navigates only inside the intersection visible through all ancestors", () => {
+  const screen = help("[220,1200][900,1280]");
+  screen.elements[0].b = "[0,200][1032,1100]";
+  const decision = resetActionPosition(screen);
+  assert.equal(decision.action, "swipe");
+  assert.equal(decision.viewport.top, 200); assert.equal(decision.viewport.bottom, 1100);
+  for (const point of [decision.start, decision.end]) {
+    const [x, y] = point.split(",").map(Number);
+    assert(x > 200 && x < 920 && y > 200 && y < 1100);
+  }
+  screen.elements[0].c[0].c[0].b = "[220,500][900,580]";
+  assert.equal(resetActionPosition(screen).action, "tap");
+  screen.elements[0].b = "[0,1300][1032,1376]";
+  assert.throws(() => resetActionPosition(screen), /too small/);
 });
 
 test("the reset search keeps one 60-second budget and cannot tap a late snapshot", async () => {

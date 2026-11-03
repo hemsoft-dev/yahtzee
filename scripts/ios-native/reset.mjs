@@ -11,15 +11,20 @@ const contains = (outer, inner, margin = 0) => inner.left >= outer.left + margin
 /** Search inside Help, retaining full-size text and requiring an entirely reachable action. */
 export function resetActionPosition(screen) {
   const elements = screenElements(screen), viewportNode = uniqueElement(elements, "help-viewport");
-  const viewport = viewportNode.rect;
+  const viewport = { ...viewportNode.rect };
+  for (const parent of viewportNode.parents) {
+    viewport.left = Math.max(viewport.left, parent.rect.left); viewport.top = Math.max(viewport.top, parent.rect.top);
+    viewport.right = Math.min(viewport.right, parent.rect.right); viewport.bottom = Math.min(viewport.bottom, parent.rect.bottom);
+  }
+  viewport.width = viewport.right - viewport.left; viewport.height = viewport.bottom - viewport.top;
   assert(viewport.width >= 80 && viewport.height >= 100, "Help viewport is too small to exercise.");
-  assert(viewportNode.parents.every((parent) => contains(parent.rect, viewport)), "Help viewport is clipped.");
   const matches = elements.filter((node) => node.a11y === title && !node.c?.length);
   assert(matches.length <= 1, "Reset action is ambiguous.");
   const target = matches[0];
   if (target) {
     assert(target.parents.includes(viewportNode), "Reset action is outside Help.");
     assert(target.rect.width <= viewport.width - 16 && target.rect.height <= viewport.height - 16, "Reset action cannot fit in Help.");
+    assert(target.enabled === true || target.enabled === false, "Reset action has invalid enabled state.");
     if (!target.enabled) return { action: "wait", viewport, target: target.rect };
     if (contains(viewport, target.rect, 8)) {
       assert(target.parents.every((parent) => contains(parent.rect, target.rect)), "Reset action is clipped by an ancestor.");
