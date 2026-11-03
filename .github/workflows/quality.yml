@@ -45,7 +45,7 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         shell: bash
         run: |
-          node --test scripts/ios-release/*.test.mjs scripts/ios-assets/*.test.mjs scripts/ios-native/*.test.mjs scripts/ios-capture/*.test.mjs scripts/workflows/*.test.mjs
+          node --test scripts/ios-release/*.test.mjs scripts/ios-assets/*.test.mjs scripts/ios-native/*.test.mjs scripts/ios-capture/*.test.mjs scripts/ios-archive/*.test.mjs scripts/workflows/*.test.mjs
           bun test scripts/ios-capture/fixtures.test.ts
           bunx tsc -p scripts/tsconfig.json
           node scripts/ios-release/check.mjs
