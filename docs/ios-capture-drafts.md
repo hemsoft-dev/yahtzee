@@ -21,6 +21,8 @@ Setup preloads Maya with an empty recent-name list. The extra `Use Maya` shortcu
 
 The real Setup screen now uses a four-point outer content gap instead of the shared sixteen-point gap. Section margins still separate groups; text sizes, Dynamic Type, control padding and touch targets remain unchanged. This removes sixty points of repeated spacing across the five outer gaps. The ScrollView still scrolls when smaller screens, larger text, recent names or saved-game content require it. This is normal application layout, with no capture-only condition. Capture readiness requires the whole title, subtitle, Players, name, AI choice, Game, dice choice, rules, Start Game and Appearance choice to fit inside every native ancestor. It fails on clipping instead of scrolling the introduction away. The native regression fixture retains the failed medium-phone bounds. Save bytes must remain unchanged.
 
+The focused source-adapter tests measure the title, subtitle and four control labels before and after 2.5× rendered-text enlargement at 320×568, then verify scroll and touch access. A second rendering moves the same text sizes into CSS classes; it failed with zero selected elements under the former inline-only selector. Both representations must select text and show the measured enlargement. This browser regression is separate from native Dynamic Type qualification.
+
 Current-head native regeneration and full-size review are required before this correction can be called visually verified. Draft receipts remain unaccepted.
 
 ## Device profiles
