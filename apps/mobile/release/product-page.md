@@ -13,7 +13,7 @@ stay draft. The merge hold remains until Franz says PR #98 has merged.
 | Name | Third Roll | 10 / 30 characters |
 | Subtitle | Offline dice, house rules | 25 / 30 characters |
 | Promotional text | listing.json | 118 / 170 characters |
-| Description | [description.txt](metadata/en-US/description.txt) | 1,308 / 4,000 characters; plain text |
+| Description | [description.txt](metadata/en-US/description.txt) | 1,308 / 4,000 characters of upload copy; plain text |
 | Keywords | listing.json | 65 / 100 UTF-8 bytes; comma-separated; each term over two characters |
 | Copyright | 2026 Franz Hemmer / HemSoft Developments | Matches the existing repository LICENSE; confirm final rights declaration before submission |
 | Category | Games; proposed Dice and Board subcategories | Category selection is preparation, not a saved store value |
@@ -23,6 +23,10 @@ stay draft. The merge hold remains until Franz says PR #98 has merged.
 | Privacy | [Policy](https://hemsoft-dev.github.io/yahtzee/privacy.html) | Live HTTPS 200; signed-release privacy acceptance pending |
 | Review notes | [review_notes.txt](metadata/en-US/review_notes.txt) | Candidate verification instructions; private contact fields excluded |
 | Version and release text | 1.0.0/build 1 proposed; [release_notes.txt](metadata/en-US/release_notes.txt) | Versioned-note work is in [PR #104](https://github.com/hemsoft-dev/yahtzee/pull/104); initial What's New may be absent |
+
+The editable text files retain an explicit draft banner. Remove that banner
+only as part of intentional source approval; the counts above describe the
+proposed upload copy. The candidate checker rejects unapproved sources.
 
 Limits were checked against Apple's current
 [app-information reference](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/)
