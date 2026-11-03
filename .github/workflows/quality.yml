@@ -30,7 +30,39 @@ jobs:
           node-version: '24'
       - name: Classify the complete PR diff, defaulting to native
         id: classify
-        run: node scripts/workflows/docs-only-native.mjs
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+          import { tmpdir } from 'node:os';
+          import { join } from 'node:path';
+          let required = 'true';
+          try {
+            if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
+              const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+              const base = event.pull_request?.base?.sha;
+              if (!/^[a-f0-9]{40}$/.test(base ?? '')) throw new Error('Invalid base revision');
+              execFileSync('git', ['cat-file', '-e', `${base}^{commit}`]);
+              const source = execFileSync('git', ['show', `${base}:scripts/workflows/docs-only-native.mjs`]);
+              const dir = mkdtempSync(join(tmpdir(), 'native-policy-'));
+              const script = join(dir, 'classifier.mjs');
+              const output = join(dir, 'output');
+              writeFileSync(script, source);
+              execFileSync(process.execPath, [script], {
+                env: { ...process.env, GITHUB_OUTPUT: output },
+                stdio: 'pipe',
+              });
+              const result = readFileSync(output, 'utf8');
+              if (!/^native-required=(true|false)\n$/.test(result)) throw new Error('Invalid classifier output');
+              required = result.match(/=(true|false)/)[1];
+            }
+          } catch {
+            console.log('Trusted base classification unavailable; full native qualification required.');
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `native-required=${required}\n`);
+          console.log(`Trusted base policy: native-required=${required}`);
+          NODE
 
   validate:
     name: Validate (${{ matrix.os }})

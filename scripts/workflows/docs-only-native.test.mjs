@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync, execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,9 +34,9 @@ test("push, merge groups, unknown events, absent metadata and git failures fail 
   assert.equal(nativeRequired("pull_request", event(), () => { throw Error("missing history"); }), true);
 });
 
-function jobCondition(job, changesResult, required, build = "success") {
+function jobCondition(job, changesResult, required, build = "success", cancelled = false) {
   const condition = jobs[job].match(/^ {4}if: \$\{\{ (.*) \}\}$/m)[1];
-  const expression = condition.replaceAll("!cancelled()", "true")
+  const expression = condition.replaceAll("!cancelled()", JSON.stringify(!cancelled))
     .replaceAll("needs.changes.result", JSON.stringify(changesResult))
     .replaceAll("needs.changes.outputs.native-required", JSON.stringify(required))
     .replaceAll("needs.native-build.result", JSON.stringify(build));
@@ -46,11 +46,14 @@ function jobCondition(job, changesResult, required, build = "success") {
 test("actual workflow gates only native jobs and preserves required names, matrix and safeguards", () => {
   assert.match(jobs.changes, /fetch-depth: 0/);
   assert.match(jobs.changes, /native-required: \$\{\{ steps.classify.outputs.native-required \}\}/);
-  assert.match(jobs.changes, /id: classify\n {8}run: node scripts\/workflows\/docs-only-native.mjs/);
+  assert.match(jobs.changes, /id: classify\n {8}shell: bash/);
+  assert.match(jobs.changes, /git', \['show', `\$\{base\}:scripts\/workflows\/docs-only-native.mjs`\]/);
+  assert.doesNotMatch(jobs.changes, /run: node scripts\/workflows\/docs-only-native.mjs/);
   assert.match(jobs["native-build"], /needs: changes/);
   assert.match(jobs.native, /needs: \[changes, native-build\]/);
   for (const job of ["native-build", "native"]) {
     assert.equal(jobCondition(job, "success", "false"), false);
+    assert.equal(jobCondition(job, "success", "true", "success", true), false);
     for (const [result, required] of [["success", "true"], ["success", ""], ["failure", "false"], ["skipped", undefined]]) assert.equal(jobCondition(job, result, required), true);
     assert.match(jobs[job], /runs-on: macos-26/);
   }
@@ -105,7 +108,7 @@ test("execute the actual aggregate shell with successful, failed, cancelled and 
   }
 });
 
-test("workflow classifier command uses a real git diff and fails closed at its CLI boundary", () => {
+test("classifier CLI uses a real git diff and fails closed at its CLI boundary", () => {
   const dir = mkdtempSync(join(tmpdir(), "docs-native-"));
   try {
     const git = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
@@ -122,14 +125,13 @@ test("workflow classifier command uses a real git diff and fails closed at its C
     const renameHead = commit();
     git("rm", "guide.md");
     const deleteHead = commit();
-    const command = jobs.changes.match(/ {8}run: (node scripts\/workflows\/docs-only-native.mjs)/)[1];
     for (const [head, count, expected] of [[safeHead, 1, false], [safeHead, 2, true], [mixedHead, 2, true], [renameHead, 3, true], [deleteHead, 2, true], ["f".repeat(40), 1, true]]) {
       const data = { pull_request: { base: { sha: base }, head: { sha: head }, changed_files: count } };
       const eventPath = join(dir, "event.json");
       const output = join(dir, "output.txt");
       writeFileSync(eventPath, JSON.stringify(data));
       writeFileSync(output, "");
-      const result = spawnSync(process.execPath, [command.split(" ")[1].replace("scripts/workflows/docs-only-native.mjs", script)], { cwd: dir, env: { ...process.env, GITHUB_EVENT_NAME: "pull_request", GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: output }, encoding: "utf8" });
+      const result = spawnSync(process.execPath, [script], { cwd: dir, env: { ...process.env, GITHUB_EVENT_NAME: "pull_request", GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: output }, encoding: "utf8" });
       assert.equal(result.status, 0, result.stderr);
       assert.equal(readFileSync(output, "utf8"), `native-required=${expected}\n`);
     }
@@ -145,6 +147,77 @@ test("workflow classifier command uses a real git diff and fails closed at its C
     assert.equal(readFileSync(output, "utf8"), "native-required=true\n");
     const failedOutput = spawnSync(process.execPath, [script], { env: { ...process.env, GITHUB_EVENT_NAME: "push", GITHUB_EVENT_PATH: join(dir, "event.json"), GITHUB_OUTPUT: join(dir, "absent", "output") } });
     assert.notEqual(failedOutput.status, 0, "an output-write failure must fail classification");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("actual workflow executes base policy, never the PR classifier, and defaults to native on first adoption/errors", () => {
+  const dir = mkdtempSync(join(tmpdir(), "native-base-policy-"));
+  try {
+    const git = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+    git("-c", "init.defaultBranch=main", "init", "--quiet");
+    git("config", "core.autocrlf", "false");
+    const commit = () => {
+      git("add", ".");
+      git("-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "-m", "fixture");
+      return git("rev-parse", "HEAD");
+    };
+    const readme = join(dir, "README.md");
+    writeFileSync(readme, "initial\n");
+    const initial = commit();
+    mkdirSync(join(dir, "scripts/workflows"), { recursive: true });
+    const classifier = join(dir, "scripts/workflows/docs-only-native.mjs");
+    writeFileSync(classifier, readFileSync(script));
+    const base = commit();
+    writeFileSync(readme, "safe docs\n");
+    const safe = commit();
+    writeFileSync(join(dir, "package.json"), "{}\n");
+    const unsafe = commit();
+    writeFileSync(classifier, 'import { appendFileSync, writeFileSync } from "node:fs"; writeFileSync("pr-classifier-ran", ""); appendFileSync(process.env.GITHUB_OUTPUT, "native-required=false\\n");\n');
+    const modified = commit();
+    rmSync(classifier);
+    const deleted = commit();
+
+    // Extract and execute the production workflow's entire bootstrap shell.
+    const shell = jobs.changes.split("        run: |\n")[1].split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
+    const external = mkdtempSync(join(tmpdir(), "native-base-event-"));
+    try {
+      const execute = (data, name = "pull_request") => {
+        const eventPath = join(external, "event.json");
+        const output = join(external, "output");
+        writeFileSync(eventPath, typeof data === "string" ? data : JSON.stringify(data));
+        writeFileSync(output, "");
+        const result = spawnSync(process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" : "bash", ["-e", "-c", shell], { cwd: dir, env: { ...process.env, GITHUB_EVENT_NAME: name, GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: output }, encoding: "utf8" });
+        assert.equal(result.status, 0, result.stderr);
+        return readFileSync(output, "utf8");
+      };
+      const pr = (baseSha, headSha, count) => ({ pull_request: { base: { sha: baseSha }, head: { sha: headSha }, changed_files: count } });
+      for (const [head, count, expected] of [[safe, 1, false], [unsafe, 2, true], [modified, 3, true], [deleted, 3, true]]) {
+        assert.equal(execute(pr(base, head, count)), `native-required=${expected}\n`);
+      }
+      assert.equal(execute(pr(initial, base, 1)), "native-required=true\n", "first adoption has no base policy");
+      for (const bad of [undefined, "", "main", "-bad", "f".repeat(40), git("hash-object", "README.md")]) assert.equal(execute(pr(bad, safe, 1)), "native-required=true\n");
+      for (const bad of [{}, "{", pr(base, "f".repeat(40), 1), pr(base, safe, 2)]) assert.equal(execute(bad), "native-required=true\n");
+      for (const name of ["push", "merge_group"]) assert.equal(execute(pr(base, safe, 1), name), "native-required=true\n");
+      assert.throws(() => readFileSync(join(dir, "pr-classifier-ran")), { code: "ENOENT" });
+
+      // Even a base process that writes a partial skip then fails cannot publish
+      // that skip. The bootstrap honors only a successful, exact output record.
+      for (const source of [
+        'import { appendFileSync } from "node:fs"; appendFileSync(process.env.GITHUB_OUTPUT, "native-required=false\\n"); throw Error("failure");',
+        'import { appendFileSync } from "node:fs"; appendFileSync(process.env.GITHUB_OUTPUT, "native-required=false\\nnative-required=false\\n");',
+        'invalid JavaScript {',
+      ]) {
+        writeFileSync(classifier, source);
+        const badBase = commit();
+        writeFileSync(readme, `${badBase}\n`);
+        const head = commit();
+        assert.equal(execute(pr(badBase, head, 1)), "native-required=true\n");
+      }
+    } finally {
+      rmSync(external, { recursive: true, force: true });
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
