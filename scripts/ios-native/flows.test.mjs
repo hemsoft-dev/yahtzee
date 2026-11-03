@@ -82,7 +82,8 @@ test("diagnostic cancellation scrolls to its action and requires the preview to 
   const steps = parse(completeEndFlow("com.hemsoft.thirdroll", true));
   const cancel = steps.findIndex((step) => step.command === "tapOn" && step.value?.text === "Cancel preview");
   assert(cancel > 0);
-  assert.deepEqual(steps[cancel - 1], { command: "scrollUntilVisible", value: { element: { text: "Cancel preview" }, direction: "DOWN", timeout: 60000, visibilityPercentage: 100 } });
+  assert.deepEqual(steps[cancel - 1], { command: "waitForAnimationToEnd", value: { timeout: 5000 } });
+  assert.deepEqual(steps[cancel - 2], { command: "scrollUntilVisible", value: { element: { text: "Cancel preview" }, direction: "DOWN", timeout: 60000, visibilityPercentage: 100 } });
   assert.deepEqual(steps[cancel + 1], { command: "assertNotVisible", value: "Cancel preview" });
   assert.deepEqual(steps[cancel + 2], { command: "assertNotVisible", value: { id: "diagnostics-preview" } });
   assert.deepEqual(steps[cancel + 3], { command: "assertVisible", value: "Preview diagnostics" });
@@ -169,4 +170,48 @@ test("a stuck choice dismissal or lost picker tap fails without selecting or rep
     assert.equal(flow.state().taps.filter((tap) => tap.text === "10 dice").length, 0);
     assert(flow.state().taps.filter((tap) => tap.text === "Dice count").length <= 1);
   }
+});
+
+test("scrolling must settle before report and Start Game taps, including after preview collapse", async () => {
+  for (const yaml of [startFlow("com.hemsoft.thirdroll", scenarios[0]), completeEndFlow("com.hemsoft.thirdroll", true)]) {
+    let scrolling = false, preview = false, started = false;
+    await runAuthoredFlow({ runFlow: async (batch) => {
+      for (const step of parse(batch)) {
+        if (step.command === "scrollUntilVisible") {
+          assert.equal(scrolling, false, "Layout must settle before inspecting scroll targets");
+          if (step.value.element.id === "support-preview") assert(preview, "No visible element found: id: support-preview");
+          scrolling = true;
+        }
+        if (step.command === "waitForAnimationToEnd") scrolling = false;
+        if (step.command === "tapOn" && ["Report a Problem", "Suggest an Improvement", "Private support", "Start Game"].includes(step.value.text)) {
+          assert.equal(scrolling, false, `Scroll intercepted ${step.value.text}`);
+          assert.equal(step.value.retryTapIfNoChange, false);
+          if (step.value.text === "Start Game") started = true;
+          else preview = true;
+        }
+        if (step.command === "tapOn" && step.value.text === "Cancel report") { preview = false; scrolling = true; }
+        if (step.command === "assertVisible" && step.value === "Re-roll \\(2\\)") assert(started);
+      }
+    } }, yaml);
+  }
+});
+
+test("upward support searches must move targets out from under the native Help header", async () => {
+  // PR98 9bac8d5, run41547450956, scenario-step-070 and retained XCTest log:
+  // Suggest an Improvement was tapped at (201,93), behind the Help toolbar.
+  // Whole-screen visibility still reports that row as visible. Animation waits do not move it.
+  let targetY = null, preview = false;
+  await runAuthoredFlow({ runFlow: async (yaml) => {
+    for (const step of parse(yaml)) {
+      if (step.command === "scrollUntilVisible" && step.value.direction === "UP") {
+        targetY = step.value.centerElement ? 350 : 93;
+      }
+      if (step.command === "tapOn" && ["Suggest an Improvement", "Private support"].includes(step.value.text)) {
+        assert(targetY > 134 && targetY < 850, "Native Help header intercepts the upward-search tap");
+        preview = true;
+      }
+      if (step.command === "scrollUntilVisible" && step.value.element.id === "support-preview" && targetY !== null) assert(preview);
+      if (step.command === "tapOn" && step.value.text === "Cancel report") preview = false;
+    }
+  } }, completeEndFlow("com.hemsoft.thirdroll", true, true));
 });

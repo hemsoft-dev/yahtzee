@@ -1,21 +1,36 @@
 {
   "status": "draft",
   "sourceReviews": {
-    "description": { "status": "draft", "sha256": null },
-    "reviewNotes": { "status": "draft", "sha256": null },
-    "releaseNotes": { "status": "draft", "sha256": null },
-    "testNotes": { "status": "draft", "sha256": null }
+    "description": {
+      "status": "draft",
+      "sha256": null
+    },
+    "reviewNotes": {
+      "status": "draft",
+      "sha256": null
+    },
+    "releaseNotes": {
+      "status": "draft",
+      "sha256": null
+    },
+    "testNotes": {
+      "status": "draft",
+      "sha256": null
+    }
   },
   "name": "Third Roll",
-  "subtitle": null,
-  "promotionalText": null,
-  "keywords": null,
-  "copyright": null,
-  "supportUrl": null,
-  "marketingUrl": null,
-  "privacyUrl": null,
+  "subtitle": "Offline dice, house rules",
+  "promotionalText": "Choose five, six, eight or ten dice. Hold, reroll and fill a house-rule scorecard, solo or against computer opponents.",
+  "keywords": "dice,offline,scorecard,solo,computer,combinations,pairs,straights",
+  "copyright": "2026 Franz Hemmer / HemSoft Developments",
+  "supportUrl": "https://hemsoft-dev.github.io/yahtzee/support.html",
+  "marketingUrl": "https://hemsoft-dev.github.io/yahtzee/",
+  "privacyUrl": "https://hemsoft-dev.github.io/yahtzee/privacy.html",
   "accessibilityUrl": null,
-  "primaryCategory": null,
+  "primaryCategory": "Games",
   "secondaryCategory": null,
-  "notes": "Approved contact details, commercial/legal decisions and tested claims are required. Null is deliberately incomplete, not an upload value."
+  "notes": "Prepared English-only launch copy under delegated product authority. Status and source reviews remain draft pending signed-device acceptance, final screenshots, copyright/contact/legal confirmation and App Store Connect preview. Support URL is live but GitHub-only contact does not yet satisfy Apple contact-information requirements. No upload, sync or submission in this session.",
+  "gameSubcategories": [
+    "Board"
+  ]
 }

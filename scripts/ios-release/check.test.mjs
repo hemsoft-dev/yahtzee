@@ -5,7 +5,7 @@ import { draftErrors, releaseBlockers, listingRecord } from "./check.mjs";
 const commit = "a".repeat(40);
 const archiveSha256 = "b".repeat(64);
 function candidate() {
-  return { schemaVersion: 1, status: "candidate", version: "1.0.0", buildNumber: "1", tag: "ios/v1.0.0", appStoreVersion: "1.0.0", sourceCommit: commit, bundleIdentifier: "example.originalgame", appStoreId: "123456", archiveSha256, testFlightBuildId: "test-build", ownerApprovalEvidence: "test-reference", nativeQualificationEvidence: "test-reference" };
+  return { schemaVersion: 1, versionNotes: "release/notes/1.0.0.md", status: "candidate", version: "1.0.0", buildNumber: "1", tag: "ios/v1.0.0", appStoreVersion: "1.0.0", sourceCommit: commit, bundleIdentifier: "example.originalgame", appStoreId: "123456", archiveSha256, testFlightBuildId: "test-build", ownerApprovalEvidence: "test-reference", nativeQualificationEvidence: "test-reference" };
 }
 function context() {
   return { commit, dirty: false, archiveSha256, expo: { version: "1.0.0", ios: { buildNumber: "1", bundleIdentifier: "example.originalgame" } } };
@@ -42,4 +42,9 @@ test("rejects stale source, dirty checkout, native version/build/identity drift 
 });
 test("requires app, beta and evidence references without claiming to authenticate them", () => {
   for (const key of ["appStoreId", "testFlightBuildId", "ownerApprovalEvidence", "nativeQualificationEvidence"]) assert.ok(releaseBlockers({ ...candidate(), [key]: null }, context()).length);
+});
+
+test("versioned notes cannot silently refer to another marketing version", () => {
+  assert.ok(draftErrors({ ...candidate(), versionNotes: "release/notes/0.9.0.md" }).includes("Version notes path does not match the marketing version"));
+  assert.ok(draftErrors({ ...candidate(), versionNotes: undefined }).length);
 });

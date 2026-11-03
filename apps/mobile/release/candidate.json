@@ -7,7 +7,7 @@
   "tag": "ios/v1.0.0",
   "appStoreVersion": "1.0.0",
   "appStoreId": null,
-  "bundleIdentifier": null,
+  "bundleIdentifier": "com.hemsoft.thirdroll",
   "archiveSha256": null,
   "screenshotManifestSha256": null,
   "testFlightBuildId": null,
@@ -16,5 +16,6 @@
   "changelog": "CHANGELOG.md",
   "testNotes": "release/testflight-notes.md",
   "metadataDirectory": "release/metadata/en-US",
-  "screenshots": "release/screenshots.json"
+  "screenshots": "release/screenshots.json",
+  "versionNotes": "release/notes/1.0.0.md"
 }

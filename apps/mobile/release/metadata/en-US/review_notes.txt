@@ -1,14 +1,15 @@
-DRAFT, NOT APPROVED FOR SUBMISSION
+DRAFT, NOT APPROVED FOR UPLOAD
 
-The repository's separate native implementation runs locally without an account or required Convex connection. It offers five, six, eight and ten dice with one human and zero to three computer opponents. These development choices and the public identity still need owner approval. Unsigned simulator results do not establish the signed candidate's behavior.
+Prepared reviewer notes. Do not upload until verified against the signed candidate and final public contact information.
 
-After signed-device qualification, verify these steps against the exact candidate before supplying reviewer-facing notes:
-1. Launch, enter a display name, choose a dice count and computer-opponent count, then start. The first roll is automatic.
-2. Tap a die to hold it, reroll the other dice and select a score category. Castle requires two distinct triples; the larger all-dice category requires the whole hand to match.
-3. Pause and resume the acknowledged active game. Cold-launch resume, local results and rankings are on-device only, not an online leaderboard.
-4. Open Help for house rules and optional diagnostics. Previewing or cancelling sends nothing; choosing Share opens the operating system's share controls with the previewed allowlist text.
-5. Test reset only with disposable data and explicit confirmation. Damaged saves remain untouched until an explicit recovery/reset choice.
+Third Roll uses original branding and house rules. No licensed affiliation is claimed. There is no account or sign-in, no remote multiplayer, no purchases and no required game-server connection. No demo credentials are needed.
 
-Record actual signed-device results, supported modes, approved support/privacy URLs and any changed behavior in the release tracker. Do not claim zero network traffic, completed VoiceOver/backup testing or accepted privacy/export declarations from simulator evidence alone.
+1. Launch, enter a display name, choose five, six, eight or ten dice and zero to three computer opponents. Start Game performs the first roll automatically.
+2. Tap dice to hold them, reroll the others up to twice and choose an unused scoring row. Full Straight is 50 points; Castle needs distinct triples; All of a Kind requires the entire hand to match.
+3. Pause and resume a saved game. Scores and history are local, separated by dice mode. They are not online rankings.
+4. Open Help for rules, build/version and optional diagnostic preview. Cancelling sends nothing; explicit sharing opens the OS sheet with the previewed allowlist text.
+5. Test deletion only with disposable data and explicit confirmation. Save recovery preserves damaged data until an explicit choice.
 
-Enter review contact information privately in App Store Connect. Do not commit contact phone numbers, credentials, tester details or private review correspondence here.
+Release staff must recheck these paths on the exact signed iPhone/iPad candidate. Source and unsigned simulator qualification do not supply physical-device, VoiceOver, backup/restore, SDK traffic or export acceptance. In-app website destinations are tracked in issue #44 and must match the public URLs before submission.
+
+The support page currently offers GitHub reporting only. Provide approved public contact information before upload, in line with Apple's current support-URL requirements. Enter review contact fields privately in App Store Connect during a separately authorized session. Do not commit phone numbers, credentials, tester identities or private correspondence.

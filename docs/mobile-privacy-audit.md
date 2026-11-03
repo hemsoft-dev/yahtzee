@@ -1,6 +1,6 @@
 # Mobile privacy engineering inventory
 
-Prepared September 27, 2026 for [issue #48](https://github.com/hemsoft-dev/yahtzee/issues/48). This is an incomplete engineering record, not App Store answers or legal approval. The [policy source](../apps/mobile/PRIVACY.md) is a draft.
+Updated November 2, 2026 EST for [issue #48](https://github.com/hemsoft-dev/yahtzee/issues/48). This engineering audit remains incomplete for signed release acceptance. The [public development policy](https://hemsoft-dev.github.io/yahtzee/privacy.html) is live; [source and release limits](../apps/mobile/PRIVACY.md) remain versioned. No App Store Connect access or legal attestation occurred.
 
 ## Observed native package
 
@@ -37,7 +37,7 @@ The repair opts only `expo-file-system` into source compilation through the SDK 
 | Appearance and game options | Local preferences | Device reset and restore checks |
 | Legacy preferences | Import only the two documented old preference keys | Device upgrade fixture if an older native build is distributed |
 | Diagnostics | Explicit allowlist; source previews before sharing; native preview/cancel observed | Physical-device OS sharing and destination/traffic checks remain |
-| Public technical feedback | User chooses an external GitHub issue page | Owner-approved private contact and public support copy |
+| Public technical feedback | User chooses an external GitHub issue page | Live public support and GitHub private security reporting; general private support without GitHub remains unavailable |
 | OS backup | SQLite lives under Documents/SQLite | Real-device backup eligibility, restore and older-data behavior |
 | Expo updates | Disabled in the inspected compiled configuration | Recheck the signed candidate and measured traffic |
 | SDK telemetry and crash behavior | No app-authored telemetry client; declared manifests inspected | Measure every release SDK, including OS-mediated diagnostics |
@@ -51,7 +51,99 @@ See [the persistence boundary](mobile-offline.md) for storage and recovery behav
 2. Measure launch, a complete game, resume, reset, Help, cancelled diagnostics, explicit sharing and external support navigation. Identify which process and destination made each request. Do not treat build-time telemetry settings as a runtime traffic audit.
 3. Verify device backup, offload, deletion and restore. Use synthetic names and scores. Preserve existing user data and review captures before sharing.
 4. Review the app and SDK encryption use. No application-level database encryption is configured. Platform TLS and SDK code still require classification. An owner must approve export-compliance answers and any supporting documents.
-5. Reconcile measured behavior with the privacy policy and App Store declaration matrix. Select the public policy URL and private contact without copying another app's identity or contacts.
+5. Reconcile measured behavior with the privacy policy and App Store declaration matrix. Use the verified public policy URL and existing repository identity. Recheck the enabled private security route; do not copy another app's contacts.
 6. Recheck [Apple's privacy details](https://developer.apple.com/app-store/app-privacy-details/), [SDK requirements](https://developer.apple.com/support/third-party-SDK-requirements/) and [Expo's privacy guidance](https://docs.expo.dev/guides/apple-privacy/) immediately before submission and after dependency or data-flow changes.
 
 No missing declaration, contact or legal approval is filled by a guessed value. A manifest comparison proves packaging consistency only.
+
+## November 2 packaged reinspection
+
+Source `dee3455df2f4cb2670008edae66c3e485adbfcba`,
+[build run](https://github.com/hemsoft-dev/yahtzee/actions/runs/41558133101),
+[artifact 13196389920](https://github.com/hemsoft-dev/yahtzee/actions/runs/41558133101/artifacts/13196389920).
+The [retained inventory](privacy/2026-11-02-native.json) records exact hashes,
+all eleven manifest paths and fields, direct mobile dependencies and every
+resolved Pod name/version from the retained lock. It excludes raw logs and
+personal or device identifiers. Artifact retention is limited; the committed
+inventory preserves observations, not the original binary or its signature.
+
+Independent Python tar/plist inspection verified all ten artifact files against
+the manifest's size/SHA-256 inventory, compared every packaged privacy manifest
+with its retained JSON and SHA-256, and matched the built Pod lock to the
+repository lock after newline normalization. The archive hash is
+`cbcf39134dbd69e4f2f94bd7ab4fb1a6afb51be426b990ce8a466019f01e6500`.
+This proves correspondence between retained files, not artifact authenticity or
+release-signing validity.
+
+The package identifies `com.hemsoft.thirdroll`, version 1.0.0/build 1, iOS 17,
+iPhone/iPad families and iPhoneSimulator platform. No permission-purpose strings
+are present. Arbitrary transport loads are disabled; local networking is
+allowed. Expo updates remain disabled with an embedded bundle. The non-exempt
+encryption declaration is absent, not false. All collected-data arrays observed
+are empty; missing tracking fields are left absent in the inventory rather than
+converted to explicit false. None of these facts establishes measured traffic.
+
+The previously missing FileSystem bundle is present. Required-reason declarations
+include FileTimestamp `0A2A.1`, `3B52.1` and `C617.1`; DiskSpace `E174.1` and
+`85F4.1`; UserDefaults `CA92.1`; and SystemBootTime declarations recorded per
+manifest. SDK resource declarations agree with the retained report. Review
+actual API usage and reason suitability against the final archive; copying
+upstream reasons is not independent justification for the app.
+
+## Declaration review matrix
+
+These are proposed interpretations of source and package evidence, not submitted
+answers. A second pre-submission reviewer must reconcile each row with measured
+signed-device behavior. The static cross-check above is independent of the
+macOS inspection tool; it is not a second legal attestation.
+
+| Item | Evidence and current interpretation | Release blocker |
+| --- | --- | --- |
+| Name, recent names, active games, dice and holds | SQLite source, local resume and inventory; intended on-device use only | Measure launch, play, resume, failed save and reset with synthetic data |
+| Scores and preferences | Latest 500 games and top ten per mode; no native cloud ranking | Verify retention limits, device reset, offload, uninstall and restore |
+| Diagnostics | Explicit allowlist preview; sharing through the OS sheet or a previewed support-report URL | Observe cancel and each chosen destination; classify off-device support data under Apple's rules |
+| GitHub support and security reports | User leaves app for external GitHub destinations; public reports and private security reports follow GitHub processing | Do not equate external support retention with local-game deletion; general private support remains unavailable |
+| SDK traffic and crash/OS diagnostics | Eleven package manifests; no app-authored telemetry client configured | Measure every bundled SDK and distinguish app traffic from OS/system services |
+| Permissions and tracking | No compiled purpose strings; no approved ad/tracking feature | Inspect signed Info.plist, entitlements, SDK signatures and tracking behavior; no ATT or permission declaration is invented |
+| Account deletion | No native account creation, login or remote account store | Re-evaluate if any account feature is added; local reset is data deletion, not an account-deletion flow |
+| App privacy label | Local-only intent is documented; off-device behavior is not fully measured | Keep Data Not Collected unselected until all app/SDK flows support it |
+| Export compliance | No app-level database encryption configured; platform networking and bundled native code remain relevant | Inventory encryption in final dependencies and classify exemptions; leave ITSAppUsesNonExemptEncryption unset until supported |
+| Rights, rating prompts and future commerce | Original asset/license basis in release brief; no ads/purchases/subscriptions or enabled store-rating destination in this baseline | New SDKs, store destinations, prompts, diagnostics or commerce require a fresh review |
+
+[Apple's app privacy guidance](https://developer.apple.com/app-store/app-privacy-details/)
+requires evaluating third-party partners as well as the app. Local storage alone
+cannot settle the declaration. The
+[SDK requirements](https://developer.apple.com/support/third-party-SDK-requirements/)
+cover manifests and, for listed binary SDKs, signatures. A simulator package
+comparison cannot establish that the final binary meets them.
+
+[Expo's manifest guide](https://docs.expo.dev/guides/apple-privacy/) describes
+required-reason API declarations; this audit retains the aggregate and SDK
+resources so they can be reviewed against actual use.
+[Apple's export workflow](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance/)
+requires determining the app's encryption use and any documentation before
+submission. No exemption, country-specific document or business attestation is
+inferred from offline gameplay. The export flag and store answers remain unset.
+
+These sources were rechecked November 2, 2026 EST. Recheck them again immediately
+before submission and after material dependency or data-flow changes. The
+signed archive, physical-device traffic/backup evidence, SDK-signature inspection
+and legal export/declaration acceptance remain unavailable in this Windows-only,
+no-App-Store-Connect session. They keep #48 open and block submission.
+
+## Support-path integration after PR #98
+
+The branch incorporates [PR #98](https://github.com/hemsoft-dev/yahtzee/pull/98),
+main commit `b902d23`, on November 3, 2026 EST. Its
+[support destinations](../apps/mobile/src/support/destinations.ts) and
+[preview controls](../apps/mobile/src/support/Support.tsx) add explicit report
+previews and GitHub issue URLs containing the reviewed report text and
+allowlisted diagnostics. Opening such a URL transmits its query to GitHub before
+an issue is posted. Cancelling the preview does not open a destination. Private
+email and store-review destinations remain unset and disabled.
+
+The retained `dee3455` artifact predates these controls. Its hashes and package
+observations remain historical evidence. Measure the new explicit support URL
+path as well as OS sharing against the final signed candidate; do not classify
+all diagnostic delivery as OS-sheet-only. Recheck the public policy and final
+App Store declarations against that measured behavior before distribution.
