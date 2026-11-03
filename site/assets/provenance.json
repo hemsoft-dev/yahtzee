@@ -1,0 +1,20 @@
+{
+  "sourceCommit": "7f2735a383645d9fc4bc27e54ef518a052fba481",
+  "run": "https://github.com/hemsoft-dev/yahtzee/actions/runs/41538094186",
+  "artifactId": 13188370209,
+  "kind": "unaltered simulator development capture",
+  "version": "1.0.0",
+  "build": "1",
+  "captures": [
+    {
+      "file": "iphone-setup.png",
+      "sourcePath": "phone-5-solo-light/setup.png",
+      "sha256": "d7b755f156e98a1786bb4b625e250944501f29921438f60d862639743a3b16da"
+    },
+    {
+      "file": "iphone-help.png",
+      "sourcePath": "phone-5-solo-light/help.png",
+      "sha256": "39bd2431767ed6556ec6308cd96875767f302467de6f28141789f1431588dcef"
+    }
+  ]
+}

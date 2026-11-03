@@ -17,3 +17,9 @@ details{border-top:1px solid var(--line);padding-block:8px}details:last-of-type{
 @media(max-width:700px){.site-header,.site-footer,main{padding-inline:20px}.preview-notice{text-align:left;padding:14px 20px}.site-header{display:block;padding-block:22px}.site-header nav{margin-top:12px;gap:20px}.introduction{grid-template-columns:1fr}.intro-copy{padding:36px 28px}.intro-copy h1{font-size:clamp(2.8rem,12vw,4.5rem)}.intro-copy p{margin-block:22px}.release-panel{padding:28px;border-left:0;border-top:1px solid #465e4c}.release-panel h2{max-width:none}.release-panel dl{margin-block:18px}.split-section,.modes-section{grid-template-columns:1fr;gap:28px;padding-block:52px}.modes-section th,.modes-section td{padding:14px 4px}.closing{padding-block:52px}.reading-layout{grid-template-columns:1fr;gap:36px;padding-block:20px 60px}.contents{position:static}.contents nav{flex-direction:row;gap:0 20px}.reading h1{font-size:2rem}.reading section{margin-top:44px}.table-hint{display:block}.site-footer{padding-block:28px}.site-footer nav{gap:20px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
 @media(forced-colors:active){.button{border:1px solid ButtonText}.introduction{border:1px solid CanvasText}}
+/* Unaltered simulator captures are reading content, not device mockups. */
+.screenshots { margin-block: 4rem; }
+.screenshot-pair { display: flex; flex-wrap: wrap; gap: 2rem; }
+.screenshot-pair figure { margin: 0; flex: 0 1 19rem; max-width: 100%; }
+.screenshot-pair img { width: 100%; height: auto; border-radius: 12px; }
+.screenshot-pair figcaption { margin-top: .75rem; color: var(--muted); }
