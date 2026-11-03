@@ -12,9 +12,11 @@ const choose = (title, option) => [
 ];
 // A visible target can still be moving when scrollUntilVisible returns on iOS.
 // Settle before using its geometry; never compensate by replaying a tap.
+// UP searches must also move targets away from the native Help toolbar.
+// Maestro whole-screen visibility alone accepted Suggest an Improvement at y=93.
 const scroll = (element, visibilityPercentage = 100, direction = "DOWN") => [
   command("waitForAnimationToEnd", { timeout: 5000 }),
-  command("scrollUntilVisible", { element, direction, timeout: 60000, visibilityPercentage }),
+  command("scrollUntilVisible", { element, direction, timeout: 60000, visibilityPercentage, ...(direction === "UP" ? { centerElement: true } : {}) }),
   command("waitForAnimationToEnd", { timeout: 5000 }),
 ].join("\n");
 const shot = (name) => command("takeScreenshot", name);

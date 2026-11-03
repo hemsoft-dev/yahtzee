@@ -195,3 +195,23 @@ test("scrolling must settle before report and Start Game taps, including after p
     } }, yaml);
   }
 });
+
+test("upward support searches must move targets out from under the native Help header", async () => {
+  // PR98 9bac8d5, run41547450956, scenario-step-070 and retained XCTest log:
+  // Suggest an Improvement was tapped at (201,93), behind the Help toolbar.
+  // Whole-screen visibility still reports that row as visible. Animation waits do not move it.
+  let targetY = null, preview = false;
+  await runAuthoredFlow({ runFlow: async (yaml) => {
+    for (const step of parse(yaml)) {
+      if (step.command === "scrollUntilVisible" && step.value.direction === "UP") {
+        targetY = step.value.centerElement ? 350 : 93;
+      }
+      if (step.command === "tapOn" && ["Suggest an Improvement", "Private support"].includes(step.value.text)) {
+        assert(targetY > 134 && targetY < 850, "Native Help header intercepts the upward-search tap");
+        preview = true;
+      }
+      if (step.command === "scrollUntilVisible" && step.value.element.id === "support-preview" && targetY !== null) assert(preview);
+      if (step.command === "tapOn" && step.value.text === "Cancel report") preview = false;
+    }
+  } }, completeEndFlow("com.hemsoft.thirdroll", true, true));
+});
