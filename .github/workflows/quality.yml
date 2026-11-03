@@ -142,6 +142,7 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Compile and inspect the source-bound Release app
         env:
+          EXPO_PUBLIC_NATIVE_INPUT_TRACE: '1'
           REFRESH_PODS: ${{ contains(github.event.pull_request.labels.*.name, 'native-pods-refresh') }}
         run: |
           if [ "$REFRESH_PODS" = true ]; then
