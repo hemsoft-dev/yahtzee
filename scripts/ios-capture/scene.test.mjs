@@ -3,6 +3,44 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { bounds } from "../ios-native/geometry.mjs";
 import { showScene, frameScoreSection } from "./scene.mjs";
+import { SCENES } from "./plan.ts";
+
+test("retained medium-phone scoring layout needs its profile-specific Combinations anchor", async () => {
+  // Run41637167404, phone-63 scoring: Numbers aligned, but the target ends
+  // 59pt beyond the viewport. Keep the native duplicate heading wrappers.
+  const screen = { ui_schema: { platform: "ios", defaults: { enabled: true } }, elements: [
+    { rid: "score-viewport", b: "[0,164][402,772]", c: [
+      { b: "[20,181][382,205]", a11y: "Numbers", c: [{ b: "[20,181][382,205]", a11y: "Numbers" }] },
+      { b: "[20,573][382,597]", a11y: "Combinations", c: [{ b: "[20,573][382,597]", a11y: "Combinations" }] },
+      { b: "[20,775][382,831]", a11y: "Score Three of a Kind, 15 points", rid: "score-three-of-a-kind" },
+    ] },
+  ] };
+  const scene = SCENES.find((item) => item.id === "scoring");
+  const old = harness(structuredClone(screen));
+  await assert.rejects(frameScoreSection(scene, ["three-of-a-kind"], old.io), /fully reachable/);
+  const commands = [], records = [];
+  await showScene(scene, ["three-of-a-kind"], {
+    inspect: async () => screen, record: (item) => records.push(item),
+    run: async (steps) => {
+      commands.push(...steps);
+      for (const { swipe } of steps) if (swipe) {
+        const delta = Number(swipe.end.split(",")[1]) - Number(swipe.start.split(",")[1]);
+        function move(nodes) {
+          for (const node of nodes) {
+            const rect = bounds(node.b); node.b = `[${rect.left},${rect.top + delta}][${rect.right},${rect.bottom + delta}]`;
+            if (node.c) move(node.c);
+          }
+        }
+        move(screen.elements[0].c);
+      }
+    },
+  }, "phone-63");
+  const final = records.at(-1);
+  assert.equal(final.action, "framed");
+  assert(Math.abs(final.anchor.top - 180) <= 8);
+  assert(final.target.bottom <= 764);
+  assert.deepEqual(commands.filter((step) => step.tapOn).map((step) => step.tapOn.text), ["Resume Game"]);
+});
 
 function harness(screen) {
   const commands = [], records = [];

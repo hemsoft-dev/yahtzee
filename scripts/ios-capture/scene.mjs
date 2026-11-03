@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { screenElements, uniqueElement, scorePosition } from "../ios-native/geometry.mjs";
 
 /** Display-only navigation. Never score, toggle or roll the preloaded fixture. */
-export async function showScene(scene, categories, { run, inspect, record }) {
+export async function showScene(scene, categories, { run, inspect, record }, profileId) {
+  scene = { ...scene, anchorLabel: scene.anchorByProfile?.[profileId] ?? scene.anchorLabel };
   await run([{ launchApp: { stopApp: false, clearState: false, permissions: { all: "deny" } } },
     { setOrientation: "PORTRAIT" }, { extendedWaitUntil: { visible: "A little time for dice.", timeout: 15000 } }]);
   if (scene.view === "history") {
