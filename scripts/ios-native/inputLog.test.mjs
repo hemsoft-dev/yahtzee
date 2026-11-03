@@ -29,6 +29,25 @@ test("only explicit timestamp/phase fields survive the OS log boundary", () => {
   assert.equal(inputEvent(line()).phase, "score-handler");
   for (const raw of ["not json", line("private name"), line("heartbeat", { token: "secret" }), line("heartbeat", { atMs: -1 }), line("heartbeat", { sequence: 1.5 })]) assert.equal(inputEvent(raw), null);
 });
+
+test("Resume protocol retains only a bounded numeric correlation ID and fixed React phases", async () => {
+  assert.equal(inputEvent(line("resume-handler", { resumeId: 1 })).resumeId, 1);
+  for (const branch of ["loading", "setup", "play", "results"]) {
+    assert.equal(inputEvent(line(`resume-react-commit-${branch}`, { resumeId: 0 })).resumeId, 0);
+  }
+  for (const raw of [line("resume-handler"), line("resume-handler", { resumeId: "player" }),
+    line("resume-handler", { resumeId: 0 }), line("resume-handler", { resumeId: 8192, sequence: 8192 }),
+    line("resume-react-commit-play", { resumeId: 1 }), line("resume-react-commit-paint", { resumeId: 0 }),
+    line("resume-react-commit-play", { resumeId: -1 }), line("resume-handler", { resumeId: 1, name: "private" }),
+    line("score-handler", { resumeId: 0 })]) assert.equal(inputEvent(raw), null);
+  const h = harness(); heartbeat(h);
+  h.child.stdout.write(line("resume-handler", { resumeId: 1 }) + "\n"
+    + line("resume-react-commit-play", { sequence: 2, resumeId: 1 }) + "\n" + line("score-ack", { sequence: 3 }) + "\n");
+  const result = await h.stop();
+  assert.equal(inputTraceUsable(result), true); assert.equal(result.events, 4);
+  assert.deepEqual(h.read().trim().split("\n").map(JSON.parse).map((event) => event.phase),
+    ["heartbeat", "resume-handler", "resume-react-commit-play", "score-ack"]);
+});
 test("healthy fragmented streaming pins the developer directory and stops exactly once", async () => {
   const h = harness(); const bytes = line("heartbeat") + "\n" + line() + "\n";
   h.child.stdout.write(bytes.slice(0, 17)); h.child.stdout.write(bytes.slice(17));
