@@ -1,6 +1,6 @@
 const command = (name, value) => `- ${name}${value === undefined ? "" : `: ${JSON.stringify(value)}`}`;
 const visible = (text) => command("assertVisible", text);
-const tap = (text) => command("tapOn", { text, enabled: true });
+const tap = (text) => command("tapOn", { text, enabled: true, retryTapIfNoChange: false });
 // iOS choices are native action sheets. Accessibility visibility alone does not
 // prove their presentation/dismissal has finished and the next row can receive taps.
 // iPad popovers omit Cancel; the Current message exists on both iOS device families.
@@ -10,7 +10,15 @@ const choose = (title, option) => [
   command("tapOn", { text: option, enabled: true, retryTapIfNoChange: false }),
   command("waitForAnimationToEnd", { timeout: 5000 }), command("assertNotVisible", "Current: .*"),
 ];
-const scroll = (element, visibilityPercentage = 100) => command("scrollUntilVisible", { element, direction: "DOWN", timeout: 60000, visibilityPercentage });
+// A visible target can still be moving when scrollUntilVisible returns on iOS.
+// Settle before using its geometry; never compensate by replaying a tap.
+// UP searches must also move targets away from the native Help toolbar.
+// Maestro whole-screen visibility alone accepted Suggest an Improvement at y=93.
+const scroll = (element, visibilityPercentage = 100, direction = "DOWN") => [
+  command("waitForAnimationToEnd", { timeout: 5000 }),
+  command("scrollUntilVisible", { element, direction, timeout: 60000, visibilityPercentage, ...(direction === "UP" ? { centerElement: true } : {}) }),
+  command("waitForAnimationToEnd", { timeout: 5000 }),
+].join("\n");
 const shot = (name) => command("takeScreenshot", name);
 const header = (bundleId, commands) => `appId: ${JSON.stringify(bundleId)}\n---\n${commands.join("\n")}\n`;
 
@@ -45,7 +53,17 @@ export function completeEndFlow(bundleId, previewDiagnostics = false, alreadyFor
     ...(previewDiagnostics ? [scroll({ text: "Preview diagnostics" }), tap("Preview diagnostics"), scroll({ id: "diagnostics-preview" }, 10),
       command("assertVisible", { id: "diagnostics-preview" }), shot("diagnostics-preview"), scroll({ text: "Cancel preview" }), tap("Cancel preview"),
       command("assertNotVisible", "Cancel preview"), command("assertNotVisible", { id: "diagnostics-preview" }), visible("Preview diagnostics"), shot("diagnostics-cancelled")] : []),
-    scroll({ text: "Open source repository" }), shot("help-source"), tap("Done"),
+    scroll({ text: "Open source repository" }), shot("help-source"),
+    scroll({ text: "Report a Problem" }), tap("Report a Problem"),
+    scroll({ id: "support-preview" }, 10), command("assertVisible", { id: "support-preview" }), shot("support-problem-preview"),
+    scroll({ text: "Cancel report" }), tap("Cancel report"), command("assertNotVisible", { id: "support-preview" }),
+    // Return upward to the next report action after the inline preview collapses.
+    scroll({ text: "Suggest an Improvement" }, 100, "UP"),
+    tap("Suggest an Improvement"), scroll({ id: "support-preview" }, 10), command("assertVisible", { id: "support-preview" }), shot("support-improvement-preview"),
+    scroll({ text: "Cancel report" }), tap("Cancel report"), command("assertNotVisible", { id: "support-preview" }),
+    scroll({ text: "Private support" }, 100, "UP"),
+    tap("Private support"), scroll({ text: "A private support address.*" }, 10), visible("A private support address.*"), shot("support-private-unavailable"),
+    scroll({ text: "Cancel report" }), tap("Cancel report"), tap("Done"),
     scroll({ text: "Play Again" }), tap("Play Again"), scroll({ text: "Start Game" }), shot("play-again")]);
 }
 export function emptyRelaunchFlow(bundleId) {

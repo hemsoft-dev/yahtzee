@@ -1,7 +1,18 @@
 DRAFT, NOT APPROVED FOR UPLOAD
 
-Proposed first-release copy, contingent on native implementation and device qualification:
+A little time for dice.
 
-Play a local dice game on iPhone or iPad. Roll, hold dice and choose a scoring combination. Play solo or against up to three computer opponents. The proposed release keeps games and scores on your device and works offline.
+Third Roll is a house-rule dice game for iPhone and iPad. Pick five, six, eight or ten dice, then play solo or against up to three computer opponents.
 
-Replace this draft only after resume behavior and device qualification are confirmed. The name, modes and house rules are decided in #39. Do not claim remote multiplayer, cloud leaderboards, licensed affiliation or unqualified accessibility support.
+Each turn begins with a roll. Hold the dice you want and reroll the others up to twice. Choose an unused category to record your hand, build your upper-section total and chase the next bonus.
+
+These house rules include pairs and larger-hand combinations. Full Straight scores 50. Castle needs two distinct triples. All of a Kind needs the whole hand to match. Read the full rules in Help.
+
+Games and completed scores stay on your device. Continue a saved game, browse local history and compare your high scores for each dice count. Local scores are personal records, not global rankings. Gameplay works offline without an account.
+
+Choose System, Light or Dark appearance. Help includes save-recovery guidance and an optional diagnostic preview that you can review before choosing to share.
+
+There are no remote players, cloud scoreboards, ads, purchases or subscriptions in this edition. System backups can include app data according to your device settings. Resetting local data does not remove old backups.
+
+Support: https://hemsoft-dev.github.io/yahtzee/support.html
+Privacy: https://hemsoft-dev.github.io/yahtzee/privacy.html
