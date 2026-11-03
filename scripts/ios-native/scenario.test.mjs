@@ -55,7 +55,10 @@ test("one scenario preserves real cold relaunch, exact document and complete-gam
   assert.deepEqual(flow.phases, ["start", "hold", "resume", "complete"]);
   assert.deepEqual(flow.taps, ["die-0", "reroll-action", "score-ones", "score-chance"]);
   assert.deepEqual(flow.stages, ["before-hold", "after-hold", "after-reroll", "before-relaunch", "after-relaunch", "completed"]);
-  assert.equal(flow.flows.length, 11);
+  assert.equal(flow.flows.length, 19);
+  assert(flow.flows.some((yaml) => yaml.includes("support-problem-preview")));
+  assert(flow.flows.some((yaml) => yaml.includes("support-improvement-preview")));
+  assert(flow.flows.some((yaml) => yaml.includes("support-private-unavailable")));
   assert(flow.flows.some((yaml) => yaml.includes("diagnostics-preview")));
   assert(flow.flows.at(-1).includes('"Play Again"'));
   assert(flow.flows.every((yaml) => yaml.split("\n").filter((line) => line.startsWith("- ")).length <= 8));
@@ -86,7 +89,7 @@ test("largest-text scenarios still hold, reroll and resume without claiming a co
   const flow = harness(); flow.options.scenario.largeText = true;
   await exerciseScenario(flow.options);
   assert.equal(flow.terminated(), 1); assert.deepEqual(flow.phases, ["start", "hold", "resume"]);
-  assert.deepEqual(flow.taps, ["die-0", "reroll-action"]); assert.equal(flow.flows.length, 6);
+  assert.deepEqual(flow.taps, ["die-0", "reroll-action"]); assert.equal(flow.flows.length, 7);
 });
 test("all authored mode/AI and largest-text cases retain their required lifecycle without phase restarts", async () => {
   for (const scenario of scenarios) {
@@ -102,7 +105,7 @@ test("all authored mode/AI and largest-text cases retain their required lifecycl
     assert.deepEqual(commands.filter((command) => command.setOrientation).map((command) => command.setOrientation), [scenario.orientation]);
     assert.equal(flow.terminated(), 1);
     assert.equal(flow.flows.flatMap((yaml) => yaml.split("\n")).filter((line) => line.startsWith("- launchApp:")).length, scenario.largeText ? 2 : 3);
-    assert.equal(flow.flows.flatMap((yaml) => yaml.split("\n")).filter((line) => line === '- tapOn: {"text":"Resume Game","enabled":true}').length, 1);
+    assert.equal(flow.flows.flatMap((yaml) => yaml.split("\n")).filter((line) => line === '- tapOn: {"text":"Resume Game","enabled":true,"retryTapIfNoChange":false}').length, 1);
     assert(!batches.flat().some((command) => command.launchApp));
     assert.deepEqual(flow.taps, scenario.largeText ? ["die-0", "reroll-action"] : ["die-0", "reroll-action", "score-ones", "score-chance"]);
   }

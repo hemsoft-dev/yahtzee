@@ -81,6 +81,11 @@ accesses App Store Connect, uploads, submits, invites testers or publishes an
 app. Keep the store record, signing, TestFlight, export/legal attestations and
 post-store smoke checks unchecked until separate evidence exists.
 
+On November 3 Franz confirmed PR #98 had merged and released the hold for
+combined PR #104. Update it from main, require fresh exact-head SFL and green
+CI, then merge normally and notify him immediately so PR #107 can follow.
+This does not authorize App Store Connect access or submission.
+
 ## Editable content
 
 The local metadata layout is Fastlane-style, but no Fastlane/EAS upload is configured. [description.txt](release/metadata/en-US/description.txt), [review_notes.txt](release/metadata/en-US/review_notes.txt) and [release_notes.txt](release/metadata/en-US/release_notes.txt) are clearly marked drafts. Null listing fields are unresolved decisions, not accepted defaults. Never upload these templates unchanged. First-release What's New may be absent in App Store Connect; do not require an updates-only field for the initial version.

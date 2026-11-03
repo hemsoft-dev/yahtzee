@@ -101,7 +101,7 @@ macOS inspection tool; it is not a second legal attestation.
 | --- | --- | --- |
 | Name, recent names, active games, dice and holds | SQLite source, local resume and inventory; intended on-device use only | Measure launch, play, resume, failed save and reset with synthetic data |
 | Scores and preferences | Latest 500 games and top ten per mode; no native cloud ranking | Verify retention limits, device reset, offload, uninstall and restore |
-| Diagnostics | Explicit allowlist preview; sharing only through an explicit OS sheet | Observe cancel and each chosen destination; classify off-device support data under Apple's rules |
+| Diagnostics | Explicit allowlist preview; sharing through the OS sheet or a previewed support-report URL | Observe cancel and each chosen destination; classify off-device support data under Apple's rules |
 | GitHub support and security reports | User leaves app for external GitHub destinations; public reports and private security reports follow GitHub processing | Do not equate external support retention with local-game deletion; general private support remains unavailable |
 | SDK traffic and crash/OS diagnostics | Eleven package manifests; no app-authored telemetry client configured | Measure every bundled SDK and distinguish app traffic from OS/system services |
 | Permissions and tracking | No compiled purpose strings; no approved ad/tracking feature | Inspect signed Info.plist, entitlements, SDK signatures and tracking behavior; no ATT or permission declaration is invented |
@@ -130,3 +130,20 @@ before submission and after material dependency or data-flow changes. The
 signed archive, physical-device traffic/backup evidence, SDK-signature inspection
 and legal export/declaration acceptance remain unavailable in this Windows-only,
 no-App-Store-Connect session. They keep #48 open and block submission.
+
+## Support-path integration after PR #98
+
+The branch incorporates [PR #98](https://github.com/hemsoft-dev/yahtzee/pull/98),
+main commit `b902d23`, on November 3, 2026 EST. Its
+[support destinations](../apps/mobile/src/support/destinations.ts) and
+[preview controls](../apps/mobile/src/support/Support.tsx) add explicit report
+previews and GitHub issue URLs containing the reviewed report text and
+allowlisted diagnostics. Opening such a URL transmits its query to GitHub before
+an issue is posted. Cancelling the preview does not open a destination. Private
+email and store-review destinations remain unset and disabled.
+
+The retained `dee3455` artifact predates these controls. Its hashes and package
+observations remain historical evidence. Measure the new explicit support URL
+path as well as OS sharing against the final signed candidate; do not classify
+all diagnostic delivery as OS-sheet-only. Recheck the public policy and final
+App Store declarations against that measured behavior before distribution.
