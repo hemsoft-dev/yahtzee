@@ -5,7 +5,11 @@ import { readFileSync } from "node:fs";
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 function assertDraft(candidate) {
   assert.equal(candidate.status, "draft");
-  for (const key of ["sourceCommit", "appStoreId", "bundleIdentifier", "archiveSha256", "screenshotManifestSha256", "testFlightBuildId", "ownerApprovalEvidence", "nativeQualificationEvidence"]) {
+  const expo = JSON.parse(read("apps/mobile/app.json")).expo;
+  assert.equal(candidate.bundleIdentifier, expo.ios.bundleIdentifier);
+  assert.equal(candidate.version, expo.version);
+  assert.equal(candidate.buildNumber, expo.ios.buildNumber);
+  for (const key of ["sourceCommit", "appStoreId", "archiveSha256", "screenshotManifestSha256", "testFlightBuildId", "ownerApprovalEvidence", "nativeQualificationEvidence"]) {
     assert.equal(candidate[key], null, `${key} must not be fabricated by a documentation refresh`);
   }
 }
