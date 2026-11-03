@@ -12,9 +12,14 @@ as `playing`. A layout effect in Content emits
 `resume-react-commit-loading`, `resume-react-commit-setup`,
 `resume-react-commit-play` or `resume-react-commit-results` with that ID only
 after the selected subtree commits. A setter return or render attempt emits no
-commit. Start, Pause and Play Again clear the ID. Strict effect replay/remount
-does not duplicate an already observed branch for an ID. Each branch is recorded
-at most once per request; this is not a continuous screen-transition journal.
+commit. The observation window closes when Play or Results commits, so later
+game completion cannot inherit the request. Loading/Setup observations can
+precede that destination. Start and Pause invalidate correlation; Play Again
+invalidates it synchronously before calling discard, including while its write
+is pending or fails. Playing still changes only after discard succeeds.
+Strict effect replay/remount does not duplicate an already observed branch for
+an ID. Each branch is recorded at most once per request; this is not a continuous
+screen-transition journal.
 The saved-result review uses the same callback and can report the results branch.
 
 The lifecycle boundary follows React's
@@ -48,11 +53,14 @@ observations cannot recover that missing evidence.
 - `bun test scripts/ios-native/resumeObservation.test.ts`
 
 The last command explicitly runs a dedicated real React DOM/Chromium lifecycle
-harness using the actual NativeGameScreen, Setup and Action. The store, native
-host adapter and destination screens are substituted to exercise suspended,
+harness using the actual NativeGameScreen, Setup and Action. A controlled store,
+native host adapter and destination screens exercise suspended,
 abandoned and throwing destination renders. It covers correlated successful
 commits, repeated requests, StrictMode, disabled Resume and sink failure. This
-is component lifecycle evidence, not UIKit or native acceptance.
+is component lifecycle evidence, not UIKit or native acceptance. Additional
+cases use the real local store with controlled storage to cover later game
+completion, loading-to-destination commits, and Play Again publications before
+its await continuation, with both successful and failed pending writes.
 
 The harness uses the existing Playwright Chromium installation. Both existing
 Ubuntu and Windows validation jobs explicitly run it immediately after successful
