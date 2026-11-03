@@ -1,6 +1,7 @@
 // Draft coverage only. No App Store Connect listing or owner approval is implied.
 // https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/
 export const PROFILES = Object.freeze([
+  Object.freeze({ id: "phone-63", device: "iPhone 17 Pro", family: "iPhone", display: "6.3", width: 1206, height: 2622 }),
   Object.freeze({ id: "phone-69", device: "iPhone 17 Pro Max", family: "iPhone", display: "6.9", width: 1320, height: 2868 }),
   Object.freeze({ id: "tablet-13", device: "iPad Pro 13-inch (M5)", family: "iPad", display: "13", width: 2064, height: 2752 }),
 ]);

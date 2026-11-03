@@ -18,7 +18,9 @@ test("every draft scene is deterministic, valid and independent of random rolls"
   } finally { random.mockRestore(); }
 });
 test("setup and held-dice scenes show the intended real save states", () => {
-  expect(captureFixture("setup", "light").active).toBeNull();
+  const setup = captureFixture("setup", "light");
+  expect(setup.active).toBeNull();
+  expect(setup.preferences.recentNames).toEqual([]);
   const game = captureFixture("holding", "dark").active!.game;
   expect(game.diceCount).toBe(6); expect(game.held).toEqual([0, 1, 2]);
   expect(game.dice.slice(0, 3)).toEqual([5, 5, 5]); expect(game.rollsLeft).toBe(1);
