@@ -16,7 +16,7 @@ stay draft. The merge hold remains until Franz says PR #98 has merged.
 | Description | [description.txt](metadata/en-US/description.txt) | 1,308 / 4,000 characters of upload copy; plain text |
 | Keywords | listing.json | 65 / 100 UTF-8 bytes; comma-separated; each term over two characters |
 | Copyright | 2026 Franz Hemmer / HemSoft Developments | Matches the existing repository LICENSE; confirm final rights declaration before submission |
-| Category | Games; proposed Dice and Board subcategories | Category selection is preparation, not a saved store value |
+| Category | Games; proposed Board subcategory | Category selection is preparation, not a saved store value |
 | Secondary category | Deferred | Optional; no second app category selected |
 | Marketing | [Public overview](https://hemsoft-dev.github.io/yahtzee/) | Live HTTPS 200, unauthenticated |
 | Support | [Rules and support](https://hemsoft-dev.github.io/yahtzee/support.html) | Live HTTPS 200; public contact requirement remains unresolved |
@@ -33,7 +33,9 @@ Limits were checked against Apple's current
 and [platform-version reference](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information).
 The platform reference specifies keyword bytes, not characters. The selected
 keywords contain no competitor names, trademarked game variants, app/company
-name duplication, pricing claims or unsupported features. The title is still
+name duplication, pricing claims or unsupported features. Only Board is proposed as a Games subcategory, consistent with
+[Apple's current category guidance](https://developer.apple.com/app-store/categories/).
+A second subcategory is optional and is not selected. The title is still
 subject to actual store-name reservation.
 
 English, `en-US`, is the only approved launch localization. Keep name, subtitle,
