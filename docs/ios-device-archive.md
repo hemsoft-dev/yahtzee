@@ -12,6 +12,7 @@ Use a fresh, clean macOS checkout at the candidate revision:
 
 ```sh
 bun install --frozen-lockfile --ignore-scripts
+node --test scripts/ios-archive/*.test.mjs scripts/ios-assets/*.test.mjs
 node scripts/ios-archive/run.mjs
 ```
 
@@ -23,8 +24,9 @@ Recheck the live requirement before each release. The minimum runtime remains
 iOS 17.0. Generated native files remain ignored; settings come from Expo config
 and plugins. The runner uses the reviewed Podfile.lock with deployment mode.
 
-The archive command has a 40-minute timeout inside a 60-minute hosted job.
-Other commands have shorter timeouts. Existing native projects and report paths
+The archive command has a 40-minute timeout; all runner commands share a
+50-minute deadline inside a 60-minute hosted job. Dependency installation has
+a separate five-minute limit. Other commands have shorter timeouts. Existing native projects and report paths
 are never overwritten. Untrusted PR code runs on an ephemeral public macOS
 runner with a read-only token, no retained checkout credentials and no secrets.
 There is no credentialed release job or persistent self-hosted execution.
@@ -47,12 +49,14 @@ untrusted archives to extract over a working checkout.
 
 Inspection checks the device platform and SDK, exact identity/version/build,
 deployment floor, both device families, portrait/landscape declarations,
-phone/tablet AppIcon references, compiled asset catalog, embedded JS, symbols,
+phone/tablet AppIcon references, nonempty compiled icon renditions including a
+1024-pixel master, embedded JS, symbols,
 source map and Expo FileSystem/aggregate privacy resources. Generated entitlement
 files must be empty; the archive must have no app code signature. This is a check
 of proposed entitlements, not verification of distribution signing. Original
 icon-source/export hashes, dimensions, opacity and tinted grayscale run before
-compilation. These checks cannot prove installed icon appearance, launch
+compilation. The full compiled asset inventory is retained; these checks cannot
+prove each appearance's installed rendering, launch
 animation, network behavior, store approval or hardware gameplay.
 
 ## Release boundary

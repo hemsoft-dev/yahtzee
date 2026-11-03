@@ -11,6 +11,8 @@ on:
       - 'packages/game-engine/**'
       - 'package.json'
       - 'bun.lock'
+      - 'patches/**'
+      - 'tsconfig.base.json'
 permissions:
   contents: read
 concurrency:
@@ -33,6 +35,7 @@ jobs:
         with:
           bun-version: '1.4.2'
       - run: bun install --frozen-lockfile --ignore-scripts
+        timeout-minutes: 5
       - name: Check archive rejection rules and original artwork
         run: node --test scripts/ios-archive/*.test.mjs scripts/ios-assets/*.test.mjs
       - name: Archive and inspect the clean source revision without signing

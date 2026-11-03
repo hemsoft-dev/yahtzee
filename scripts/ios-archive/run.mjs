@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { inspectNativePrivacy } from "../ios-native/privacy.mjs";
-import { archiveArguments, validateArchiveInfo } from "./contract.mjs";
+import { archiveArguments, validateArchiveInfo, validateUpdates, validateIconInventory } from "./contract.mjs";
 import { snapshotEvidence } from "../ios-native/snapshot.mjs";
 
 assert.equal(process.platform, "darwin", "Device archives require macOS and Xcode.");
@@ -20,7 +20,10 @@ mkdirSync(output, { recursive: true }); mkdirSync(work);
 const env = { ...process.env, DEVELOPER_DIR: "/Applications/Xcode_26.6.app/Contents/Developer", EXPO_NO_TELEMETRY: "1", CI: "1" };
 const sha256 = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 const json = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
+const deadline = Date.now() + 50 * 60 * 1000;
 function run(executable, args, { cwd = root, timeout = 180000, log = "commands.log", capture = false } = {}) {
+  timeout = Math.min(timeout, deadline - Date.now());
+  assert(timeout > 0, "Archive preparation exceeded its overall fifty-minute deadline.");
   console.log(`$ ${executable} ${args.join(" ")}`);
   const fd = openSync(join(output, log), "a");
   let result;
@@ -74,14 +77,15 @@ try {
   validateArchiveInfo(info, config); json(join(output, "built-info.json"), info);
   assert(existsSync(join(app, "main.jsbundle")), "Release archive must embed JavaScript.");
   assert(existsSync(join(app, "Assets.car")), "Compiled icon assets are missing.");
+  const iconInventory = JSON.parse(run("xcrun", ["--sdk", "iphoneos", "assetutil", "--info", join(app, "Assets.car")], { capture: true }));
+  json(join(output, "compiled-assets.json"), iconInventory); validateIconInventory(iconInventory);
   assert(!existsSync(join(app, "_CodeSignature")), "This job must not sign the archive.");
   const sourceMap = JSON.parse(readFileSync(env.SOURCEMAP_FILE, "utf8"));
   assert.equal(sourceMap.version, 3); assert(sourceMap.sources.length > 0, "Release source map is empty.");
   receipt.app = { bundleId: info.CFBundleIdentifier, version: info.CFBundleShortVersionString, build: info.CFBundleVersion,
     minimumOS: info.MinimumOSVersion, jsBundleSha256: sha256(join(app, "main.jsbundle")), assetsSha256: sha256(join(app, "Assets.car")) };
   receipt.privacy = inspectNativePrivacy(app, appRoot, output); assert.deepEqual(receipt.privacy.errors, []);
-  assert.notEqual(receipt.privacy.expoUpdates.EXUpdatesEnabled, true, "Offline archive must not enable Expo Updates.");
-  assert(!receipt.privacy.expoUpdates.EXUpdatesURL, "Unexpected update endpoint in offline archive.");
+  validateUpdates(receipt.privacy.expoUpdates);
   run("xcrun", ["dwarfdump", "--uuid", join(app, info.CFBundleExecutable)], { log: "binary-uuids.log" });
   const symbols = join(archive, "dSYMs");
   assert(existsSync(symbols) && readdirSync(symbols).some((name) => name.endsWith(".dSYM")), "Release symbols are missing.");
