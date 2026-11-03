@@ -86,7 +86,7 @@ try {
       exercise: () => nativeInteraction({ device: owned, bundleId, directory, prefix: "complete", env,
         capture: (name) => sim("io", owned, "screenshot", join(directory, `${name}.png`)),
         exercise: async (io) => {
-          await showScene(scene, getScorecardCategories(scene.dice).map((category) => category.id), io);
+          await showScene(scene, getScorecardCategories(scene.dice).map((category) => category.id), io, profile.id);
           sim("io", owned, "screenshot", source);
         } }),
       readSaved: () => {

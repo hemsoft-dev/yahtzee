@@ -14,7 +14,7 @@ export function Setup({ onStart, onResume, confirm }: { onStart: (name: string) 
   const discard = () => confirm("Discard saved game", "This clears the saved game from the play screen. Completed results and high scores stay on this device.", () => { void store.discard(); });
   const appearance = ["system", "light", "dark"] as const;
   return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={100}>
-    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+    <ScrollView testID="setup-viewport" contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <Label kind="title" accessibilityRole="header">A little time for dice.</Label>
       <Label muted>Play on this device. No account or connection needed.</Label>
       {data.active ? <Section title="Your saved game">

@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { screenElements, uniqueElement, scorePosition } from "../ios-native/geometry.mjs";
 
 /** Display-only navigation. Never score, toggle or roll the preloaded fixture. */
-export async function showScene(scene, categories, { run, inspect, record }) {
+export async function showScene(scene, categories, { run, inspect, record }, profileId) {
+  scene = { ...scene, anchorLabel: scene.anchorByProfile?.[profileId] ?? scene.anchorLabel };
   await run([{ launchApp: { stopApp: false, clearState: false, permissions: { all: "deny" } } },
     { setOrientation: "PORTRAIT" }, { extendedWaitUntil: { visible: "A little time for dice.", timeout: 15000 } }]);
   if (scene.view === "history") {
@@ -30,6 +31,16 @@ export async function showScene(scene, categories, { run, inspect, record }) {
   await run([{ waitForAnimationToEnd: { timeout: 5000 } },
     { assertVisible: scene.focus === "die-0" ? { id: "die-0" } : scene.focus }]);
   const screen = await inspect();
+  if (scene.view === "setup") {
+    await frameSection({ anchorLabel: "Players" }, { run, inspect, record }, "setup-viewport", (framed) => {
+      const choices = screenElements(framed).filter((node) => node.a11y === "Appearance" && ["Light", "Dark"].includes(node.val));
+      assert.equal(choices.length, 1, "Expected one explicit setup appearance choice.");
+      const choice = choices[0], target = choice.rect;
+      assert(choice.enabled && choice.parents.length > 0, "Setup appearance choice is not ready.");
+      return choice.parents.every(({ rect }) => target.left >= rect.left && target.right <= rect.right && target.top >= rect.top && target.bottom <= rect.bottom) ? target : null;
+    }, true);
+    return;
+  }
   if (scene.focus !== "die-0") return;
   const elements = screenElements(screen), die = uniqueElement(elements, "die-0");
   const pane = uniqueElement(elements, "dice-viewport", false) ?? uniqueElement(elements, "score-viewport");
@@ -42,22 +53,32 @@ export async function showScene(scene, categories, { run, inspect, record }) {
 /** Align actual UI content rather than cropping or painting over capture bytes. */
 export async function frameScoreSection(scene, categories, { run, inspect, record }) {
   assert(["Numbers", "Combinations"].includes(scene.anchorLabel), "Unknown score section anchor.");
+  return frameSection(scene, { run, inspect, record }, "score-viewport", (screen) => {
+    const focus = scorePosition(screen, scene.focus.slice(6), categories);
+    assert.equal(focus.action, "tap", "Framed score focus must still be fully reachable.");
+    return focus.target;
+  });
+}
+
+async function frameSection(scene, { run, inspect, record }, viewportId, validateFocus, acceptVisibleFocus = false) {
   let previous = null, slop = 24, stalls = 0;
   for (let attempt = 0; attempt < 30; attempt++) {
     await run([{ waitForAnimationToEnd: { timeout: 5000 } }]);
     const screen = await inspect(), elements = screenElements(screen);
-    const pane = uniqueElement(elements, "score-viewport"), viewport = pane.rect;
+    const pane = uniqueElement(elements, viewportId), viewport = pane.rect;
     assert(viewport.width >= 80 && viewport.height >= 150, "Capture viewport is too small for safe framing gestures.");
     const matches = elements.filter((node) => node.parents.includes(pane) && (node.a11y === scene.anchorLabel || node.txt === scene.anchorLabel));
     // Native Text can expose same-bounds parent/leaf copies of one heading.
     assert(matches.every((node) => node.b === matches[0].b), "Ambiguous capture section heading.");
     const anchor = matches[0]?.rect, desiredTop = viewport.top + 16;
     const error = anchor ? anchor.top - desiredTop : -viewport.height * 0.18;
-    if (anchor && Math.abs(error) <= 8) {
+    const visibleFocus = acceptVisibleFocus ? validateFocus(screen) : null;
+    if (anchor && (visibleFocus || Math.abs(error) <= 8)) {
+      assert(anchor.top >= viewport.top, "Capture section heading is clipped.");
       assert(anchor.left >= viewport.left && anchor.right <= viewport.right && anchor.bottom <= viewport.bottom - 8, "Capture section heading is clipped.");
-      const focus = scorePosition(screen, scene.focus.slice(6), categories);
-      assert.equal(focus.action, "tap", "Framed score focus must still be fully reachable.");
-      record({ action: "framed", attempt, anchor, viewport, target: focus.target }); return;
+      const target = visibleFocus ?? validateFocus(screen);
+      assert(target, "Setup appearance choice is clipped by its native viewport.");
+      record({ action: "framed", attempt, anchor, viewport, target }); return;
     }
     if (previous && anchor) {
       const movement = previous.top - anchor.top;

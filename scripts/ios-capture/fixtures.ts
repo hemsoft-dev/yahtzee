@@ -61,7 +61,12 @@ export function captureFixture(sceneId: unknown, appearance: unknown): LocalSave
   assert(scene, "Unknown capture scene."); assert(appearance === "light" || appearance === "dark", "Unknown capture appearance.");
   const save = emptySave();
   save.preferences = { name: "Maya", recentNames: ["Maya"], appearance, diceCount: scene.dice, aiOpponents: scene.ai };
-  if (scene.view === "setup") return decodeSave(JSON.stringify(save));
+  if (scene.view === "setup") {
+    // Keep the fictional name, without a redundant recent-name shortcut that
+    // pushes Appearance below the phone's initial viewport.
+    save.preferences.recentNames = [];
+    return decodeSave(JSON.stringify(save));
+  }
   if (scene.view === "history" || scene.view === "results") {
     completed(save, 1); const value = completed(save, 0);
     if (scene.view === "results") save.active = { game: toWire(value), revision: 60, startedAt: START };
