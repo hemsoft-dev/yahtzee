@@ -16,7 +16,7 @@ import { loadBuiltSimulator } from "./artifact.mjs";
 import { retainDriverLogs } from "./driverLogs.mjs";
 import { snapshotEvidence } from "./snapshot.mjs";
 import { checkedCommandOutput } from "./commandResult.mjs";
-import { startInputLog } from "./inputLog.mjs";
+import { inputTraceUsable, startInputLog } from "./inputLog.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
@@ -146,7 +146,7 @@ async function exercise(app, bundleId) {
     const result = { ...scenario, udid: device, runtime, locale: "en-US", status: "running" }; receipt.scenarios.push(result);
     receipt.phase = `start-${scenario.id}`; checkpoint();
     if (index === 0) recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-resume.mp4")], { env, stdio: "ignore" });
-    if (traceInputs) stopInputLog = startInputLog(device, join(directory, "input-events.jsonl"));
+    if (traceInputs) stopInputLog = startInputLog(device, join(directory, "input-events.jsonl"), { env });
     let resumedBytes;
     await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery,
       capture: (name) => sim("io", device, "screenshot", join(directory, `${name}.png`)),
@@ -159,7 +159,7 @@ async function exercise(app, bundleId) {
       } });
     if (stopInputLog) {
       result.inputTrace = await stopInputLog(); stopInputLog = undefined;
-      assert(result.inputTrace.heartbeat && !result.inputTrace.error && result.inputTrace.closed, "Qualification input trace is unavailable; no event-path inference is valid.");
+      assert(inputTraceUsable(result.inputTrace), "Qualification input trace is unavailable; no event-path inference is valid.");
     }
     await stopRecording();
     result.status = "passed"; result.resumeDocumentSha256 = hash(resumedBytes); checkpoint();

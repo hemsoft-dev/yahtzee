@@ -1,49 +1,110 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { inputEvent, startInputLog } from "./inputLog.mjs";
+import { inputEvent, inputTraceUsable, startInputLog } from "./inputLog.mjs";
 
 const line = (phase = "score-handler", extra = {}) => JSON.stringify({ eventMessage: "THIRD_ROLL_INPUT " + JSON.stringify({ phase, atMs: 123, monotonicMs: 10, sequence: 1, ...extra }), privateOSMetadata: "never retained" });
+function harness(options = {}) {
+  const child = new EventEmitter(); child.stdout = new PassThrough(); const signals = [];
+  child.kill = (signal) => {
+    signals.push(signal);
+    if (!options.hung) child.emit("close", options.exitCode ?? 0, options.exitSignal ?? null);
+  };
+  const path = join(mkdtempSync(join(tmpdir(), "native-input-")), "input.jsonl");
+  const env = { DEVELOPER_DIR: "/Applications/Xcode_26.6.app/Contents/Developer", PRIVATE_ENV: "not-retained" };
+  const stop = startInputLog("owned-device", path, { ...options, env, now: () => 456, launch: (command, args, settings) => {
+    assert.equal(command, "xcrun"); assert.deepEqual(args.slice(0, 5), ["simctl", "spawn", "owned-device", "log", "stream"]);
+    assert(args.includes("ndjson")); assert.equal(settings.env, env); return child;
+  } });
+  return { child, signals, stop, read: () => readFileSync(path, "utf8") };
+}
+const heartbeat = (h) => h.child.stdout.write(line("heartbeat") + "\n");
+
 test("only explicit timestamp/phase fields survive the OS log boundary", () => {
   assert.equal(inputEvent(line()).phase, "score-handler");
   for (const raw of ["not json", line("private name"), line("heartbeat", { token: "secret" }), line("heartbeat", { atMs: -1 }), line("heartbeat", { sequence: 1.5 })]) assert.equal(inputEvent(raw), null);
 });
-function harness(options = {}) {
-  const child = new EventEmitter(); child.stdout = new PassThrough(); const signals = [];
-  child.kill = (signal) => { signals.push(signal); if (!options.hung) child.emit("close", 0); };
-  const path = join(mkdtempSync(join(tmpdir(), "native-input-")), "input.jsonl");
-  const stop = startInputLog("owned-device", path, { ...options, now: () => 456, launch: (command, args) => {
-    assert.equal(command, "xcrun"); assert.deepEqual(args.slice(0, 5), ["simctl", "spawn", "owned-device", "log", "stream"]);
-    assert(args.includes("ndjson")); return child;
-  } });
-  return { child, signals, stop, read: () => readFileSync(path, "utf8") };
-}
-test("fragmented streaming is sanitized, bounded and stopped exactly once", async () => {
-  const h = harness({ limit: 2 }); const bytes = line("heartbeat") + "\n" + line() + "\n" + line() + "\n";
+test("healthy fragmented streaming pins the developer directory and stops exactly once", async () => {
+  const h = harness(); const bytes = line("heartbeat") + "\n" + line() + "\n";
   h.child.stdout.write(bytes.slice(0, 17)); h.child.stdout.write(bytes.slice(17));
-  h.child.stdout.write("x".repeat(20000) + "\n");
-  const first = h.stop(); assert.equal(h.stop(), first);
-  assert.deepEqual(await first, { events: 2, dropped: 1, heartbeat: true, error: null, closed: true });
+  const first = h.stop(); assert.equal(h.stop(), first); const result = await first;
+  assert.equal(inputTraceUsable(result), true); assert.equal(result.events, 2);
+  assert.equal(result.exitCode, 0); assert.equal(result.stopRequested, true);
+  assert.equal(result.unexpectedExit, false); assert.equal(result.forcedStop, false);
+  assert.equal(result.startedAtMs, 456); assert.equal(result.closedAtMs, 456);
   const records = h.read().trim().split("\n").map(JSON.parse);
-  assert.equal(records[1].receivedAtMs, 456); assert(!h.read().includes("privateOSMetadata"));
+  assert.equal(records[1].receivedAtMs, 456); assert(!h.read().includes("privateOSMetadata")); assert(!h.read().includes("PRIVATE_ENV"));
   assert.deepEqual(h.signals, ["SIGTERM"]);
+  for (const patch of [{ schemaVersion: 1 }, { dropped: 1 }, { oversizedLines: 1 }, { unterminatedLines: 1 }, { unexpectedExit: true }, { forcedStop: true }, { stopRequested: false }, { error: "broken" }, { exitCode: 7 }, { heartbeat: false }, { closed: false }]) assert.equal(inputTraceUsable({ ...result, ...patch }), false);
+  assert.equal(inputTraceUsable({ heartbeat: true, closed: true, error: null }), false, "legacy receipt cannot certify complete capture");
 });
-test("hung collector is terminated within its shutdown budget, never a flow replay", async () => {
-  const h = harness({ hung: true, stopMs: 5 });
-  const result = await h.stop(); assert.equal(result.closed, false);
-  assert.deepEqual(h.signals, ["SIGTERM", "SIGKILL"]);
+for (const code of [0, 3]) test(`early exit ${code} after a heartbeat is unavailable, never healthy`, async () => {
+  const h = harness(); heartbeat(h); h.child.emit("close", code, null);
+  const result = await h.stop(); assert.equal(result.unexpectedExit, true); assert.equal(result.exitCode, code);
+  assert.equal(result.error, "input-log-exited-before-stop"); assert.equal(inputTraceUsable(result), false);
+  assert.deepEqual(h.signals, []);
 });
-test("spawn failure is recorded as unavailable evidence, not absence of handler entry", async () => {
-  const h = harness(); h.child.emit("error", new Error("private error message"));
-  const result = await h.stop(); assert.equal(result.error, "input-log-spawn-failed"); assert.equal(h.read(), "");
+test("a nonzero exit during requested shutdown is unavailable", async () => {
+  const h = harness({ exitCode: 9 }); heartbeat(h); const result = await h.stop();
+  assert.equal(result.error, "input-log-exit-failed"); assert.equal(inputTraceUsable(result), false);
+});
+test("an oversized line is counted once across fragments and invalidates capture", async () => {
+  const h = harness(); heartbeat(h);
+  h.child.stdout.write("x".repeat(10000)); h.child.stdout.write("x".repeat(10000)); h.child.stdout.write("x".repeat(10000) + "\n");
+  const result = await h.stop(); assert.equal(result.dropped, 1); assert.equal(result.oversizedLines, 1);
+  assert.equal(result.error, "input-log-oversized-record"); assert.equal(inputTraceUsable(result), false);
+});
+for (const tail of [line(), "x".repeat(20000)]) test(`unterminated ${tail.length > 16384 ? "oversized" : "normal"} tail is explicit incomplete evidence`, async () => {
+  const h = harness(); heartbeat(h); h.child.stdout.write(tail);
+  const result = await h.stop(); assert.equal(result.dropped, 1); assert.equal(result.unterminatedLines, 1);
+  assert.equal(inputTraceUsable(result), false); assert(result.error);
+});
+test("event-limit truncation and malformed traced records are unavailable", async () => {
+  for (const options of [{ limit: 1 }, {}]) {
+    const h = harness(options); heartbeat(h); h.child.stdout.write((options.limit ? line() : line("heartbeat", { token: "secret" })) + "\n");
+    const result = await h.stop(); assert.equal(result.dropped, 1); assert.equal(inputTraceUsable(result), false); assert(!h.read().includes("secret"));
+  }
+});
+test("forced shutdown retains failure and uses the existing total budget", async () => {
+  const h = harness({ hung: true, stopMs: 10 }); heartbeat(h);
+  const result = await h.stop(); assert.equal(result.closed, false); assert.equal(result.forcedStop, true);
+  assert.equal(inputTraceUsable(result), false); assert.deepEqual(h.signals, ["SIGTERM", "SIGKILL"]);
+  h.child.emit("close", null, "SIGKILL");
+});
+test("process and stream errors cannot look like absence of a handler", async () => {
+  for (const stream of [false, true]) {
+    const h = harness(); heartbeat(h);
+    (stream ? h.child.stdout : h.child).emit("error", new Error("private detail"));
+    const result = await h.stop(); assert(result.error); assert.equal(inputTraceUsable(result), false); assert(!h.read().includes("private detail"));
+  }
 });
 
-test("stream errors invalidate evidence instead of being mistaken for an absent handler", async () => {
-  const h = harness(); h.child.stdout.emit("error", new Error("private stream detail"));
-  h.child.stdout.write(line() + "\n");
-  const result = await h.stop(); assert.equal(result.error, "input-log-read-failed"); assert.equal(result.events, 0);
+test("exit before stop remains premature even if close drains after stop", async () => {
+  const h = harness(); heartbeat(h); h.child.emit("exit", 0, null);
+  const resultPromise = h.stop(); queueMicrotask(() => h.child.emit("close", 0, null));
+  const result = await resultPromise; assert.equal(inputTraceUsable(result), false);
+  assert.equal(result.unexpectedExit, true); assert.deepEqual(h.signals, []);
+});
+test("stdout ending before requested shutdown invalidates the trace", async () => {
+  const h = harness(); heartbeat(h); h.child.stdout.end();
+  await new Promise((resolve) => setImmediate(resolve));
+  const result = await h.stop(); assert.equal(inputTraceUsable(result), false);
+  assert.equal(result.error, "input-log-stream-ended-before-stop");
+});
+test("a real owned subprocess is retired and retains an intentional exit receipt", async () => {
+  const path = join(mkdtempSync(join(tmpdir(), "native-input-real-")), "input.jsonl");
+  const child = spawn(process.execPath, ["-e", `process.stdout.write(${JSON.stringify(line("heartbeat") + "\n")});setInterval(()=>{},1000);`], { stdio: ["ignore", "pipe", "ignore"] });
+  const ready = new Promise((resolve) => child.stdout.once("data", resolve));
+  const stop = startInputLog("owned-device", path, { launch: () => child });
+  let timer;
+  try {
+    await Promise.race([ready, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("child readiness timeout")), 5000); })]);
+    const result = await stop(); assert.equal(inputTraceUsable(result), true, JSON.stringify(result));
+    assert.equal(result.closed, true); assert.equal(result.unexpectedExit, false);
+  } finally { clearTimeout(timer); child.kill("SIGKILL"); await stop(); }
 });
