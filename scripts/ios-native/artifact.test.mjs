@@ -27,3 +27,9 @@ test("artifact inventories and archive members cannot traverse outside the owned
   const unsafe = valid(); unsafe.artifacts[0].path = "../outside"; assert.throws(() => verifyBuild(unsafe, expected));
   const missing = valid(); missing.artifacts = []; assert.throws(() => verifyBuild(missing, expected));
 });
+
+test("Intel qualification accepts only the matching source-bound x86_64 simulator artifact", () => {
+  const intel = { ...expected, architecture: "x86_64" };
+  assert.doesNotThrow(() => verifyBuild({ ...valid(), architecture: "x86_64" }, intel));
+  assert.throws(() => verifyBuild(valid(), intel));
+});

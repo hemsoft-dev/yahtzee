@@ -125,7 +125,9 @@ jobs:
 
   native-build:
     name: Build unsigned iOS simulator app
-    runs-on: macos-26
+    # Standard public-repository Intel runner: 14GB RAM instead of arm64's 7GB.
+    # Build and qualification must match architectures; no paid large runner.
+    runs-on: macos-26-intel
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -165,7 +167,9 @@ jobs:
   native:
     name: Native qualification (${{ matrix.group }})
     needs: native-build
-    runs-on: macos-26
+    # Standard public-repository Intel runner: 14GB RAM instead of arm64's 7GB.
+    # Build and qualification must match architectures; no paid large runner.
+    runs-on: macos-26-intel
     timeout-minutes: 60
     strategy:
       fail-fast: false
