@@ -7,7 +7,7 @@ related_targets: ["site/style.css"]
 
 # iOS companion-site preview
 
-Mode: Persuade on the landing page; Read on support and privacy pages. Prepare repository files only. No hosting, public identity, contact publication or legal approval is authorized. The mission delegates reversible design decisions, so this unattended preview does not ask the owner to approve a production identity.
+Mode: Persuade on the landing page; Read on support and privacy pages. Franz authorized free public hosting on November 2, 2026. Publish the existing Third Roll identity and development privacy information through GitHub Pages. No spending, new personal contact publication or App Store Connect activity is authorized.
 
 ## Direction contract
 
@@ -15,7 +15,7 @@ THESIS: A release-note-first companion makes availability explicit before explai
 
 OWN-WORLD: Inherit mineral white, evergreen, clay actions and bundled Manrope from DESIGN.md. Use flat sections and actual pip geometry, not a new brand system.
 
-STORY: Understand that this is an unreleased iPhone/iPad dice game, learn its house rules and local-data behavior, then find support or the draft privacy notice.
+STORY: Understand that this is an unreleased iPhone/iPad dice game, learn its house rules and local-data behavior, then find support or the privacy policy.
 
 FIRST VIEWPORT: A broad evergreen title region sits beside a compact release-status column. The primary action opens the rules. A distinct development notice belongs to navigation, never an eyebrow. On phones, the development notice stays before the introduction and rules link; the detailed status panel follows them. This keeps release status first without putting a long facts list ahead of the useful prerelease action.
 
