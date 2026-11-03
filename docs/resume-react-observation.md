@@ -54,11 +54,11 @@ abandoned and throwing destination renders. It covers correlated successful
 commits, repeated requests, StrictMode, disabled Resume and sink failure. This
 is component lifecycle evidence, not UIKit or native acceptance.
 
-The harness uses the existing Playwright Chromium installation. It is explicitly
-run locally and is not discovered by the existing `.mjs` native tests or engine
-unit-test directory. CI installs Chromium after its unit step; no workflow or
-discovery configuration was changed. Automated execution of this extra browser
-harness remains a separate test-discovery allocation if required.
+The harness uses the existing Playwright Chromium installation. Both existing
+Ubuntu and Windows validation jobs explicitly run it immediately after successful
+browser installation, unless cancelled. A failure fails that validation job.
+There is no additional browser install, dependency or test-discovery configuration.
+The same command also runs locally.
 
 Full press-path work still requires the reserved Setup/Action path and explicit
 source ownership from the parent after
