@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { calculateTotal, fromWire, getScorecardCategories, getUpperBonusThreshold, getUpperBonusValue, pickAiCategory, type Category } from "@yahtzee/game-engine";
 import { useLocalGame } from "../local/LocalProvider";
+import { inputTrace } from "../diagnostics/inputTrace";
 import { Label, Section } from "../ui/controls";
 
 function ScoreRow({ category, suggested }: { category: Category; suggested: boolean }) {
@@ -14,7 +15,12 @@ function ScoreRow({ category, suggested }: { category: Category; suggested: bool
   const ownLabel = assigned === undefined ? `Score ${category.label}, ${points} points${suggested ? ", suggested" : ""}` : `${category.label}, ${points} points recorded`;
   const label = opponents ? `${ownLabel}. ${opponents}` : ownLabel;
   return <Pressable testID={`score-${category.id}`} accessible accessibilityRole="button" accessibilityLabel={label}
-    aria-disabled={disabled} disabled={disabled} onPress={() => { void store.move({ kind: "score", category: category.id }); }}
+    aria-disabled={disabled} disabled={disabled}
+    onPressIn={() => inputTrace.emit("score-press-in")} onPressOut={() => inputTrace.emit("score-press-out")}
+    onPress={() => {
+      inputTrace.emit("score-handler");
+      void store.move({ kind: "score", category: category.id }).then((saved) => inputTrace.emit(saved ? "score-ack" : "score-rejected"));
+    }}
     style={[styles.row, { borderBottomColor: colors.line }]}>
     <View style={styles.mainRow}>
       <View style={styles.name}><Label accessible={false}>{category.label}</Label>

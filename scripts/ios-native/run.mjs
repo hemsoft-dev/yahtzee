@@ -16,6 +16,7 @@ import { loadBuiltSimulator } from "./artifact.mjs";
 import { retainDriverLogs } from "./driverLogs.mjs";
 import { snapshotEvidence } from "./snapshot.mjs";
 import { checkedCommandOutput } from "./commandResult.mjs";
+import { startInputLog } from "./inputLog.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
@@ -117,6 +118,8 @@ async function corruption(device, bundleId) {
   assert.equal(saved(device, bundleId, directory, "after-database-reset").data.history.entries.length, 0);
   receipt.nativeCorruptionAndReset = "passed";
 }
+const traceInputs = process.env.GITHUB_ACTIONS === "true" || process.env.EXPO_PUBLIC_NATIVE_INPUT_TRACE === "1";
+let stopInputLog;
 async function exercise(app, bundleId) {
   const runtime = "com.apple.CoreSimulator.SimRuntime.iOS-26-5";
   const types = JSON.parse(sim("list", "devicetypes", "--json")).devicetypes;
@@ -143,6 +146,7 @@ async function exercise(app, bundleId) {
     const result = { ...scenario, udid: device, runtime, locale: "en-US", status: "running" }; receipt.scenarios.push(result);
     receipt.phase = `start-${scenario.id}`; checkpoint();
     if (index === 0) recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-resume.mp4")], { env, stdio: "ignore" });
+    if (traceInputs) stopInputLog = startInputLog(device, join(directory, "input-events.jsonl"));
     let resumedBytes;
     await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery,
       capture: (name) => sim("io", device, "screenshot", join(directory, `${name}.png`)),
@@ -153,6 +157,10 @@ async function exercise(app, bundleId) {
           terminate: () => sim("terminate", device, bundleId),
           phase: (name) => { receipt.phase = `${name}-${scenario.id}`; checkpoint(); } });
       } });
+    if (stopInputLog) {
+      result.inputTrace = await stopInputLog(); stopInputLog = undefined;
+      assert(result.inputTrace.heartbeat && !result.inputTrace.error && result.inputTrace.closed, "Qualification input trace is unavailable; no event-path inference is valid.");
+    }
     await stopRecording();
     result.status = "passed"; result.resumeDocumentSha256 = hash(resumedBytes); checkpoint();
   }
@@ -190,6 +198,10 @@ try {
   console.error(receipt.error);
 } finally {
   try { await stopRecording(); } catch (error) { receipt.recordingError = String(error); receipt.status = "failed"; process.exitCode = 1; }
+  if (stopInputLog) {
+    try { receipt.scenarios.at(-1).inputTrace = await stopInputLog(); }
+    catch { receipt.inputTraceError = "input-log-retention-failed"; receipt.status = "failed"; process.exitCode = 1; }
+  }
   for (const device of ownedDevices) {
     // Only devices created by this process are shut down or deleted.
     spawnSync("xcrun", ["simctl", "shutdown", device], { env, stdio: "ignore", timeout: 60000, killSignal: "SIGKILL" });
