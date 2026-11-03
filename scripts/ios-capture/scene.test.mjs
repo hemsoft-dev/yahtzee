@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { bounds } from "../ios-native/geometry.mjs";
-import { showScene, frameScoreSection } from "./scene.mjs";
+import { bounds, screenElements, uniqueElement } from "../ios-native/geometry.mjs";
+import { showScene, frameScoreSection, setupReadiness } from "./scene.mjs";
 import { SCENES } from "./plan.ts";
 
 test("retained medium-phone scoring layout needs its profile-specific Combinations anchor", async () => {
@@ -52,50 +52,68 @@ const native = (held = true, clipped = false) => ({ ui_schema: { platform: "ios"
     { rid: "score-three-of-a-kind", b: "[20,500][382,556]", a11y: "Three of a Kind, 15 points" },
   ] },
 ] });
-// Bounds retained from run 41619425999's phone setup hierarchy. The original
-// Appearance button extended 20pt beyond the scroll viewport despite readiness.
-const setupScreen = (bottom = 942) => ({ ui_schema: { platform: "ios", defaults: { enabled: true } }, elements: [
-  { rid: "setup-viewport", b: "[0,164][440,922]", c: [{ b: "[0,164][440,970]", c: [
-    { b: "[20,180][420,204]", a11y: "Players" },
-    { b: `[20,800][420,${bottom}]`, a11y: "Appearance", txt: "Light", val: "Light" },
-  ] }] },
-] });
-test("setup rejects the captured clipped appearance row even when semantic readiness passes", async () => {
-  const scene = { view: "setup", focus: "A little time for dice." };
-  const clipped = harness(setupScreen());
-  await assert.rejects(showScene(scene, [], clipped.io), /clipped/);
-  const visible = harness(setupScreen(878));
-  await showScene(scene, [], visible.io);
-  assert.equal(visible.records[0].action, "framed");
-  assert(!visible.commands.some((step) => step.tapOn || step.swipe));
-  const missingScreen = setupScreen(878); missingScreen.elements[0].c[0].c.pop();
-  const missing = harness(missingScreen);
-  await assert.rejects(showScene(scene, [], missing.io), /one explicit/);
-});
-test("medium phone setup scrolls within its real boundary and stops when the settings fit", async () => {
-  const screen = setupScreen(878), pane = screen.elements[0], content = pane.c[0];
-  pane.b = "[0,164][440,840]"; content.b = "[0,164][440,906]";
-  content.c[0].b = "[20,289][420,313]";
-  const commands = [], records = []; let scroll = 0;
-  await showScene({ view: "setup", focus: "A little time for dice." }, [], {
-    inspect: async () => screen, record: (item) => records.push(item),
-    run: async (steps) => {
-      commands.push(...steps);
-      for (const { swipe } of steps) if (swipe) {
-        const start = Number(swipe.start.split(",")[1]), end = Number(swipe.end.split(",")[1]);
-        const heading = bounds(content.c[0].b);
-        assert(start >= heading.top && start <= heading.bottom, "Gesture must start on Players, not a setting.");
-        const movement = Math.min(66 - scroll, start - end - 20); scroll += movement;
-        for (const node of content.c) {
-          const rect = bounds(node.b); node.b = `[${rect.left},${rect.top - movement}][${rect.right},${rect.bottom - movement}]`;
-        }
+const retainedSetup = () => JSON.parse(readFileSync(new URL("./fixtures/phone63-setup-clipped.json", import.meta.url), "utf8")).screen;
+// Synthetic already-framed layout for readiness cases. Keep native duplicate
+// text wrappers and ancestor containment; native CI proves the real new layout.
+function setupScreen() {
+  const screen = retainedSetup(), pane = screen.elements[0];
+  pane.c = pane.c[0].c[0].c[0].c;
+  function move(node, shift) {
+    const rect = bounds(node.b);
+    node.b = `[${rect.left},${rect.top + shift}][${rect.right},${rect.bottom + shift}]`;
+    for (const child of node.c ?? []) move(child, shift);
+  }
+  // Title, subtitle, Players heading/group, Game heading/group, Start,
+  // Appearance heading/group: the five outer gaps shrink by 12pt each.
+  pane.c.forEach((node, index) => move(node, 83 - [0, 12, 24, 24, 36, 36, 48, 60, 60][index]));
+  return screen;
+}
+test("retained native setup cannot fit the whole introduction and controls by scrolling", async () => {
+  const screen = retainedSetup(), flow = harness(screen);
+  const readiness = JSON.parse(readFileSync(new URL("./fixtures/phone63-setup-clipped.json", import.meta.url), "utf8"));
+  assert.equal(readiness.runId, "41651073579");
+  const nodes = screenElements(screen), viewport = uniqueElement(nodes, "setup-viewport").rect;
+  const title = nodes.find((node) => node.a11y === "A little time for dice.").rect;
+  const choice = nodes.find((node) => node.a11y === "Appearance" && node.val === "Light").rect;
+  assert(choice.bottom - title.top > viewport.height, "Whole intro and controls cannot fit at any scroll offset.");
+  for (const shift of [0, 13, 28, 63, 83]) {
+    const shifted = structuredClone(screen);
+    function move(nodes) {
+      for (const node of nodes) {
+        const rect = bounds(node.b);
+        node.b = `[${rect.left},${rect.top + shift}][${rect.right},${rect.bottom + shift}]`;
+        if (node.c) move(node.c);
       }
-    },
-  });
-  assert(scroll > 0 && scroll <= 66);
-  assert.equal(records.at(-1).action, "framed");
-  assert(records.at(-1).target.bottom <= 840);
-  assert(!commands.some((step) => step.tapOn));
+    }
+    move(shifted.elements[0].c);
+    assert.throws(() => setupReadiness(shifted), /clipped/);
+  }
+  await assert.rejects(showScene({ view: "setup", focus: "A little time for dice." }, [], flow.io), /clipped/);
+  assert(!flow.commands.some((step) => step.tapOn || step.swipe));
+});
+test("setup readiness requires the full intro and controls without changing the fixture", async () => {
+  const screen = setupScreen(), flow = harness(screen), before = structuredClone(screen);
+  await showScene({ view: "setup", focus: "A little time for dice." }, [], flow.io);
+  assert.equal(flow.records[0].action, "framed");
+  assert.deepEqual(screen, before);
+  assert(!flow.commands.some((step) => step.tapOn || step.swipe));
+  for (const label of ["A little time for dice.", "Play on this device. No account or connection needed.", "Start Game", "Appearance"]) {
+    const clipped = setupScreen();
+    function clip(nodes) {
+      for (const node of nodes) {
+        if (node.a11y === label) node.b = "[20,150][382,200]";
+        if (node.c) clip(node.c);
+      }
+    }
+    clip(clipped.elements[0].c);
+    assert.throws(() => setupReadiness(clipped), /clipped/);
+  }
+  const missing = setupScreen();
+  function remove(nodes) {
+    return nodes.filter((node) => node.a11y !== "Appearance").map((node) => ({ ...node, ...(node.c ? { c: remove(node.c) } : {}) }));
+  }
+  missing.elements[0].c = remove(missing.elements[0].c);
+  assert.throws(() => setupReadiness(missing), /one explicit/);
 });
 test("holding capture navigates to the preloaded game without toggling or rolling", async () => {
   const flow = harness(native());
@@ -126,7 +144,7 @@ test("a permanently disabled score focus is bounded and never tapped", async () 
 });
 test("setup, results and history use semantic readiness instead of arbitrary sleeps", async () => {
   for (const scene of [{ view: "setup", focus: "A little time for dice." }, { view: "results", focus: "Game Over!" }, { view: "history", focus: "Recent games" }]) {
-    const flow = harness(scene.view === "setup" ? setupScreen(878) : native()); await showScene(scene, [], flow.io);
+    const flow = harness(scene.view === "setup" ? setupScreen() : native()); await showScene(scene, [], flow.io);
     const taps = flow.commands.filter((step) => step.tapOn).map((step) => step.tapOn);
     assert.deepEqual(taps.map((tap) => tap.text), scene.view === "setup" ? [] : [scene.view === "results" ? "Review saved result" : "History"]);
     assert(taps.every((tap) => tap.retryTapIfNoChange === false));

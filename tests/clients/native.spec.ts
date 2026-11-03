@@ -173,3 +173,99 @@ test("support previews are private by default, cancellable and usable offline", 
   await client.screenshot({ path: info.outputPath("support-tablet-private.png") });
   await expect(client.getByText("App Store reviews will be available here", { exact: false })).toBeVisible();
 });
+
+for (const layout of [
+  { name: "medium phone adapter", width: 402, height: 844, scale: 1 },
+  { name: "small phone", width: 320, height: 568, scale: 1 },
+  { name: "small phone enlarged text", width: 320, height: 568, scale: 2.5 },
+  { name: "small phone enlarged class text", width: 320, height: 568, scale: 2.5, classText: true },
+]) {
+  test(`setup layout: ${layout.name} retains the intro, touch targets and scroll access`, async ({ client }) => {
+    await client.setViewportSize({ width: layout.width, height: layout.height });
+    await client.goto(`${origin}/mobile`);
+    const pane = client.getByTestId("setup-viewport");
+    await expect(client.getByRole("textbox", { name: "Your name" })).toBeVisible();
+    await client.getByRole("textbox", { name: "Your name" }).fill("Maya");
+    const textTargets = [
+      { name: "title", element: client.getByText("A little time for dice.", { exact: true }) },
+      { name: "subtitle", element: client.getByText("Play on this device. No account or connection needed.", { exact: true }) },
+      ...["AI opponents", "Dice count", "Start Game", "Appearance"].map((name) => ({
+        name, element: client.getByRole("button", { name, exact: true }).getByText(name, { exact: true }),
+      })),
+    ];
+    // Negative control for style representation: mount the real adapter, then
+    // move its rendered font sizes into classes without changing their values.
+    // The old inline-only selector selects zero here, so scroll access alone
+    // cannot make this case pass.
+    if ("classText" in layout && layout.classText) await pane.evaluate((root) => {
+      const sheet = document.createElement("style"); document.head.append(sheet);
+      const text = [...root.querySelectorAll<HTMLElement>("*")].filter((node) =>
+        node.matches("input,textarea") || [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && child.textContent?.trim()));
+      const sizes = text.map((node) => getComputedStyle(node).fontSize);
+      text.forEach((node, index) => {
+        const name = `setup-scaled-text-${index}`;
+        sheet.sheet!.insertRule(`.${name} { font-size: ${sizes[index]}; }`);
+        node.classList.add(name); node.style.removeProperty("font-size");
+      });
+    });
+    for (const { element } of textTargets) await expect(element).toHaveCount(1);
+    const before = await Promise.all(textTargets.map(({ element }) => element.evaluate((node) => Number.parseFloat(getComputedStyle(node).fontSize))));
+    // Browser text enlargement is not native Dynamic Type.
+    if (layout.scale > 1) {
+      const selected = await pane.evaluate((root, scale) => {
+        // Select actual text and editable values, independent of whether font
+        // sizing is inline, class-based or inherited. Snapshot every computed
+        // size before applying any override to avoid compounding inheritance.
+        const text = [...root.querySelectorAll<HTMLElement>("*")].filter((node) =>
+          node.matches("input,textarea") || [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && child.textContent?.trim()));
+        const sizes = text.map((node) => Number.parseFloat(getComputedStyle(node).fontSize));
+        text.forEach((node, index) => { node.style.fontSize = `${sizes[index] * scale}px`; });
+        return text.length;
+      }, layout.scale);
+      const after = await Promise.all(textTargets.map(({ element }) => element.evaluate((node) => Number.parseFloat(getComputedStyle(node).fontSize))));
+      console.log(JSON.stringify({ selected, text: textTargets.map(({ name }, i) => ({ name, before: before[i], after: after[i] })) }));
+      expect(selected, "Enlargement must select all intended text").toBeGreaterThanOrEqual(textTargets.length);
+      for (const [i, target] of textTargets.entries()) {
+        expect(before[i], target.name).toBeGreaterThan(0);
+        expect(after[i], `${target.name} must actually enlarge`).toBeCloseTo(before[i] * layout.scale, 2);
+      }
+    }
+    const intro = [
+      client.getByText("A little time for dice.", { exact: true }),
+      client.getByText("Play on this device. No account or connection needed.", { exact: true }),
+    ];
+    const controls = [
+      client.getByRole("textbox", { name: "Your name" }),
+      ...["AI opponents", "Dice count", "Start Game", "Appearance"].map((name) => client.getByRole("button", { name, exact: true })),
+    ];
+    const viewport = await pane.boundingBox();
+    expect(viewport).not.toBeNull();
+    const fits = async (element: typeof pane) => {
+      const box = await element.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(viewport!.x);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.x + viewport!.width);
+      expect(box!.y).toBeGreaterThanOrEqual(viewport!.y);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.y + viewport!.height);
+    };
+    if (layout.name === "medium phone adapter") {
+      for (const element of [...intro, ...controls]) await fits(element);
+    } else {
+      expect(await pane.evaluate((root) => root.scrollHeight > root.clientHeight)).toBe(true);
+      for (const element of [...intro, ...controls]) {
+        await element.scrollIntoViewIfNeeded();
+        await fits(element);
+      }
+      await pane.evaluate((root) => { root.scrollTop = 0; });
+      await fits(intro[0]);
+    }
+    for (const control of controls) {
+      const box = await control.boundingBox();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+    }
+    await choose(client, "Appearance", "Light");
+    await expect(client.getByRole("textbox", { name: "Your name" })).toHaveValue("Maya");
+    await expect(client.getByRole("button", { name: "Start Game", exact: true })).toBeEnabled();
+  });
+}
