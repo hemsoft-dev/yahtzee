@@ -14,6 +14,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Classify native qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      native-required: ${{ steps.classify.outputs.native-required }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Classify the complete PR diff, defaulting to native
+        id: classify
+        run: node scripts/workflows/docs-only-native.mjs
+
   validate:
     name: Validate (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -124,6 +142,8 @@ jobs:
           if-no-files-found: warn
 
   native-build:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') }}
     name: Build unsigned iOS simulator app
     runs-on: macos-26
     timeout-minutes: 50
@@ -165,7 +185,8 @@ jobs:
 
   native:
     name: Native qualification (${{ matrix.group }})
-    needs: native-build
+    needs: [changes, native-build]
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') && needs.native-build.result == 'success' }}
     runs-on: macos-26
     timeout-minutes: 60
     strategy:
@@ -220,18 +241,29 @@ jobs:
   quality-gate:
     name: quality-gate
     if: ${{ always() }}
-    needs: [validate, mutation, native-build, native]
+    needs: [changes, validate, mutation, native-build, native]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Require every validation job to succeed
         env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          NATIVE_REQUIRED: ${{ needs.changes.outputs.native-required }}
           VALIDATION_RESULT: ${{ needs.validate.result }}
           MUTATION_RESULT: ${{ needs.mutation.result }}
           NATIVE_BUILD_RESULT: ${{ needs.native-build.result }}
           NATIVE_RESULT: ${{ needs.native.result }}
         run: |
-          if [ "$VALIDATION_RESULT" != success ] || [ "$MUTATION_RESULT" != success ] || [ "$NATIVE_BUILD_RESULT" != success ] || [ "$NATIVE_RESULT" != success ]; then
+          if [ "$CHANGES_RESULT" != success ] || { [ "$NATIVE_REQUIRED" != true ] && [ "$NATIVE_REQUIRED" != false ]; }; then
+            echo "Native classification did not succeed: changes=$CHANGES_RESULT native-required=$NATIVE_REQUIRED"
+            exit 1
+          fi
+          EXPECTED_NATIVE=success
+          if [ "$NATIVE_REQUIRED" = false ]; then
+            EXPECTED_NATIVE=skipped
+            echo "Native jobs intentionally skipped for allowlisted documentation/marketing content."
+          fi
+          if [ "$VALIDATION_RESULT" != success ] || [ "$MUTATION_RESULT" != success ] || [ "$NATIVE_BUILD_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_RESULT" != "$EXPECTED_NATIVE" ]; then
             echo "Qualification did not succeed: validation=$VALIDATION_RESULT mutation=$MUTATION_RESULT native-build=$NATIVE_BUILD_RESULT native=$NATIVE_RESULT"
             exit 1
           fi
