@@ -32,13 +32,8 @@ export async function showScene(scene, categories, { run, inspect, record }, pro
     { assertVisible: scene.focus === "die-0" ? { id: "die-0" } : scene.focus }]);
   const screen = await inspect();
   if (scene.view === "setup") {
-    await frameSection({ anchorLabel: "Players" }, { run, inspect, record }, "setup-viewport", (framed) => {
-      const choices = screenElements(framed).filter((node) => node.a11y === "Appearance" && ["Light", "Dark"].includes(node.val));
-      assert.equal(choices.length, 1, "Expected one explicit setup appearance choice.");
-      const choice = choices[0], target = choice.rect;
-      assert(choice.enabled && choice.parents.length > 0, "Setup appearance choice is not ready.");
-      return choice.parents.every(({ rect }) => target.left >= rect.left && target.right <= rect.right && target.top >= rect.top && target.bottom <= rect.bottom) ? target : null;
-    }, true);
+    const readiness = setupReadiness(screen);
+    record({ action: "framed", ...readiness });
     return;
   }
   if (scene.focus !== "die-0") return;
@@ -48,6 +43,31 @@ export async function showScene(scene, categories, { run, inspect, record }, pro
   assert(die.rect.top >= pane.rect.top + 8 && die.rect.bottom <= pane.rect.bottom - 8 && die.rect.left >= pane.rect.left && die.rect.right <= pane.rect.right, "Capture die is clipped.");
   assert.equal(die.val, "checkbox, checked, Held", "Capture fixture's held die is not reflected in native UI.");
   record({ action: "ready", target: die.rect, viewport: pane.rect });
+}
+
+/** A setup draft must show the whole introduction and every intended control.
+ * Scrolling cannot repair content taller than its viewport. Fix the real layout.
+ */
+export function setupReadiness(screen) {
+  const elements = screenElements(screen), pane = uniqueElement(elements, "setup-viewport");
+  const labels = ["A little time for dice.", "Play on this device. No account or connection needed.",
+    "Players", "Your name", "AI opponents", "Game", "Dice count",
+    "House rules include pairs. Every turn begins with the first roll, leaving two rerolls.", "Start Game"];
+  const required = labels.map((label) => {
+    const matches = elements.filter((node) => node.parents.includes(pane) && (node.a11y === label || node.txt === label));
+    assert(matches.length && matches.every((node) => node.b === matches[0].b), `Expected one setup element: ${label}.`);
+    return matches[0];
+  });
+  const choices = elements.filter((node) => node.parents.includes(pane) && node.a11y === "Appearance" && ["Light", "Dark"].includes(node.val));
+  assert.equal(choices.length, 1, "Expected one explicit setup appearance choice.");
+  required.push(choices[0]);
+  for (const node of required) {
+    const target = node.rect;
+    assert(node.enabled, "Setup control is not ready.");
+    assert(node.parents.every(({ rect }) => target.left >= rect.left && target.right <= rect.right && target.top >= rect.top && target.bottom <= rect.bottom),
+      `Setup element is clipped by its native viewport: ${node.a11y || node.txt}.`);
+  }
+  return { anchor: required[0].rect, subtitle: required[1].rect, viewport: pane.rect, target: choices[0].rect };
 }
 
 /** Align actual UI content rather than cropping or painting over capture bytes. */

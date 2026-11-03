@@ -1,0 +1,205 @@
+{
+  "source": "d48b9577e89c8a259d76c53ed548573efed0141f",
+  "runId": "41651073579",
+  "screen": {
+    "ui_schema": {
+      "platform": "ios",
+      "abbreviations": {
+        "b": "bounds",
+        "txt": "text",
+        "rid": "resource-id",
+        "a11y": "accessibilityText",
+        "hint": "hintText",
+        "val": "value",
+        "c": "children"
+      },
+      "defaults": {
+        "enabled": true,
+        "focused": false,
+        "selected": false,
+        "checked": false,
+        "txt": "",
+        "hint": "",
+        "rid": "",
+        "val": "",
+        "a11y": ""
+      }
+    },
+    "elements": [
+      {
+        "b": "[0,164][402,840]",
+        "rid": "setup-viewport",
+        "c": [
+          {
+            "b": "[0,164][402,840]",
+            "c": [
+              {
+                "b": "[0,81][402,840]",
+                "c": [
+                  {
+                    "b": "[0,81][402,840]",
+                    "c": [
+                      {
+                        "b": "[20,101][382,135]",
+                        "a11y": "A little time for dice.",
+                        "c": [
+                          {
+                            "b": "[20,101][382,135]",
+                            "a11y": "A little time for dice."
+                          }
+                        ]
+                      },
+                      {
+                        "b": "[20,151][382,191]",
+                        "a11y": "Play on this device. No account or connection needed.",
+                        "c": [
+                          {
+                            "b": "[20,151][382,191]",
+                            "a11y": "Play on this device. No account or connection needed."
+                          }
+                        ]
+                      },
+                      {
+                        "b": "[20,229][382,253]",
+                        "a11y": "Players",
+                        "c": [
+                          {
+                            "b": "[20,229][382,253]",
+                            "a11y": "Players"
+                          }
+                        ]
+                      },
+                      {
+                        "b": "[20,263][382,389]",
+                        "c": [
+                          {
+                            "b": "[20,263][382,316]",
+                            "c": [
+                              {
+                                "b": "[20,263][382,316]",
+                                "a11y": "Your name",
+                                "txt": "Maya",
+                                "val": "Maya",
+                                "hint": "Your name"
+                              }
+                            ]
+                          },
+                          {
+                            "b": "[20,316][382,389]",
+                            "a11y": "AI opponents",
+                            "txt": "Solo",
+                            "val": "Solo"
+                          }
+                        ]
+                      },
+                      {
+                        "b": "[20,427][382,451]",
+                        "a11y": "Game",
+                        "c": [
+                          {
+                            "b": "[20,427][382,451]",
+                            "a11y": "Game"
+                          }
+                        ]
+                      },
+                      {
+                        "b": "[20,461][382,603]",
+                        "c": [
+                          {
+                            "b": "[20,461][382,535]",
+                            "a11y": "Dice count",
+                            "txt": "5 dice",
+                            "val": "5 dice"
+                          },
+                          {
+                            "b": "[36,551][366,587]",
+                            "a11y": "House rules include pairs. Every turn begins with the first roll, leaving two rerolls.",
+                            "c": [
+                              {
+                                "b": "[36,551][366,587]",
+                                "a11y": "House rules include pairs. Every turn begins with the first roll, leaving two rerolls."
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "b": "[20,619][382,667]",
+                        "a11y": "Start Game"
+                      },
+                      {
+                        "b": "[20,705][382,729]",
+                        "a11y": "Appearance",
+                        "c": [
+                          {
+                            "b": "[20,705][382,729]",
+                            "a11y": "Appearance"
+                          }
+                        ]
+                      },
+                      {
+                        "b": "[20,739][382,812]",
+                        "c": [
+                          {
+                            "b": "[20,739][382,812]",
+                            "a11y": "Appearance",
+                            "txt": "Light",
+                            "val": "Light"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "b": "[369,164][399,812]",
+                "a11y": "Vertical scroll bar, 2 pages",
+                "txt": "100%",
+                "val": "100%",
+                "c": [
+                  {
+                    "b": "[396,237][399,809]"
+                  }
+                ]
+              },
+              {
+                "b": "[28,807][374,837]",
+                "a11y": "Horizontal scroll bar, 1 page",
+                "txt": "0%",
+                "val": "0%",
+                "c": [
+                  {
+                    "b": "[31,834][371,837]"
+                  }
+                ]
+              },
+              {
+                "b": "[369,164][399,812]",
+                "a11y": "Vertical scroll bar, 2 pages",
+                "txt": "100%",
+                "val": "100%",
+                "c": [
+                  {
+                    "b": "[396,237][399,809]"
+                  }
+                ]
+              },
+              {
+                "b": "[28,807][374,837]",
+                "a11y": "Horizontal scroll bar, 1 page",
+                "txt": "0%",
+                "val": "0%",
+                "c": [
+                  {
+                    "b": "[31,834][371,837]"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

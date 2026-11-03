@@ -173,3 +173,62 @@ test("support previews are private by default, cancellable and usable offline", 
   await client.screenshot({ path: info.outputPath("support-tablet-private.png") });
   await expect(client.getByText("App Store reviews will be available here", { exact: false })).toBeVisible();
 });
+
+for (const layout of [
+  { name: "medium phone adapter", width: 402, height: 844, scale: 1 },
+  { name: "small phone", width: 320, height: 568, scale: 1 },
+  { name: "small phone enlarged text", width: 320, height: 568, scale: 2.5 },
+]) {
+  test(`setup layout: ${layout.name} retains the intro, touch targets and scroll access`, async ({ client }) => {
+    await client.setViewportSize({ width: layout.width, height: layout.height });
+    await client.goto(`${origin}/mobile`);
+    const pane = client.getByTestId("setup-viewport");
+    await expect(client.getByRole("textbox", { name: "Your name" })).toBeVisible();
+    await client.getByRole("textbox", { name: "Your name" }).fill("Maya");
+    // react-native-web does not implement Dynamic Type. Exercise wrapping and
+    // scroll overflow with enlarged rendered text; hosted native qualification
+    // separately tests the actual accessibility text category.
+    if (layout.scale > 1) await pane.evaluate((root, scale) => {
+      const text = [...root.querySelectorAll<HTMLElement>("[style]")].filter((node) => node.style.fontSize);
+      const sizes = text.map((node) => Number.parseFloat(getComputedStyle(node).fontSize));
+      text.forEach((node, index) => { node.style.fontSize = `${sizes[index] * scale}px`; });
+    }, layout.scale);
+    const intro = [
+      client.getByText("A little time for dice.", { exact: true }),
+      client.getByText("Play on this device. No account or connection needed.", { exact: true }),
+    ];
+    const controls = [
+      client.getByRole("textbox", { name: "Your name" }),
+      ...["AI opponents", "Dice count", "Start Game", "Appearance"].map((name) => client.getByRole("button", { name, exact: true })),
+    ];
+    const viewport = await pane.boundingBox();
+    expect(viewport).not.toBeNull();
+    const fits = async (element: typeof pane) => {
+      const box = await element.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(viewport!.x);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.x + viewport!.width);
+      expect(box!.y).toBeGreaterThanOrEqual(viewport!.y);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.y + viewport!.height);
+    };
+    if (layout.name === "medium phone adapter") {
+      for (const element of [...intro, ...controls]) await fits(element);
+    } else {
+      expect(await pane.evaluate((root) => root.scrollHeight > root.clientHeight)).toBe(true);
+      for (const element of [...intro, ...controls]) {
+        await element.scrollIntoViewIfNeeded();
+        await fits(element);
+      }
+      await pane.evaluate((root) => { root.scrollTop = 0; });
+      await fits(intro[0]);
+    }
+    for (const control of controls) {
+      const box = await control.boundingBox();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+    }
+    await choose(client, "Appearance", "Light");
+    await expect(client.getByRole("textbox", { name: "Your name" })).toHaveValue("Maya");
+    await expect(client.getByRole("button", { name: "Start Game", exact: true })).toBeEnabled();
+  });
+}
