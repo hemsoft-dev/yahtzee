@@ -10,6 +10,7 @@ const files = new Map([
   ["privacy.html", "text/html; charset=utf-8"], ["style.css", "text/css; charset=utf-8"],
   ["robots.txt", "text/plain; charset=utf-8"], ["assets/OFL.txt", "text/plain; charset=utf-8"],
   ["assets/manrope-variable.ttf", "font/ttf"],
+  ["assets/iphone-setup.png", "image/png"], ["assets/iphone-help.png", "image/png"],
 ]);
 export async function serveSite(root, prefix = "/") {
   assert(/^\/(?:[a-z0-9-]+\/)*$/.test(prefix), "Preview prefix must be a directory path.");

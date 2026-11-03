@@ -19,7 +19,7 @@ function assertTemplate(content) {
     assert(warning, "Sensitive-data fields or requests must not appear outside explicit prohibitions");
     assert.doesNotMatch(warning[1], /;|\b(?:please|must|should|but|instead|however|then|include|attach|provide|post|share|send|upload|submit|paste)\b/i, "Privacy warnings must not contain a conflicting request");
   }
-  assert.match(content, /approved private reporting contact is not available yet/);
+  assert.match(content, /General private support without GitHub is not available yet/);
   assert.match(content, /\[security reporting policy\]\(https:\/\/github\.com\/hemsoft-dev\/yahtzee\/blob\/main\/SECURITY\.md\)/);
   assert.doesNotMatch(content, /\]\(\.\.\//);
   assert.doesNotMatch(content, /mailto:|itms-apps:|apps\.apple\.com|https:\/\/[^\s)]*\/security\/advisories\/new/);
@@ -63,14 +63,13 @@ test("blank-issue guard checks the boolean rather than freezing unrelated config
   assert.doesNotThrow(() => assertBlankEnabled('blank_issues_enabled: true\ncontact_links:\n  - name: Fixture\n    url: https://example.invalid/fixture\n    about: Test-only fixture\n'));
   for (const invalid of ["blank_issues_enabled: false\n", "# blank_issues_enabled: true\n", "blank_issues_enabled: true\nblank_issues_enabled: false\n"]) assert.throws(() => assertBlankEnabled(invalid));
 });
-test("sensitive-reporting policy does not invent a private channel or silently disable general reports", () => {
+test("security policy points to the enabled private route without disabling general reports", () => {
   const policy = read("SECURITY.md");
-  assert.match(policy, /Private reporting is not available yet/);
-  assert.match(policy, /private vulnerability reporting was disabled/);
-  assert.match(policy, /does not enable it or promise a working private channel/);
+  assert.match(policy, /private vulnerability reporting was enabled and verified/);
+  assert.match(policy, /https:\/\/github\.com\/hemsoft-dev\/yahtzee\/security\/advisories\/new/);
+  assert.match(policy, /requires a GitHub account/);
   assert.match(policy, /Do not post vulnerabilities/);
-  assert.match(policy, /Issue #44/);
-  assert.match(policy, /not an approved policy for a published app/);
-  assert.doesNotMatch(policy, /mailto:|https:\/\/github\.com\/(?:HemSoft|hemsoft-dev)\/yahtzee\/security\/advisories\/new/);
+  assert.match(policy, /General private support without GitHub is not yet/);
+  assert.doesNotMatch(policy, /mailto:/);
   assertBlankEnabled(read(".github/ISSUE_TEMPLATE/config.yml"));
 });
