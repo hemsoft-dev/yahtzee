@@ -148,3 +148,28 @@ test("native adapter recovery does not silently replace damaged data; reset clea
   expect((await saved(client)).preferences.appearance).toBe("system");
   await client.screenshot({ path: info.outputPath("adapter-reset.png") });
 });
+
+test("support previews are private by default, cancellable and usable offline", async ({ client }, info) => {
+  await client.goto(`${origin}/mobile`);
+  await client.getByRole("textbox", { name: "Your name" }).fill("Private player name");
+  await client.getByRole("button", { name: "Help", exact: true }).click();
+  await expect(client.getByText("About Third Roll", { exact: true })).toBeVisible();
+  await client.context().setOffline(true);
+  await client.getByRole("button", { name: "Report a Problem", exact: true }).click();
+  await expect(client.getByTestId("support-preview")).toContainText("Report a problem");
+  await expect(client.getByTestId("support-preview")).not.toContainText("Private player name");
+  await expect(client.getByTestId("support-destination")).toHaveText("https://github.com/hemsoft-dev/yahtzee/issues/new");
+  await client.getByTestId("support-preview").scrollIntoViewIfNeeded();
+  await client.screenshot({ path: info.outputPath("support-phone-preview.png") });
+  await client.getByRole("button", { name: "Cancel report", exact: true }).click();
+  await expect(client.getByTestId("support-preview")).toHaveCount(0);
+  await client.getByRole("button", { name: "Suggest an Improvement", exact: true }).click();
+  await expect(client.getByTestId("support-preview")).toContainText("Suggest an improvement");
+  await client.getByRole("button", { name: "Private support", exact: true }).click();
+  await expect(client.getByRole("alert")).toContainText("private support address has not been published");
+  await expect(client.getByRole("button", { name: "Open email draft", exact: true })).toHaveCount(0);
+  await client.setViewportSize({ width: 1024, height: 1366 });
+  await client.getByText("Review your report", { exact: true }).scrollIntoViewIfNeeded();
+  await client.screenshot({ path: info.outputPath("support-tablet-private.png") });
+  await expect(client.getByText("App Store reviews will be available here", { exact: false })).toBeVisible();
+});

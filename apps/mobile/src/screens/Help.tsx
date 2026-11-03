@@ -4,6 +4,8 @@ import appConfig from "../../app.json";
 import { useLocalGame } from "../local/LocalProvider";
 import { diagnosticText } from "../local/diagnostics";
 import { Action, Label, Section, styles } from "../ui/controls";
+import { Support } from "../support/Support";
+import { destinations } from "../support/destinations";
 import { useConfirmation } from "../ui/useConfirmation";
 
 const rules = [
@@ -29,7 +31,7 @@ export function Help() {
     } catch { setError("Could not open the system share sheet. The app version is shown below."); }
   };
   const source = async () => {
-    try { await Linking.openURL("https://github.com/hemsoft-dev/yahtzee"); setError(null); }
+    try { await Linking.openURL(destinations.repository); setError(null); }
     catch { setError("Could not open the source page. Try again when a browser is available."); }
   };
   const reset = () => confirm("Delete all local data", "Delete saved gameplay, completed history, high scores, names and appearance preferences on this device? This cannot be undone in the app.", () => { void store.resetAll(); });
@@ -42,9 +44,9 @@ export function Help() {
         <View style={styles.row}><Label>Acknowledged moves, names, appearance and results are saved locally. Pause keeps your active game. Resume restores it; Discard removes only that active game. Completed history keeps the last 500 games, with separate all-time top tens.</Label></View>
         <View style={styles.row}><Label>Local scores are not server-verified or uploaded. No game-server connection is required. Deleting the app removes local data; offloading can retain it. The iOS data folder is eligible for device backup, so a restore may bring back earlier data. Reset does not erase existing device backups. Restore testing and final privacy declarations remain pending.</Label></View>
       </Section>
-      <Section title="About this development build">
-        <View style={styles.row}><Label>Version {appConfig.expo.version}, build {appConfig.expo.ios.buildNumber}. Public branding, support/private-contact links and the App Store review destination await owner approval.</Label></View>
-        <View style={styles.row}><Label kind="caption" muted>Project code is MIT licensed. That license does not grant third-party trademark rights. No App Store accessibility labels or physical-device qualification are claimed yet.</Label></View>
+      <Section title="About Third Roll">
+        <View style={styles.row}><Label>Version {appConfig.expo.version}, build {appConfig.expo.ios.buildNumber}. Third Roll is an offline house-rules dice game by HemSoft.</Label></View>
+        <View style={styles.row}><Label kind="caption" muted>Copyright 2026 Franz Hemmer / HemSoft Developments. Project code is MIT licensed. Built with React Native and Expo. That license does not grant third-party trademark rights. No App Store accessibility labels or physical-device qualification are claimed yet.</Label></View>
         <Action label="Preview diagnostics" onPress={() => setPreview(true)} />
         {preview && <View style={styles.row}>
           <Label selectable testID="diagnostics-preview">{diagnostics}</Label>
@@ -55,6 +57,7 @@ export function Help() {
         <View style={styles.row}><Label kind="caption" muted>Opening the source repository uses your browser and connects to GitHub. Do not post private game data in a public issue.</Label></View>
         <Action label="Open source repository" onPress={() => { void source(); }} />
       </Section>
+      <Support diagnostics={diagnostics} />
       {error && <Label accessibilityRole="alert" color={colors.error}>{error}</Label>}
       <Section title="Reset">
         <View style={styles.row}><Label>Reset deletes this app's local game data and preferences, including damaged saves. Other apps are not affected.</Label></View>
