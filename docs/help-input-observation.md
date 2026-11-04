@@ -40,3 +40,14 @@ historical. Loaded-image identity remains unattested; health143 is UNAVAILABLE.
 Absent phases do not prove handler absence. New-head positive native Help
 observations and failed-occurrence localization remain pending ordinary CI.
 Issues102/112/115/41 stay open. No retry, timeout or input-loss fix is introduced.
+
+## Historical control in shallow checkouts
+
+The component harness builds the exact c8 NativeGameScreen snapshot from
+scripts/ios-native/fixtures/help-baseline-c8.tsx.fixture, verified before bundling
+with CRLF normalized to LF against SHA256 9ac442dddc4c9f28d1906d42ad640f41f65225147750029647044ceb7be6a48b.
+It came from commit c8a31f7b5587c8e08a4086a744cad3ee04b878ba and retains the
+original source imports resolved from the screen directory. Normal CI exercises
+the historical callback/argument controls without requiring old Git objects.
+The opt-in HELP_BASELINE=1 missing-observation negative control remains intact.
+All current-source lifecycle assertions and timeout bounds are unchanged.

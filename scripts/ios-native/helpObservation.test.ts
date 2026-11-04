@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { chromium, type Browser } from "playwright";
 
 const root = resolve(import.meta.dir, "../..");
@@ -36,8 +37,9 @@ beforeAll(async () => {
         build.onResolve({ filter: /^react-native-safe-area-context$/ }, () => ({ path: resolve(root, "tests/clients/native-safe-area.tsx") }));
         build.onLoad({ filter: /platformStorage\.ts$/ }, () => ({ loader: "ts", contents: "export function createPlatformStorage(){let value=null;return {async getItem(){return value;},async setItem(_key,next){value=next;},async removeItem(){value=null;}};}" }));
         if (mode === "old") build.onLoad({ filter: /NativeGameScreen\.tsx$/ }, async () => {
-          const p = Bun.spawn(["git", "show", "c8a31f7b5587c8e08a4086a744cad3ee04b878ba:apps/mobile/src/screens/NativeGameScreen.tsx"], { cwd: root, stdout: "pipe" });
-          const contents = await new Response(p.stdout).text(); if (await p.exited) throw new Error("Pinned source unavailable");
+          // Keep the historical control available in CI's shallow checkout.
+          const contents = (await Bun.file(resolve(import.meta.dir, "fixtures/help-baseline-c8.tsx.fixture")).text()).replace(/\r\n/g, "\n");
+          if (createHash("sha256").update(contents).digest("hex") !== "9ac442dddc4c9f28d1906d42ad640f41f65225147750029647044ceb7be6a48b") throw new Error("Pinned Help baseline fixture changed");
           return { contents, loader: "tsx", resolveDir: resolve(root, "apps/mobile/src/screens") };
         });
       } }] });
