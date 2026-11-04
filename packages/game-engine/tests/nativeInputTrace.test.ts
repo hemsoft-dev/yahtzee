@@ -157,3 +157,36 @@ test("a fresh boot can reuse numeric IDs, so correlation stays within its proces
   expect(epochs.map((epoch) => epoch[1].resumeId)).toEqual([1, 1]);
   expect(epochs.every((epoch) => epoch[2].resumeId === epoch[1].resumeId)).toBe(true);
 });
+
+test("Start correlation, preference ack/commit and intent links keep fixed private numeric schemas", () => {
+  const lines: string[] = []; const t = createInputTrace(true, (line) => lines.push(line), () => 123, () => 1);
+  const preference = t.preferenceIntent("dice", 10)!;
+  preference.commit(); expect(lines.length).toBe(1);
+  preference.observe("decision-accepted"); preference.observe("write-begin"); preference.observe("write-ack"); preference.commit(); preference.commit();
+  const press = t.startPressObservation()!; press.pressIn(1); press.pressOut(2);
+  const id = t.beginStart(press.request())!; t.linkStartPreference(id, preference.id);
+  t.startReactCommit(id, "play");
+  const observer = t.startStoreObservation(id)!; observer("decision-accepted"); observer("write-begin"); observer("write-ack");
+  t.startReactCommit(id, "play"); t.startReactCommit(id, "play");
+  const events = lines.map((l) => JSON.parse(l.slice(INPUT_TRACE_PREFIX.length)));
+  expect(events.filter((e) => e.phase === "start-react-commit-play").length).toBe(1);
+  expect(events.filter((e) => e.phase === "preference-dice-10-react-commit").length).toBe(1);
+  expect(events.find((e) => e.phase === "start-preference-dice-intent")).toMatchObject({ startId: id, preferenceId: preference.id });
+  expect(events.filter((e) => e.phase.startsWith("start-")).every((e) => e.startId === id)).toBe(true);
+  expect(JSON.stringify(events)).not.toMatch(/name|gameId|scores|PRIVATE/);
+});
+test("Start and selection observers are disabled, bounded, detached and isolated from broken clocks/sinks", () => {
+  const off = createInputTrace(false, () => { throw new Error("disabled"); });
+  expect(off.startPressObservation()).toBeUndefined(); expect(off.beginStart()).toBeUndefined(); expect(off.preferenceIntent("ai", 1)).toBeUndefined();
+  const lines: string[] = []; const t = createInputTrace(true, (l) => lines.push(l));
+  expect(t.preferenceIntent("dice", 999)).toBeUndefined();
+  const pref = t.preferenceIntent("ai", 2)!; pref.detach(); pref.observe("write-ack"); pref.commit();
+  expect(lines.some((l) => l.includes("react-commit"))).toBe(false);
+  for (let i = 0; i < 9000; i++) { const id = t.beginStart(); t.startStoreObservation(id)?.("decision-busy"); t.preferenceIntent("dice", 6); }
+  expect(lines.length).toBe(8192);
+  const broken = createInputTrace(true, () => { throw new Error("PRIVATE"); }, () => { throw new Error("clock"); });
+  expect(() => {
+    const p = broken.preferenceIntent("dice", 10)!; p.observe("write-ack"); p.commit(); p.detach();
+    const id = broken.beginStart()!; broken.startStoreObservation(id)!("write-ack"); broken.startReactCommit(id, "play");
+  }).not.toThrow();
+});

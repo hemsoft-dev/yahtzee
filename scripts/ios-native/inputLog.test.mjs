@@ -147,3 +147,18 @@ test("a real owned subprocess is retired and retains an intentional exit receipt
     assert.equal(result.closed, true); assert.equal(result.unexpectedExit, false);
   } finally { clearTimeout(timer); child.kill("SIGKILL"); await stop(); }
 });
+
+test("Start and selection allowlists preserve fixed IDs, reject sensitive/unknown fields and keep143 unavailable", () => {
+  for (const [phase, extra] of [
+    ["start-press-in", { startId: 1 }], ["start-handler", { startId: 0 }], ["start-decision-busy", { startId: 0 }],
+    ["start-write-ack", { startId: 0 }], ["start-react-commit-play", { startId: 0 }],
+    ["preference-dice-10-intent", { preferenceId: 1 }], ["preference-ai-3-react-commit", { preferenceId: 0 }],
+    ["start-preference-dice-intent", { startId: 1, preferenceId: 0, sequence: 3 }],
+  ]) {
+    assert(inputEvent(line(phase, extra)));
+    assert.equal(inputEvent(line(phase, { ...extra, name: "PRIVATE" })), null);
+  }
+  for (const [phase, extra] of [["start-press-in", { startId: 0 }], ["start-handler", { startId: 8192 }],
+    ["start-write-ack", { startId: 1 }], ["start-native-paint", { startId: 0 }], ["preference-dice-999-intent", { preferenceId: 1 }],
+    ["preference-dice-10-intent", { preferenceId: "PRIVATE" }]]) assert.equal(inputEvent(line(phase, extra)), null);
+});

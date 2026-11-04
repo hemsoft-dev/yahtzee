@@ -7,12 +7,32 @@ const phases = new Set(["boot", "heartbeat", "score-press-in", "score-press-out"
 const resumePhases = new Set(["resume-press-in", "resume-press-out", "resume-handler",
   "resume-observation-detached", "resume-observation-disabled", "resume-observation-superseded",
   "resume-react-commit-loading", "resume-react-commit-setup", "resume-react-commit-play", "resume-react-commit-results"]);
+const storeObservationPhases = ["decision-busy", "decision-accepted", "decision-can-retry", "decision-pending", "decision-no-data", "write-begin", "write-ack", "write-failed", "operation-failed", "no-op", "settled-success", "settled-failure"];
+const startPhases = new Set(["start-press-in", "start-press-out", "start-handler", ...["detached", "disabled", "superseded"].map((p) => `start-observation-${p}`),
+  ...["loading", "setup", "play", "results"].map((p) => `start-react-commit-${p}`), ...storeObservationPhases.filter((p) => p !== "no-op").map((p) => `start-${p}`)]);
+const preferencePhases = new Set([...[5, 6, 8, 10].map((v) => `preference-dice-${v}`), ...[0, 1, 2, 3].map((v) => `preference-ai-${v}`)]
+  .flatMap((prefix) => ["intent", "react-commit", "observation-detached", ...storeObservationPhases].map((p) => `${prefix}-${p}`)));
+function setupEvent(event) {
+  const start = startPhases.has(event.phase), preference = preferencePhases.has(event.phase);
+  const linked = ["start-preference-dice-intent", "start-preference-ai-intent"].includes(event.phase);
+  if (!start && !preference && !linked) return null;
+  if (linked && event.startId === event.preferenceId) return null;
+  const keys = ["atMs", "monotonicMs", "phase", "sequence", ...(start || linked ? ["startId"] : []), ...(preference || linked ? ["preferenceId"] : [])].sort().join();
+  if (Object.keys(event).sort().join() !== keys || !Number.isSafeInteger(event.atMs) || event.atMs < 0
+    || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0 || !Number.isSafeInteger(event.sequence) || event.sequence < 0) return null;
+  for (const id of [event.startId, event.preferenceId].filter((id) => id !== undefined)) if (!Number.isSafeInteger(id) || id < 0 || id >= 8192 || id > event.sequence) return null;
+  const origin = event.phase === "start-press-in" || (preference && event.phase.endsWith("-intent"));
+  if (origin && (event.startId ?? event.preferenceId) !== event.sequence) return null;
+  if (!origin && event.phase !== "start-handler" && (event.startId === event.sequence || event.preferenceId === event.sequence)) return null;
+  return event;
+}
 export function inputEvent(line) {
   try {
     const message = JSON.parse(line).eventMessage;
     if (typeof message !== "string") return null;
     const offset = message.indexOf(marker); if (offset < 0) return null;
     const event = JSON.parse(message.slice(offset + marker.length));
+    if (startPhases.has(event.phase) || preferencePhases.has(event.phase) || ["start-preference-dice-intent", "start-preference-ai-intent"].includes(event.phase)) return setupEvent(event);
     const resume = resumePhases.has(event.phase);
     if (Object.keys(event).sort().join() !== (resume ? "atMs,monotonicMs,phase,resumeId,sequence" : "atMs,monotonicMs,phase,sequence")
       || (!resume && !phases.has(event.phase))) return null;
