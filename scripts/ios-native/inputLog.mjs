@@ -4,7 +4,9 @@ import { appendFileSync, writeFileSync } from "node:fs";
 
 const marker = "THIRD_ROLL_INPUT ";
 const phases = new Set(["boot", "heartbeat", "score-press-in", "score-press-out", "score-handler", "score-ack", "score-rejected"]);
-const resumePhases = new Set(["resume-handler", "resume-react-commit-loading", "resume-react-commit-setup", "resume-react-commit-play", "resume-react-commit-results"]);
+const resumePhases = new Set(["resume-press-in", "resume-press-out", "resume-handler",
+  "resume-observation-detached", "resume-observation-disabled", "resume-observation-superseded",
+  "resume-react-commit-loading", "resume-react-commit-setup", "resume-react-commit-play", "resume-react-commit-results"]);
 export function inputEvent(line) {
   try {
     const message = JSON.parse(line).eventMessage;
@@ -17,7 +19,8 @@ export function inputEvent(line) {
     if (!Number.isSafeInteger(event.atMs) || event.atMs < 0 || !Number.isSafeInteger(event.sequence) || event.sequence < 0
       || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0) return null;
     if (resume && (!Number.isSafeInteger(event.resumeId) || event.resumeId < 0 || event.resumeId >= 8192
-      || (event.phase === "resume-handler" ? event.resumeId !== event.sequence : event.resumeId >= event.sequence))) return null;
+      || (event.phase === "resume-press-in" ? event.resumeId !== event.sequence
+        : event.phase === "resume-handler" ? event.resumeId > event.sequence : event.resumeId >= event.sequence))) return null;
     return event;
   } catch { return null; }
 }

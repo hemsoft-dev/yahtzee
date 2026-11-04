@@ -1,50 +1,89 @@
-# Partial Resume observation
+# Resume press and React observation
 
-Refs [#112](https://github.com/hemsoft-dev/yahtzee/issues/112). This adds positive
-JS handler and React commit observations. It does not fix Resume or satisfy the
-issue's native press, visibility or one-tap acknowledgment criteria. The original
-score loss in [#102](https://github.com/hemsoft-dev/yahtzee/issues/102) remains open.
+Refs [#112](https://github.com/hemsoft-dev/yahtzee/issues/112). This diagnostic
+observes qualification-only Pressable callbacks, JS handler entry and React
+committed selection. It does not fix Resume. Native delivery, paint, AX visibility,
+one-tap acknowledgment and cause remain unproved. Both #112 and the original
+[score loss #102](https://github.com/hemsoft-dev/yahtzee/issues/102) remain open.
 
-The qualification-only trace emits `resume-handler` synchronously when the
-existing Resume callback runs. Its `resumeId` is the handler's sequence number,
-scoped to that process/boot epoch. The ID travels in the same React state update
-as `playing`. A layout effect in Content emits
-`resume-react-commit-loading`, `resume-react-commit-setup`,
-`resume-react-commit-play` or `resume-react-commit-results` with that ID only
-after the selected subtree commits. A setter return or render attempt emits no
-commit. The observation window closes when Play or Results commits, so later
-game completion cannot inherit the request. Loading/Setup observations can
-precede that destination. Start and Pause invalidate correlation; Play Again
-invalidates it synchronously before calling discard, including while its write
-is pending or fails. Playing still changes only after discard succeeds.
-Strict effect replay/remount does not duplicate an already observed branch for
-an ID. Each branch is recorded at most once per request; this is not a continuous
-screen-transition journal.
-The saved-result review uses the same callback and can report the results branch.
+## Correlation
 
-The lifecycle boundary follows React's
+Only Setup's Resume/Review saved result Action opts into the press observer.
+Normal builds create no observer and emit no trace. Other Actions keep their
+existing onPress callbacks and receive no observer. No native event payload,
+coordinate, player name, game ID, score or arbitrary error enters this channel.
+
+- `resume-press-in` allocates `resumeId` from that record's sequence number.
+- `resume-press-out` reports Pressable deactivation with the same ID.
+- `resume-handler` reports entry into NativeGameScreen's existing callback,
+  using the ID passed from that activation. If no activation is available, the
+  handler allocates its own ID equal to its sequence. That is an unmatched
+  handler, never fabricated press evidence.
+- `resume-react-commit-loading`, `-setup`, `-play` and `-results` report the
+  selected subtree from Content's layout effect with the handler's ID.
+
+Press-out can occur before the handler or be delayed until after it. It does
+not establish cancellation, success or release to the OS. A delayed callback
+after a handled control unmounts can still record out for its old activation.
+If Pressability cancels that delayed callback during cleanup, missing out is
+UNKNOWN. Observation never fabricates it. Callback event time is compared
+in memory to reject an older delayed out after a newer activation; an absent
+or invalid event time leaves out UNKNOWN. That event time is never logged.
+Each activation has at most one out record. Re-entry/new activation gets a new ID; these IDs are not native touch IDs.
+Driver timestamps must still establish which activation belongs to an original
+tap. No original driver event or native input acknowledgment is manufactured.
+
+`resume-observation-detached`, `-disabled` and `-superseded` end an activation
+that has not reached the handler. They report layout-effect cleanup, a committed
+disabled state or replacement by another activation, respectively. They do not
+name a native cancellation cause. Cleanup can also occur when React hides
+a suspended tree; detached does not assert physical removal. Late out/activation
+callbacks cannot revive a closed observation. A cancelled gesture can yield in/out without a handler;
+that pair alone leaves the handler outcome UNKNOWN. No timer infers rejection
+from elapsed time. An unfinished observation at process/capture end remains
+incomplete, including when none of these terminal records is available.
+
+The ID travels in the same React state update as `playing`. Setter return and
+render attempts produce no commit record. Loading/Setup can precede Play or
+Results. The active window closes on that destination, so later game completion
+cannot inherit the ID. Start and Pause invalidate correlation; Play Again
+invalidates it synchronously before discard publishes. Playing changes only
+after discard succeeds. Failure retains Results and the existing save recovery.
+Strict effect replay cannot duplicate a branch. Suspended, abandoned or throwing
+renders cannot claim a destination commit.
+
+The lifecycle boundaries follow React's
 [layout-effect contract](https://react.dev/reference/react/useLayoutEffect) and
-[Suspense behavior](https://react.dev/reference/react/Suspense). A layout-effect
-record is intentionally narrower than a native visibility claim.
+[Suspense behavior](https://react.dev/reference/react/Suspense), and React Native's
+[Pressable callback contract](https://reactnative.dev/docs/Pressable).
+The installed Pressability implementation permits delayed press-out. Context7
+was unavailable; official documentation and the installed implementation were
+consulted. The browser host adapter is not a native-delivery test.
 
-These phases mean React committed a selected subtree. They do not mean UIKit
-received a press, painted the screen, exposed accessibility elements or
-acknowledged navigation. There is no press-in/out probe. Failed or abandoned
-renders do not produce a selected-subtree commit record. No new native timeout,
-tap, retry, save operation or flow assertion is introduced.
+## Capture and evidence limits
 
-The channel retains only fixed phase enums, numeric IDs, sequence and wall/
-monotonic timestamps. Existing qualification gating, 8192-record lifetime cap,
-heartbeat cleanup and advisory capture failures remain. Score records retain
-their existing schema. Sink failures do not escape into the game callback.
-Sender and receiver explicitly allow the new phases and reject other fields.
+Records contain only fixed phase enums, numeric IDs, sequence and wall/monotonic
+timestamps. The ID is scoped to the trace instance/process epoch. A new process
+can reuse it; never join matching numeric IDs across boot boundaries. Existing
+boot records and sequence resets identify epochs; incomplete boot/sequence
+coverage leaves correlation UNKNOWN. Existing qualification gating, 8192-record
+lifetime cap, heartbeat cleanup and sink/clock isolation remain. Score schema
+and capture bounds are unchanged. Receiver validation allows the fixed phases
+and rejects extra fields. Observation failure cannot change a game outcome.
 
-Missing events remain UNKNOWN when capture is incomplete, the process epoch or
-tap window is not established, or sequence coverage is unavailable. In
-particular, requested numeric exit 143 remains `unavailable` under the existing
-collector rule. No health criterion was relaxed. The historical failed AI
-landscape scenario has no video and its cached AX is pre-relaunch. These new
-observations cannot recover that missing evidence.
+No collector-health criterion is relaxed. Requested numeric exit 143 remains
+`unavailable`; code 0 or null plus SIGTERM still requires all other completeness
+conditions. Positive retained events can establish one observed JS seam despite
+unavailable whole-capture health. Absence cannot establish a lost handler or
+native delivery. These records never establish native paint, AX or navigation
+acknowledgment. Driver, contemporaneous UI/video and durable saves remain
+separate evidence requirements.
+
+The [9725bd0 landscape failure](https://github.com/hemsoft-dev/yahtzee/issues/112#issuecomment-6616700973)
+has no contemporaneous video and its cached AX precedes relaunch. Its source
+has none of these Resume observations. Historical 2926974/e94924b positive
+handler/commit controls cannot explain that failure or prove this new source.
+All retained failures and whole-run CI failures remain historical evidence.
 
 ## Verification
 
@@ -52,23 +91,25 @@ observations cannot recover that missing evidence.
 - `node --test scripts/ios-native/inputLog.test.mjs scripts/ios-native/inputObservation.test.mjs`
 - `bun test scripts/ios-native/resumeObservation.test.ts`
 
-The last command explicitly runs a dedicated real React DOM/Chromium lifecycle
-harness using the actual NativeGameScreen, Setup and Action. A controlled store,
-native host adapter and destination screens exercise suspended,
-abandoned and throwing destination renders. It covers correlated successful
-commits, repeated requests, StrictMode, disabled Resume and sink failure. This
-is component lifecycle evidence, not UIKit or native acceptance. Additional
-cases use the real local store with controlled storage to cover later game
-completion, loading-to-destination commits, and Play Again publications before
-its await continuation, with both successful and failed pending writes.
+The last command runs actual NativeGameScreen, Setup and Action through React
+DOM/Chromium with the native host adapter and substituted destination screens.
+It exercises original pointer in/out, a cancelled gesture, disable during an
+actual pending store write, unmount/late release, unmatched handler, shipping
+gating, StrictMode, suspension, abandonment, render errors and failing sinks.
+Real local-store cases cover loading-to-destination, later completion and pending
+Play Again success/failure. Protocol tests cover either out/handler order,
+delayed out after unmount, privacy, clocks, bounds and conservative health.
 
-The harness uses the existing Playwright Chromium installation. Both existing
-Ubuntu and Windows validation jobs explicitly run it immediately after successful
-browser installation, unless cancelled. A failure fails that validation job.
-There is no additional browser install, dependency or test-discovery configuration.
-The same command also runs locally.
+Before adding the observation, the three new actual-component press/cancellation/
+unmount regressions failed because the expected press records were absent.
+The final harness also fails against the published e94924b component/trace
+blobs substituted in memory: handler/commit exist but press-in/out are absent.
+This red/green proves the missing observation is now exercised; it does not
+reproduce or repair the intermittent native failure. Both existing Ubuntu and
+Windows validation jobs already execute the same lifecycle command after the
+existing successful Chromium install. No workflow, dependency, timeout, runner,
+assertion, native device/mode matrix, retry tap or save behavior changes here.
 
-Full press-path work still requires the reserved Setup/Action path and explicit
-source ownership from the parent after
-[PR #111](https://github.com/hemsoft-dev/yahtzee/pull/111), or another explicit
-allocation. A passing native matrix alone cannot close either diagnostic issue.
+New-source hosted native press/handler/commit correlation and UI/video/save
+proof remain pending ordinary CI. A passing matrix or React commit alone cannot
+close either diagnostic issue.

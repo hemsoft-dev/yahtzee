@@ -1,6 +1,7 @@
-import React, { type ReactNode } from "react";
+import React, { useLayoutEffect, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, type ColorValue, type TextProps } from "react-native";
 import { useLocalGame } from "../local/LocalProvider";
+import type { ResumePressObservation } from "../diagnostics/inputTrace";
 
 const type = {
   title: { fontSize: 28, fontWeight: "700" as const },
@@ -16,13 +17,21 @@ export function Label({ children, kind = "body", muted = false, color, ...props 
   return <Text {...props} dynamicTypeRamp={ramps[kind]} allowFontScaling
     style={[type[kind], { color: color ?? (muted ? colors.muted : colors.text) }, props.style]}>{children}</Text>;
 }
-export function Action({ label, onPress, disabled = false, primary = false, destructive = false, testID }: {
+export function Action({ label, onPress, disabled = false, primary = false, destructive = false, testID, pressObservation }: {
   label: string; onPress: () => void; disabled?: boolean; primary?: boolean; destructive?: boolean; testID?: string;
+  pressObservation?: ResumePressObservation;
 }) {
+  useLayoutEffect(() => {
+    pressObservation?.attach();
+    return () => pressObservation?.unmount();
+  }, [pressObservation]);
+  useLayoutEffect(() => { pressObservation?.disabled(disabled); }, [disabled, pressObservation]);
   const { colors } = useLocalGame();
   const color = destructive ? colors.error : primary ? colors.actionText : colors.tint;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} aria-disabled={disabled}
     testID={testID} disabled={disabled} onPress={onPress}
+    onPressIn={pressObservation ? (event) => pressObservation.pressIn(event.nativeEvent.timestamp) : undefined}
+    onPressOut={pressObservation ? (event) => pressObservation.pressOut(event.nativeEvent.timestamp) : undefined}
     style={({ pressed }) => [styles.action, { backgroundColor: primary ? colors.action : "transparent", opacity: disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
     <Label color={color} style={styles.actionText}>{label}</Label>
   </Pressable>;

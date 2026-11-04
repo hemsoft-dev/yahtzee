@@ -26,7 +26,7 @@ function SaveStatus({ confirm }: { confirm: Confirm }) {
 function Content({ playing, resumeId, resumeCommitted, start, resume, pause, again, confirm }: {
   resumeId?: number;
   resumeCommitted: (id: number, branch: ResumeBranch) => void;
-  playing: boolean; start: (name: string) => void; resume: () => void; pause: () => void; again: () => void; confirm: Confirm;
+  playing: boolean; start: (name: string) => void; resume: (resumeId?: number) => void; pause: () => void; again: () => void; confirm: Confirm;
 }) {
   const { view } = useLocalGame();
   const branch: ResumeBranch = !view.data ? "loading" : !playing || !view.data.active ? "setup"
@@ -51,8 +51,8 @@ export function NativeGameScreen({ onHistory, onHelp }: { onHistory: () => void;
     if (branch === "play" || branch === "results") activeResume.current = undefined;
     inputTrace.resumeReactCommit(id, branch);
   }, []);
-  const resume = () => {
-    const id = inputTrace.beginResume();
+  const resume = (pressId?: number) => {
+    const id = inputTrace.beginResume(pressId);
     activeResume.current = id;
     setScreen({ playing: true, resumeId: id });
   };
