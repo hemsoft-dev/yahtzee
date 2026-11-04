@@ -16,6 +16,7 @@ export function Setup({ onStart, onResume, confirm }: { onStart: (name: string, 
   const [resumeObservation] = useState(() => inputTrace.resumePressObservation());
   const [startObservation] = useState(() => inputTrace.startPressObservation());
   const [diceIntent, setDiceIntent] = useState<PreferenceObservation>();
+  const [pickerObservation] = useState(() => inputTrace.pickerPressObservation());
   const [aiIntent, setAiIntent] = useState<PreferenceObservation>();
   useLayoutEffect(() => { if (diceIntent && diceIntent.value === data.preferences.diceCount) diceIntent.commit(); }, [diceIntent, data.preferences.diceCount]);
   useLayoutEffect(() => { if (aiIntent && aiIntent.value === data.preferences.aiOpponents) aiIntent.commit(); }, [aiIntent, data.preferences.aiOpponents]);
@@ -48,7 +49,7 @@ export function Setup({ onStart, onResume, confirm }: { onStart: (name: string, 
             autoCorrect={false} returnKeyType="done" allowFontScaling
             style={[styles.row, { color: colors.text, fontSize: 17, borderBottomWidth: 0.5, borderBottomColor: colors.line }]} />
           {data.preferences.recentNames.map((recent) => <Action key={recent} label={`Use ${recent}`} disabled={locked} onPress={() => setName(recent)} />)}
-          <Choice title="AI opponents" options={["Solo", "1 AI", "2 AI", "3 AI"]} selected={data.preferences.aiOpponents}
+          <Choice observation={pickerObservation} title="AI opponents" options={["Solo", "1 AI", "2 AI", "3 AI"]} selected={data.preferences.aiOpponents}
             disabled={locked} onSelect={(aiOpponents) => { select("ai", aiOpponents); }} />
         </Section>
         <Section title="Game">

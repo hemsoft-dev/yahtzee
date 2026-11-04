@@ -9,6 +9,13 @@ import test from "node:test";
 import { inputEvent, inputTraceUsable, startInputLog } from "./inputLog.mjs";
 
 const line = (phase = "score-handler", extra = {}) => JSON.stringify({ eventMessage: "THIRD_ROLL_INPUT " + JSON.stringify({ phase, atMs: 123, monotonicMs: 10, sequence: 1, ...extra }), privateOSMetadata: "never retained" });
+test("picker boundary accepts finite phases/IDs only, never labels/errors/native acknowledgment", () => {
+  for (const phase of ["picker-press-in", "picker-press-out", "picker-handler", "picker-native-call", "picker-native-returned", "picker-native-threw", "picker-callback-cancel", "picker-callback-unknown", "picker-callback-late", "picker-callback-option-0", "picker-callback-option-3", "picker-observation-disabled", "picker-observation-detached", "picker-observation-superseded", "picker-inline-fallback"]) {
+    const pickerId = phase === "picker-press-in" ? 1 : 0; assert.equal(inputEvent(line(phase, { pickerId }))?.phase, phase);
+    for (const extra of [{ pickerId, title: "PRIVATE" }, { pickerId, error: "PRIVATE" }, { pickerId: 8192 }, { pickerId: -1 }, { pickerId, sequence: 8192 }, { pickerId, atMs: -1 }]) assert.equal(inputEvent(line(phase, extra)), null);
+  }
+  for (const phase of ["picker-opened", "picker-presented", "picker-callback-option-4"]) assert.equal(inputEvent(line(phase, { pickerId: 0 })), null);
+});
 test("Help parser accepts only finite private numeric schema and valid phase/sequence relationships", () => {
   for (const phase of ["help-press-in", "help-press-out", "help-handler", "help-callback-returned", "help-callback-threw", "help-observation-detached", "help-observation-disabled", "help-observation-superseded"]) {
     const helpId = phase === "help-press-in" ? 1 : 0;

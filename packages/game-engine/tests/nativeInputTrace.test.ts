@@ -1,6 +1,21 @@
 import { test, expect } from "bun:test";
 import { createInputTrace, INPUT_TRACE_PREFIX } from "../../../apps/mobile/src/diagnostics/inputTrace";
 
+test("picker retirement keeps late callbacks on their original ID; clocks/sinks/cap remain isolated", () => {
+  const lines: string[] = [], trace = createInputTrace(true, line => lines.push(line));
+  const p = trace.pickerPressObservation()!; p.pressIn(10); const old = p.handler()!; old("native-call"); old("native-returned");
+  p.pressIn(20); const next = p.handler()!; p.pressOut(11); old("native-returned"); old("callback-option-1"); next("callback-cancel");
+  const events = lines.map(line => JSON.parse(line.slice(INPUT_TRACE_PREFIX.length)));
+  expect(events.at(-2).phase).toBe("picker-callback-late"); expect(events.at(-1).phase).toBe("picker-callback-cancel"); expect(events.at(-2).pickerId).not.toBe(events.at(-1).pickerId);
+  expect(events.at(-3).phase).toBe("picker-native-returned"); expect(events.at(-3).pickerId).toBe(events.at(-2).pickerId);
+  expect(events.some(e => e.phase === "picker-press-out")).toBe(false);
+  for (let i = 0; i < 9000; i++) next("native-returned"); expect(lines.length).toBe(8192);
+  const disabled = createInputTrace(false, () => { throw new Error("must not emit"); }); expect(disabled.pickerPressObservation()).toBeUndefined();
+  for (const broken of [createInputTrace(true, () => { throw new Error("PRIVATE"); }), createInputTrace(true, () => {}, () => { throw new Error("PRIVATE"); })]) {
+    const observed = broken.pickerPressObservation()!; expect(() => { observed.pressIn(); observed.handler()?.("native-call"); observed.pressOut(10); observed.unmount(); }).not.toThrow();
+  }
+});
+
 test("Help correlation preserves callback return/error, bounds, cancellation and diagnostic isolation", () => {
   const lines: string[] = [], trace = createInputTrace(true, (line) => lines.push(line));
   const press = trace.helpPressObservation()!;

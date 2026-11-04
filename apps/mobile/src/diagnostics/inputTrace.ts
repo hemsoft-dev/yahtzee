@@ -12,6 +12,10 @@ export type ResumePressObservation = {
   attach: () => void; unmount: () => void; disabled: (disabled: boolean) => void;
   pressIn: (eventTime?: number) => void; pressOut: (eventTime?: number) => void; request: () => number | undefined;
 };
+export type PickerSheetPhase = "native-call" | "native-returned" | "native-threw" | "callback-cancel" | "callback-unknown" | "inline-fallback" | `callback-option-${0 | 1 | 2 | 3}`;
+export type PickerSheetObservation = (phase: PickerSheetPhase) => void;
+export type PickerPressObservation = ResumePressObservation & { handler: () => PickerSheetObservation | undefined };
+const pickerSheetPhases = new Set<PickerSheetPhase>(["native-call", "native-returned", "native-threw", "callback-cancel", "callback-unknown", "inline-fallback", "callback-option-0", "callback-option-1", "callback-option-2", "callback-option-3"]);
 const resumeBranches = new Set<ResumeBranch>(["loading", "setup", "play", "results"]);
 
 /** No names, game IDs, scores, error text or caller-supplied objects enter this channel. */
@@ -21,9 +25,9 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
   // Bounded by the same 8192-record lifetime limit as the channel. The request
   // ID is the first observed activation (or unmatched handler) sequence,
   // scoped to this trace's process epoch. No native event payload is retained.
-  const requests = new Map<number, { kind: "resume" | "start" | "help"; acknowledged?: boolean; storeDone?: boolean; handled: boolean; ended: boolean; out: boolean; branches: Set<ResumeBranch> }>();
+  const requests = new Map<number, { kind: "resume" | "start" | "help" | "picker"; acknowledged?: boolean; storeDone?: boolean; handled: boolean; ended: boolean; out: boolean; branches: Set<ResumeBranch> }>();
   const write = (phase: InputPhase | "resume-handler" | "resume-press-in" | "resume-press-out"
-    | `resume-observation-${ResumeEnd}` | `resume-react-commit-${ResumeBranch}` | `start-${string}` | `preference-${string}` | `help-${string}`, resumeId?: number, extra?: { helpId?: number; startId?: number; preferenceId?: number }) => {
+    | `resume-observation-${ResumeEnd}` | `resume-react-commit-${ResumeBranch}` | `start-${string}` | `preference-${string}` | `help-${string}` | `picker-${string}`, resumeId?: number, extra?: { pickerId?: number; helpId?: number; startId?: number; preferenceId?: number }) => {
     if (!enabled || sequence >= 8192) return;
     const id = sequence++;
     try { sink(INPUT_TRACE_PREFIX + JSON.stringify({ phase, atMs: clock(), monotonicMs: monotonic(), sequence: id,
@@ -32,20 +36,21 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
     return id;
   };
   const emit = (phase: InputPhase) => { write(phase); };
-  const allocate = (phase: "resume-press-in" | "resume-handler" | "start-press-in" | "start-handler" | "help-press-in" | "help-handler") => {
+  const allocate = (phase: "resume-press-in" | "resume-handler" | "start-press-in" | "start-handler" | "help-press-in" | "help-handler" | "picker-press-in" | "picker-handler") => {
     if (!enabled || sequence >= 8192) return;
     const id = sequence;
-    requests.set(id, { kind: phase.startsWith("help-") ? "help" : phase.startsWith("start-") ? "start" : "resume", handled: phase.endsWith("handler"), ended: false, out: false, branches: new Set() });
-    if (phase.startsWith("help-")) write(phase, undefined, { helpId: id }); else if (phase.startsWith("start-")) write(phase, undefined, { startId: id }); else write(phase, id);
+    requests.set(id, { kind: phase.startsWith("picker-") ? "picker" : phase.startsWith("help-") ? "help" : phase.startsWith("start-") ? "start" : "resume", handled: phase.endsWith("handler"), ended: false, out: false, branches: new Set() });
+    if (phase.startsWith("picker-")) write(phase, undefined, { pickerId: id }); else if (phase.startsWith("help-")) write(phase, undefined, { helpId: id }); else if (phase.startsWith("start-")) write(phase, undefined, { startId: id }); else write(phase, id);
     return id;
   };
-  const requestWrite = (kind: "resume" | "start" | "help", suffix: string, id: number) => {
+  const requestWrite = (kind: "resume" | "start" | "help" | "picker", suffix: string, id: number) => {
     if (kind === "resume") write(`resume-${suffix}` as `resume-observation-${ResumeEnd}`, id);
+    else if (kind === "picker") write(`picker-${suffix}`, undefined, { pickerId: id });
     else if (kind === "help") write(`help-${suffix}`, undefined, { helpId: id });
     else write(`start-${suffix}`, undefined, { startId: id });
   };
   const preferences = new Map<number, { kind: "dice" | "ai"; active: boolean; ack: boolean; done: boolean; committed: boolean }>();
-  const pressObservation = (kind: "resume" | "start" | "help"): ResumePressObservation | undefined => {
+  const pressObservation = (kind: "resume" | "start" | "help" | "picker"): ResumePressObservation | undefined => {
       if (!enabled) return;
       let id: number | undefined, attached = true, disabled = false;
       let activatedAt: number | undefined;
@@ -86,6 +91,36 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
     emit,
     resumePressObservation: () => pressObservation("resume"),
     startPressObservation: () => pressObservation("start"),
+    pickerPressObservation(): PickerPressObservation | undefined {
+      const press = pressObservation("picker"); if (!press) return;
+      let retire = (_reason: ResumeEnd) => {};
+      return { ...press,
+        unmount() { press.unmount(); retire("detached"); },
+        disabled(value) { press.disabled(value); if (value) retire("disabled"); },
+        pressIn(time) { retire("superseded"); press.pressIn(time); },
+        handler() {
+          retire("superseded");
+          let id = press.request(); const pending = id === undefined ? undefined : requests.get(id);
+          if (pending) { pending.handled = true; requestWrite("picker", "handler", id!); }
+          else id = allocate("picker-handler");
+          if (id === undefined) return;
+          const requestId = id; let retired = false, completed = false;
+          retire = (reason) => {
+            if (retired) return; retired = true; requests.get(requestId)!.ended = true;
+            if (!completed) requestWrite("picker", `observation-${reason}`, requestId);
+          };
+          return (phase) => {
+            if (!pickerSheetPhases.has(phase)) return;
+            const callback = phase.startsWith("callback-");
+            if (callback && (retired || completed)) { requestWrite("picker", "callback-late", requestId); return; }
+            // API completion still belongs to its captured request if a
+            // synchronous callback retired the row before the API returned.
+            requestWrite("picker", phase, requestId);
+            if (callback || phase === "native-threw") completed = true;
+          };
+        },
+      };
+    },
     helpPressObservation: () => pressObservation("help"),
     helpCallback<T>(callback: () => T, pressId?: number): T {
       const pending = pressId === undefined ? undefined : requests.get(pressId);
