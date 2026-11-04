@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { createInputTrace, INPUT_TRACE_PREFIX } from "../../../apps/mobile/src/diagnostics/inputTrace";
+import { createInputTrace, INPUT_TRACE_PREFIX, pickerSheetCallbackPhase } from "../../../apps/mobile/src/diagnostics/inputTrace";
 
 test("picker retirement keeps late callbacks on their original ID; clocks/sinks/cap remain isolated", () => {
   const lines: string[] = [], trace = createInputTrace(true, line => lines.push(line));
@@ -220,4 +220,16 @@ test("Start and selection observers are disabled, bounded, detached and isolated
     const p = broken.preferenceIntent("dice", 10)!; p.observe("write-ack"); p.commit(); p.detach();
     const id = broken.beginStart()!; broken.startStoreObservation(id)!("write-ack"); broken.startReactCommit(id, "play");
   }).not.toThrow();
+});
+
+test("picker callback classification stays finite without changing selection eligibility or coercing input", () => {
+  const cases: [unknown, number, string][] = [
+    [0, 4, "callback-option-0"], [1, 4, "callback-option-1"], [2, 4, "callback-option-2"], [3, 4, "callback-option-3"],
+    [4, 4, "callback-cancel"], [0, 0, "callback-cancel"], [1, 2, "callback-option-1"], [2, 2, "callback-cancel"],
+    [4, 5, "callback-unknown"], [5, 5, "callback-cancel"], [9, 4, "callback-unknown"], [-1, 4, "callback-unknown"],
+    [0.5, 4, "callback-unknown"], [Number.NaN, 4, "callback-unknown"], [Infinity, 4, "callback-unknown"],
+    ["1", 4, "callback-unknown"], [null, 4, "callback-unknown"], [true, 4, "callback-unknown"],
+    [{ valueOf() { throw new Error("must not coerce private values"); } }, 4, "callback-unknown"],
+  ];
+  for (const [index, count, expected] of cases) expect(pickerSheetCallbackPhase(index as number, count)).toBe(expected);
 });

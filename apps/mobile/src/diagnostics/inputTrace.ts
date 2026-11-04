@@ -14,6 +14,13 @@ export type ResumePressObservation = {
 };
 export type PickerSheetPhase = "native-call" | "native-returned" | "native-threw" | "callback-cancel" | "callback-unknown" | "inline-fallback" | `callback-option-${0 | 1 | 2 | 3}`;
 export type PickerSheetObservation = (phase: PickerSheetPhase) => void;
+
+/** Diagnostic classification only; the native adapter retains its original selection guard. */
+export function pickerSheetCallbackPhase(index: number, optionCount: number): PickerSheetPhase {
+  return Number.isInteger(index) && index >= 0 && index < optionCount && index <= 3
+    ? `callback-option-${index as 0 | 1 | 2 | 3}` : index === optionCount ? "callback-cancel" : "callback-unknown";
+}
+
 export type PickerPressObservation = ResumePressObservation & { handler: () => PickerSheetObservation | undefined };
 const pickerSheetPhases = new Set<PickerSheetPhase>(["native-call", "native-returned", "native-threw", "callback-cancel", "callback-unknown", "inline-fallback", "callback-option-0", "callback-option-1", "callback-option-2", "callback-option-3"]);
 const resumeBranches = new Set<ResumeBranch>(["loading", "setup", "play", "results"]);

@@ -51,3 +51,13 @@ All old media and source-bound driver/Help proof remain historical70e or earlier
 New-head native picker observations and failed-loss localization remain pending
 ordinary CI. Issues102/112/115/41 remain open. No timeout, keyboard action, anchor,
 layout, retry, driver/version change or lost-input repair is introduced.
+
+## Callback classification and measured coverage
+
+Finite callback-phase classification lives with the trace schema as a pure
+function. The native adapter records that classification and then independently
+applies its original index<options.length selection guard. A trace unknown does
+not reject, coerce or suppress an original selection callback. Measured unit
+controls cover valid options, cancellation and malformed/out-of-range values;
+the component controls continue to exercise the actual native adapter boundary.
+Risk limits, accepted budgets and production exclusions are unchanged.
