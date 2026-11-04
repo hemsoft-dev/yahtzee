@@ -36,8 +36,11 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     evidenceCaptured = true;
     const started = performance.now();
     try {
-      const evidence = scratch?.root ? await captureDriverEvidence({ root: scratch.root, path: childEnv.PATH,
-        deadline: Math.min(deadline, Date.now() + evidenceRemainingMs), WorkerClass: evidenceWorker }) : unavailableDriverEvidence(scratch?.reason ?? "scratch-unavailable");
+      // rpcClient.close may need its existing full 60-second shutdown allowance.
+      // Optional capture can use only time beyond that reserve, never extend it.
+      const captureBudgetMs = Math.min(evidenceRemainingMs, deadline - Date.now() - 60000);
+      const evidence = captureBudgetMs <= 0 ? unavailableDriverEvidence("budget") : scratch?.root ? await captureDriverEvidence({ root: scratch.root, path: childEnv.PATH,
+        deadline: Date.now() + captureBudgetMs, WorkerClass: evidenceWorker }) : unavailableDriverEvidence(scratch?.reason ?? "scratch-unavailable");
       driverEvidence.attempts.push({ attempt: recovery.attempts.length, evidence });
     } catch { driverEvidence.attempts.push({ attempt: recovery.attempts.length, evidence: unavailableDriverEvidence("capture-unavailable") }); }
     finally {
@@ -129,7 +132,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     throw error;
   } finally {
     // The driver deletes registered temporary files at close. Read metadata first,
-    // within the existing interaction deadline and one shared five-second cap.
+    // within the existing interaction deadline, shutdown reserve and shared five-second cap.
     await retainIdentity();
     try { await client?.close(); }
     catch (error) {

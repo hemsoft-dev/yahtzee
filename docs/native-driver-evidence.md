@@ -26,8 +26,10 @@ outside that root are rejected. No shared temp, process or simulator scan occurs
 Capture runs immediately before the existing close, including a readiness retry
 close. It adds no driver calls, flows, taps or restart. A separate worker performs
 static reads with a shared five-second advisory cap across readiness attempts,
-also bounded by the original interaction deadline. The worker is terminated
-before close; installed result-tool subprocesses use at most one second within
+also bounded by the original interaction deadline after reserving the existing
+60-second transport shutdown allowance. Capture is skipped with a budget reason
+when only shutdown time remains. The worker is terminated before close;
+installed result-tool subprocesses use at most one second within
 the same remaining cap and are killed/reaped on timeout. A failed capture or
 artifact write cannot replace the original result or error. Existing readiness
 retry eligibility and no-post-submission-replay handling are unchanged.

@@ -3,8 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { Worker } from "node:worker_threads";
-import { MaestroError } from "./mcp.mjs";
+import { MaestroError, rpcClient } from "./mcp.mjs";
 import { nativeInteraction } from "./interaction.mjs";
 import { startFlow, resumeFlow } from "./flows.mjs";
 
@@ -115,11 +117,11 @@ test("failed or delayed evidence preserves success and the identical primary fai
   }
 });
 
-test("stalled capture uses the remaining interaction deadline and retires its worker before close", async () => {
+test("stalled capture preserves the shutdown reserve and retires its worker before close", async () => {
   const flow = harness(), open = flow.options.openSession, started = Date.now(); let worker;
   class StalledWorker { constructor() { worker = new Worker("setInterval(()=>{},1000)", { eval: true }); return worker; } }
   try {
-    await nativeInteraction({ ...flow.options, now: () => started - 1200000 + 300, evidenceWorker: StalledWorker,
+    await nativeInteraction({ ...flow.options, now: () => started - 1200000 + 60300, evidenceWorker: StalledWorker,
       exercise: async () => {}, openSession: async (options) => {
         const client = await open(options); return { ...client, close: async () => { assert.equal(worker.threadId, -1); await client.close(); } };
       } });
@@ -357,3 +359,28 @@ for (const mode of ["transient", "transient-timeout", "persistent", "flow-timeou
     } finally { flow.cleanup(); }
   });
 }
+
+test("optional evidence preserves the real transport shutdown reserve near the deadline", async () => {
+  for (const failed of [false, true]) {
+    const flow = harness(), open = flow.options.openSession, started = Date.now();
+    const original = new Error("original exercise failure");
+    let worker, killed = 0, exited = false, stopTimer;
+    class StalledWorker { constructor() { worker = new Worker("setInterval(()=>{},1000)", { eval: true }); return worker; } }
+    const child = new EventEmitter(); child.stdout = new PassThrough(); child.stdin = new PassThrough();
+    child.stdin.once("finish", () => { stopTimer = setTimeout(() => { exited = true; child.emit("close", 0, null); }, 30); });
+    child.kill = () => { killed++; clearTimeout(stopTimer); child.emit("close", null, "SIGKILL"); };
+    try {
+      const result = nativeInteraction({ ...flow.options, now: () => started - 1200000 + 300,
+        evidenceWorker: StalledWorker, exercise: async () => { if (failed) throw original; },
+        openSession: async (options) => {
+          const client = await open(options), transport = rpcClient(child, { deadline: options.deadline });
+          return { ...client, close: async () => { await transport.close(); await client.close(); } };
+        } });
+      if (failed) await assert.rejects(result, (error) => error === original); else await result;
+      assert.equal(killed, 0); assert.equal(exited, true); assert.equal(flow.state().closed, 1);
+      assert.equal(worker, undefined, "capture must be skipped when only shutdown time remains");
+      const evidence = JSON.parse(readFileSync(join(flow.options.directory, "scenario-driver-evidence.json")));
+      assert.equal(evidence.attempts[0].evidence.reason, "budget");
+    } finally { clearTimeout(stopTimer); if (worker?.threadId !== undefined && worker.threadId !== -1) await worker.terminate(); flow.cleanup(); }
+  }
+});
