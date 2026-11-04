@@ -36,7 +36,7 @@ and setter returns are not commits. The active window ends on Play/Results;
 Pause, Resume and Play Again prevent later unrelated state attribution.
 The existing Resume and score protocols remain distinct and unchanged.
 
-Qualification gating, shared8192-record bound, sink/clock isolation and boot
+Qualification gating, shared 8192-record bound, sink/clock isolation and boot
 boundaries remain. Capture exit143 stays UNAVAILABLE. Missing phases, gaps and
 incomplete capture remain UNKNOWN. React commit does not prove native paint,
 AX visibility, original driver delivery or navigation acknowledgment.
@@ -73,7 +73,7 @@ native observation evidence remain required before a delivery claim.
 
 ## Historical evidence
 
-The [retained0ea failure comparison](https://github.com/hemsoft-dev/yahtzee/pull/114)
+The [retained 0ea failure comparison](https://github.com/hemsoft-dev/yahtzee/pull/114)
 is preserved under reports/issue-102/start-comparison-0ea-report.md and proof.json.
 Tablet10 and successful phone6 both show delayed dice selection/busy UI. Neither
 establishes a busy-at-handler rejection. Tablet sender gap16.398460s spans the

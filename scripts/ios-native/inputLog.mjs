@@ -32,6 +32,7 @@ export function inputEvent(line) {
     if (typeof message !== "string") return null;
     const offset = message.indexOf(marker); if (offset < 0) return null;
     const event = JSON.parse(message.slice(offset + marker.length));
+    if (!Number.isSafeInteger(event.sequence) || event.sequence < 0 || event.sequence >= 8192) return null;
     if (startPhases.has(event.phase) || preferencePhases.has(event.phase) || ["start-preference-dice-intent", "start-preference-ai-intent"].includes(event.phase)) return setupEvent(event);
     const resume = resumePhases.has(event.phase);
     if (Object.keys(event).sort().join() !== (resume ? "atMs,monotonicMs,phase,resumeId,sequence" : "atMs,monotonicMs,phase,sequence")

@@ -30,6 +30,25 @@ test("only explicit timestamp/phase fields survive the OS log boundary", () => {
   for (const raw of ["not json", line("private name"), line("heartbeat", { token: "secret" }), line("heartbeat", { atMs: -1 }), line("heartbeat", { sequence: 1.5 })]) assert.equal(inputEvent(raw), null);
 });
 
+test("producer sequence bound applies to every phase family and malformed streaming stays unavailable", async () => {
+  const cases = [
+    ["boot", {}], ["heartbeat", {}], ["score-handler", {}],
+    ["resume-handler", { resumeId: 0 }], ["start-handler", { startId: 0 }],
+    ["preference-dice-10-react-commit", { preferenceId: 0 }],
+    ["start-preference-dice-intent", { startId: 1, preferenceId: 0 }],
+  ];
+  for (const [phase, extra] of cases) {
+    assert.equal(inputEvent(line(phase, { ...extra, sequence: 8191 }))?.sequence, 8191);
+    assert.equal(inputEvent(line(phase, { ...extra, sequence: 8192 })), null);
+  }
+  const h = harness(); heartbeat(h);
+  h.child.stdout.write(line("heartbeat", { sequence: 8192 }) + "\n");
+  const result = await h.stop();
+  assert.equal(result.error, "input-log-malformed-record"); assert.equal(result.dropped, 1);
+  assert.equal(inputTraceUsable(result), false);
+  assert.deepEqual(h.read().trim().split("\n").map(JSON.parse).map((event) => event.sequence), [1]);
+});
+
 test("Resume protocol retains only a bounded numeric correlation ID and fixed observation phases", async () => {
   assert.equal(inputEvent(line("resume-handler", { resumeId: 1 })).resumeId, 1);
   assert.equal(inputEvent(line("resume-handler", { resumeId: 0 })).resumeId, 0);
@@ -148,7 +167,7 @@ test("a real owned subprocess is retired and retains an intentional exit receipt
   } finally { clearTimeout(timer); child.kill("SIGKILL"); await stop(); }
 });
 
-test("Start and selection allowlists preserve fixed IDs, reject sensitive/unknown fields and keep143 unavailable", () => {
+test("Start and selection allowlists preserve fixed IDs and reject sensitive or unknown fields", () => {
   for (const [phase, extra] of [
     ["start-press-in", { startId: 1 }], ["start-handler", { startId: 0 }], ["start-decision-busy", { startId: 0 }],
     ["start-write-ack", { startId: 0 }], ["start-react-commit-play", { startId: 0 }],
