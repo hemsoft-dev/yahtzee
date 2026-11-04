@@ -88,7 +88,7 @@ export function NativeGameScreen({ onHistory, onHelp }: { onHistory: () => void;
   return <SafeAreaView edges={["bottom", "left", "right"]} style={[styles.screen, { backgroundColor: colors.page }]}>
     <View style={{ flexDirection: "row", paddingHorizontal: 12 }}>
       <View style={{ flex: 1 }}><Action label="History" disabled={!view.data} onPress={onHistory} /></View>
-      <View style={{ flex: 1 }}><Action label="Help" pressObservation={helpPress} onPress={() => inputTrace.helpCallback(onHelp, helpPress?.request())} /></View>
+      <View style={{ flex: 1 }}><Action label="Help" pressObservation={helpPress} onPress={(...args: unknown[]) => inputTrace.helpCallback(() => Reflect.apply(onHelp, undefined, args), helpPress?.request())} /></View>
     </View>
     <SaveStatus confirm={confirm} />
     <Content key={view.generation} playing={playing} resumeId={resumeId} resumeCommitted={resumeCommitted} startId={startId} startCommitted={startCommitted} start={(name, pressId, selections) => { void start(name, pressId, selections); }}

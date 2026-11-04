@@ -16,7 +16,7 @@ console.info=line=>{if(line.startsWith('THIRD_ROLL_INPUT '))window.records.push(
 let app;window.fixture={
  mount(){app=createRoot(document.getElementById('root'));flushSync(()=>app.render(<StrictMode><LocalProvider><NativeGameScreen onHistory={()=>{}} onHelp={function(){window.calls.push(Array.from(arguments));if(window.shouldThrow)throw window.original;return window.original;}}/></LocalProvider></StrictMode>));},
  unmount(){flushSync(()=>app.unmount());},
- invoke(kind,time){const p=window.helpProps;if(kind==='handler'){try{window.returned=p.onPress();}catch(e){window.sameError=e===window.original;}}else if(kind==='in')p.onPressIn?.({nativeEvent:{timestamp:time}});else p.onPressOut?.({nativeEvent:{timestamp:time}});},
+ invoke(kind,time){const p=window.helpProps;if(kind==='handler'||kind==='argument'){try{window.returned=kind==='argument'?p.onPress(window.original):p.onPress();}catch(e){window.sameError=e===window.original;}}else if(kind==='in')p.onPressIn?.({nativeEvent:{timestamp:time}});else p.onPressOut?.({nativeEvent:{timestamp:time}});},
  failSink(){console.info=()=>{throw new Error('PRIVATE sink');};}
 };`;
 
@@ -54,7 +54,7 @@ async function run(mode: string, commands: string) {
     await page.setContent('<div id="root"></div>'); await page.addScriptTag({ content: scripts[mode] });
     await page.evaluate("window.fixture.mount()");
     await page.getByRole("button", { name: "Help", exact: true }).waitFor();
-    return await page.evaluate<{ events: { phase: string; helpId: number }[]; calls: unknown[][]; sameError: boolean; returned: boolean }>(`(()=>{${commands};return {events:window.records.filter(e=>e.phase.startsWith('help-')),calls:window.calls,sameError:window.sameError,returned:window.returned===window.original};})()`);
+    return await page.evaluate<{ events: { phase: string; helpId: number }[]; calls: unknown[][]; sameError: boolean; returned: boolean; argumentForwarded: boolean }>(`(()=>{${commands};return {events:window.records.filter(e=>e.phase.startsWith('help-')),calls:window.calls,sameError:window.sameError,returned:window.returned===window.original,argumentForwarded:window.calls[0]?.[0]===window.original};})()`);
   } finally { await page.close(); }
 }
 
@@ -66,6 +66,13 @@ test("actual Help activation reaches original callback and correlates only JS ob
 });
 test("pinned old c8 reaches callback without producing Help observations", async () => {
   const result = await run("old", "fixture.invoke('handler')"); expect(result.calls).toEqual([[]]); expect(result.events).toEqual([]);
+});
+test("original host callback arguments retain identity without entering trace records", async () => {
+  for (const mode of ["old", "current"]) {
+    const result = await run(mode, "fixture.invoke('argument')");
+    expect(result.argumentForwarded).toBe(true); expect(result.returned).toBe(true);
+    expect(JSON.stringify(result.events)).not.toContain("PRIVATE");
+  }
 });
 test("out-before-handler, repeated handlers and thrown identity preserve original semantics", async () => {
   const result = await run("current", "fixture.invoke('in',10);fixture.invoke('out',11);fixture.invoke('handler');window.shouldThrow=true;fixture.invoke('handler')");

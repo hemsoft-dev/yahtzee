@@ -15,7 +15,7 @@ unmounted unhandled activations emit finite incomplete-observation phases.
 An unmatched handler gets its own ID without fabricated press evidence.
 Repeated handlers get separate IDs. StrictMode effect replay adds no activation.
 
-The wrapper invokes the original callback synchronously once, with no arguments,
+The wrapper invokes the original callback synchronously once, forwarding the host's original arguments without recording them,
 returns its unchanged value and rethrows the identical error. It never awaits
 the result. Returned/threw describe only synchronous JS callback completion,
 not route commit, focus, native delivery, paint, AX or navigation acknowledgment.
