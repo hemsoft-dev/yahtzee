@@ -36,7 +36,7 @@ export function Setup({ onStart, onResume, confirm }: { onStart: (name: string, 
       <Label kind="title" accessibilityRole="header">A little time for dice.</Label>
       <Label muted>Play on this device. No account or connection needed.</Label>
       {data.active ? <Section title="Your saved game">
-        <View style={styles.row}><Label>{data.active.game.players[0].name} Ã‚Â· {data.active.game.diceCount} dice</Label>
+        <View style={styles.row}><Label>{data.active.game.players[0].name} · {data.active.game.diceCount} dice</Label>
           <Label muted>{data.active.game.status === "finished" ? "Finished and saved" : `Round ${data.active.game.currentRound} of ${data.active.game.totalRounds}`}</Label></View>
         <Action label={data.active.game.status === "finished" ? "Review saved result" : "Resume Game"} primary disabled={locked}
           pressObservation={resumeObservation} onPress={() => onResume(resumeObservation?.request())} />

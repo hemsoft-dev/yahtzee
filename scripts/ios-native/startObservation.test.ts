@@ -261,8 +261,11 @@ test("pending selection links intent, actual busy rejection, persistence acknowl
     await f.page.waitForFunction(() => (window as unknown as { traceRecords: Event[] }).traceRecords.some((e) => e.phase === "preference-dice-10-react-commit"));
     const selection = f.events.filter((e) => e.phase.startsWith("preference-dice-10-"));
     expect(selection.every((e) => e.preferenceId === intent.preferenceId)).toBe(true);
-    expect(phases(selection)).toEqual(["preference-dice-10-intent", "preference-dice-10-decision-accepted", "preference-dice-10-write-begin",
-      "preference-dice-10-write-ack", "preference-dice-10-settled-success", "preference-dice-10-react-commit"]);
+    expect(phases(selection).slice(0, 4)).toEqual(["preference-dice-10-intent", "preference-dice-10-decision-accepted",
+      "preference-dice-10-write-begin", "preference-dice-10-write-ack"]);
+    // External-store publication may commit before the caller's await settles.
+    // Both outcomes must occur exactly once after the actual write acknowledgment.
+    expect(phases(selection).slice(4).sort()).toEqual(["preference-dice-10-react-commit", "preference-dice-10-settled-success"]);
     await f.page.getByRole("button", { name: "Start Game", exact: true }).click();
     await f.page.getByRole("button", { name: "Destination committed" }).waitFor();
     const accepted = f.events.find((e) => e.phase === "start-react-commit-play")!;

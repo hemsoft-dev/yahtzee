@@ -124,7 +124,7 @@ export function useLocalGame() { return useContext(Context); }
 
 beforeAll(async () => {
   async function bundle(enabled: string) {
-    const result = await Bun.build({ entrypoints: ["resume-fixture"], target: "browser",
+    const result = await Bun.build({ entrypoints: ["resume-fixture"], target: "browser", format: "iife",
       define: { process: "{}", "process.env.NODE_ENV": '"development"', __DEV__: "true", "process.env.EXPO_PUBLIC_NATIVE_INPUT_TRACE": JSON.stringify(enabled) },
       plugins: [{ name: "resume-component-lifecycle", setup(build) {
         build.onResolve({ filter: /^resume-fixture$/ }, () => ({ path: "entry", namespace: "resume" }));

@@ -1,4 +1,4 @@
-# Start and selection observations: implementation checkpoint
+# Start and selection observations
 
 Refs [#102](https://github.com/hemsoft-dev/yahtzee/issues/102) and the
 [earlier Start observation](https://github.com/hemsoft-dev/yahtzee/issues/91#issuecomment-6583142489).
@@ -41,36 +41,35 @@ boundaries remain. Capture exit143 stays UNAVAILABLE. Missing phases, gaps and
 incomplete capture remain UNKNOWN. React commit does not prove native paint,
 AX visibility, original driver delivery or navigation acknowledgment.
 
-## Validation dependency
+## Validation
 
-The new startObservation harness uses actual Setup/Action/NativeGameScreen and
-the real local store with controlled persistence. Its injected host callback
-control intentionally bypasses host disable delivery to isolate the actual busy
-guard. It is not native tap replay or evidence that UIKit delivered such a tap.
-Existing Resume cases remain untouched. The workflow delta adds this file to
-the existing post-Chromium command, with no other job/matrix/gate change.
+The actual Setup/Action/NativeGameScreen and real-store component command is
+bun test scripts/ios-native/resumeObservation.test.ts scripts/ios-native/startObservation.test.ts.
+All 21 cases passed at the unchanged five-second per-test boundary after two
+harness corrections: IIFE bundle scoping in the existing Resume fixture, and
+a preference assertion that permits React commit before or after caller
+settlement while requiring both exactly once after the actual write acknowledgment.
+No deadline, case, native assertion, runner or gate was weakened.
 
-The new component cases have NOT passed. The unchanged command
-`bun test scripts/ios-native/resumeObservation.test.ts scripts/ios-native/startObservation.test.ts`
-failed at the existing five-second boundary during page creation/bundle loading,
-then browser closure cascaded through the remaining tests. A single control
-substituting all relevant published a01d576 main source blobs into the unchanged
-Resume harness also timed out at the same boundary. No deadline was increased,
-test skipped, runner switched or CI rerun/dispatched. This proves a present
-validation dependency, not its underlying host/driver cause, nor that the new
-source is correct. The new harness also had an unwrapped-bundle DOM-global
-collision, corrected by IIFE scoping; that correction still needs a passing run.
+A minimal browser bootstrap passed, then published-main Resume source passed
+with only IIFE scoping changed. This isolated a harness bundling problem;
+the original bootstrap timeouts do not prove a host or native-driver defect.
+The existing 15 Resume assertions remain. The workflow adds the new Start
+test file to the existing post-browser-install command.
 
-Store unit cases exercise pending selection and busy rejection, accepted write,
-no-op, before/after write failure, pending/canRetry rejection and throwing
-observers. Trace tests cover fixed IDs, bounds, disabled behavior and broken
-clock/sink isolation. These are narrower than component lifecycle proof.
+The actual old-source Start control substitutes pinned a01d576
+NativeGameScreen, Setup, inputTrace and store blobs into the new harness
+without resetting source. It reaches gameplay and fails specifically on
+missing Start observation phases; it does not fail during boot.
 
-Before publication, execute the actual two-file lifecycle command successfully,
-obtain a baseline-negative Start observation control against published main,
-and correct any genuine new failures. A failed setup/boot timeout is not that
-baseline-negative signal. Keep the five-second/native assertion bounds intact.
-Fresh exact-head SFL and ordinary hosted native evidence are still required.
+The pending-selection control uses actual persistence and host callback
+delivery to isolate a real busy rejection. Its explicit callback invocation
+is not native tap replay or proof that UIKit delivered the historical tap.
+Store controls also cover acceptance, no-op, pending/canRetry, write failure
+and throwing observers. Trace controls cover privacy, bounds, shipping-disabled
+behavior and sink/clock failures. These passing controls do not localize the
+retained native input loss. Fresh exact-head review and ordinary hosted
+native observation evidence remain required before a delivery claim.
 
 ## Historical evidence
 
