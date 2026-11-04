@@ -78,5 +78,13 @@ is preserved under reports/issue-102/start-comparison-0ea-report.md and proof.js
 Tablet10 and successful phone6 both show delayed dice selection/busy UI. Neither
 establishes a busy-at-handler rejection. Tablet sender gap16.398460s spans the
 touch, video wall offset is uncalibrated, phone PTS regresses, and health143 is
-unavailable. Historical video is not proof of this new implementation. No new
-native screenshot or recording exists before ordinary new-source CI.
+unavailable. That historical video does not prove this implementation.
+
+The later [a0 ordinary run](https://github.com/hemsoft-dev/yahtzee/actions/runs/41822379653)
+positively records phone6 Start135 and preference118/91, with separate native
+UI/save proof. It failed tablet8 before Start in the Help/screenshot path.
+These observations remain historical to a0; they do not locate a failed Start.
+The [driver evidence contract](native-driver-evidence.md) adds owned pre-close
+identity and early/tail context. Application, package, trace and workflow source
+remain byte-identical to a0 for this harness-only extension. New-head hosted
+capture proof is pending; internal screenshot stages and root cause are UNKNOWN.
