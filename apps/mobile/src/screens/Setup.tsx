@@ -5,11 +5,13 @@ import { MODES } from "../local/save";
 import { Action, Label, Section, styles } from "../ui/controls";
 import { Choice } from "../ui/Choice";
 import type { Confirm } from "../ui/useConfirmation";
+import { inputTrace } from "../diagnostics/inputTrace";
 
-export function Setup({ onStart, onResume, confirm }: { onStart: (name: string) => void; onResume: () => void; confirm: Confirm }) {
+export function Setup({ onStart, onResume, confirm }: { onStart: (name: string) => void; onResume: (resumeId?: number) => void; confirm: Confirm }) {
   const { store, view, colors } = useLocalGame();
   const data = view.data!;
   const [name, setName] = useState(data.preferences.name);
+  const [resumeObservation] = useState(() => inputTrace.resumePressObservation());
   const locked = view.busy || view.canRetry;
   const discard = () => confirm("Discard saved game", "This clears the saved game from the play screen. Completed results and high scores stay on this device.", () => { void store.discard(); });
   const appearance = ["system", "light", "dark"] as const;
@@ -22,7 +24,8 @@ export function Setup({ onStart, onResume, confirm }: { onStart: (name: string) 
       {data.active ? <Section title="Your saved game">
         <View style={styles.row}><Label>{data.active.game.players[0].name} · {data.active.game.diceCount} dice</Label>
           <Label muted>{data.active.game.status === "finished" ? "Finished and saved" : `Round ${data.active.game.currentRound} of ${data.active.game.totalRounds}`}</Label></View>
-        <Action label={data.active.game.status === "finished" ? "Review saved result" : "Resume Game"} primary disabled={locked} onPress={onResume} />
+        <Action label={data.active.game.status === "finished" ? "Review saved result" : "Resume Game"} primary disabled={locked}
+          pressObservation={resumeObservation} onPress={() => onResume(resumeObservation?.request())} />
         <Action label="Discard saved game" destructive disabled={locked} onPress={discard} />
       </Section> : <>
         <Section title="Players">

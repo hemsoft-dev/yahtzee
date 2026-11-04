@@ -118,6 +118,9 @@ jobs:
         id: browsers
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node node_modules/playwright/cli.js install --with-deps chromium
+      - name: Resume handler and React commit lifecycle regression
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: bun test scripts/ios-native/resumeObservation.test.ts
       - name: Install pinned Electron binary outside the test timeout
         id: electron
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}

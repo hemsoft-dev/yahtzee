@@ -4,15 +4,23 @@ import { appendFileSync, writeFileSync } from "node:fs";
 
 const marker = "THIRD_ROLL_INPUT ";
 const phases = new Set(["boot", "heartbeat", "score-press-in", "score-press-out", "score-handler", "score-ack", "score-rejected"]);
+const resumePhases = new Set(["resume-press-in", "resume-press-out", "resume-handler",
+  "resume-observation-detached", "resume-observation-disabled", "resume-observation-superseded",
+  "resume-react-commit-loading", "resume-react-commit-setup", "resume-react-commit-play", "resume-react-commit-results"]);
 export function inputEvent(line) {
   try {
     const message = JSON.parse(line).eventMessage;
     if (typeof message !== "string") return null;
     const offset = message.indexOf(marker); if (offset < 0) return null;
     const event = JSON.parse(message.slice(offset + marker.length));
-    if (Object.keys(event).sort().join() !== "atMs,monotonicMs,phase,sequence" || !phases.has(event.phase)) return null;
+    const resume = resumePhases.has(event.phase);
+    if (Object.keys(event).sort().join() !== (resume ? "atMs,monotonicMs,phase,resumeId,sequence" : "atMs,monotonicMs,phase,sequence")
+      || (!resume && !phases.has(event.phase))) return null;
     if (!Number.isSafeInteger(event.atMs) || event.atMs < 0 || !Number.isSafeInteger(event.sequence) || event.sequence < 0
       || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0) return null;
+    if (resume && (!Number.isSafeInteger(event.resumeId) || event.resumeId < 0 || event.resumeId >= 8192
+      || (event.phase === "resume-press-in" ? event.resumeId !== event.sequence
+        : event.phase === "resume-handler" ? event.resumeId > event.sequence : event.resumeId >= event.sequence))) return null;
     return event;
   } catch { return null; }
 }
