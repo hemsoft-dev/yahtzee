@@ -21,9 +21,9 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
   // Bounded by the same 8192-record lifetime limit as the channel. The request
   // ID is the first observed activation (or unmatched handler) sequence,
   // scoped to this trace's process epoch. No native event payload is retained.
-  const requests = new Map<number, { kind: "resume" | "start"; acknowledged?: boolean; storeDone?: boolean; handled: boolean; ended: boolean; out: boolean; branches: Set<ResumeBranch> }>();
+  const requests = new Map<number, { kind: "resume" | "start" | "help"; acknowledged?: boolean; storeDone?: boolean; handled: boolean; ended: boolean; out: boolean; branches: Set<ResumeBranch> }>();
   const write = (phase: InputPhase | "resume-handler" | "resume-press-in" | "resume-press-out"
-    | `resume-observation-${ResumeEnd}` | `resume-react-commit-${ResumeBranch}` | `start-${string}` | `preference-${string}`, resumeId?: number, extra?: { startId?: number; preferenceId?: number }) => {
+    | `resume-observation-${ResumeEnd}` | `resume-react-commit-${ResumeBranch}` | `start-${string}` | `preference-${string}` | `help-${string}`, resumeId?: number, extra?: { helpId?: number; startId?: number; preferenceId?: number }) => {
     if (!enabled || sequence >= 8192) return;
     const id = sequence++;
     try { sink(INPUT_TRACE_PREFIX + JSON.stringify({ phase, atMs: clock(), monotonicMs: monotonic(), sequence: id,
@@ -32,19 +32,20 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
     return id;
   };
   const emit = (phase: InputPhase) => { write(phase); };
-  const allocate = (phase: "resume-press-in" | "resume-handler" | "start-press-in" | "start-handler") => {
+  const allocate = (phase: "resume-press-in" | "resume-handler" | "start-press-in" | "start-handler" | "help-press-in" | "help-handler") => {
     if (!enabled || sequence >= 8192) return;
     const id = sequence;
-    requests.set(id, { kind: phase.startsWith("start-") ? "start" : "resume", handled: phase.endsWith("handler"), ended: false, out: false, branches: new Set() });
-    if (phase.startsWith("start-")) write(phase, undefined, { startId: id }); else write(phase, id);
+    requests.set(id, { kind: phase.startsWith("help-") ? "help" : phase.startsWith("start-") ? "start" : "resume", handled: phase.endsWith("handler"), ended: false, out: false, branches: new Set() });
+    if (phase.startsWith("help-")) write(phase, undefined, { helpId: id }); else if (phase.startsWith("start-")) write(phase, undefined, { startId: id }); else write(phase, id);
     return id;
   };
-  const requestWrite = (kind: "resume" | "start", suffix: string, id: number) => {
+  const requestWrite = (kind: "resume" | "start" | "help", suffix: string, id: number) => {
     if (kind === "resume") write(`resume-${suffix}` as `resume-observation-${ResumeEnd}`, id);
+    else if (kind === "help") write(`help-${suffix}`, undefined, { helpId: id });
     else write(`start-${suffix}`, undefined, { startId: id });
   };
   const preferences = new Map<number, { kind: "dice" | "ai"; active: boolean; ack: boolean; done: boolean; committed: boolean }>();
-  const pressObservation = (kind: "resume" | "start"): ResumePressObservation | undefined => {
+  const pressObservation = (kind: "resume" | "start" | "help"): ResumePressObservation | undefined => {
       if (!enabled) return;
       let id: number | undefined, attached = true, disabled = false;
       let activatedAt: number | undefined;
@@ -85,6 +86,22 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
     emit,
     resumePressObservation: () => pressObservation("resume"),
     startPressObservation: () => pressObservation("start"),
+    helpPressObservation: () => pressObservation("help"),
+    helpCallback<T>(callback: () => T, pressId?: number): T {
+      const pending = pressId === undefined ? undefined : requests.get(pressId);
+      let id: number | undefined;
+      if (pending?.kind === "help" && !pending.ended && !pending.handled) {
+        pending.handled = true; id = pressId; requestWrite("help", "handler", id!);
+      } else id = allocate("help-handler");
+      try {
+        const result = callback();
+        if (id !== undefined) requestWrite("help", "callback-returned", id);
+        return result;
+      } catch (error) {
+        if (id !== undefined) requestWrite("help", "callback-threw", id);
+        throw error;
+      }
+    },
     beginResume(id?: number) {
       const pending = id === undefined ? undefined : requests.get(id);
       if (!pending || pending.kind !== "resume" || pending.ended || pending.handled) return allocate("resume-handler");

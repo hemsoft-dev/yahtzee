@@ -9,6 +9,15 @@ import test from "node:test";
 import { inputEvent, inputTraceUsable, startInputLog } from "./inputLog.mjs";
 
 const line = (phase = "score-handler", extra = {}) => JSON.stringify({ eventMessage: "THIRD_ROLL_INPUT " + JSON.stringify({ phase, atMs: 123, monotonicMs: 10, sequence: 1, ...extra }), privateOSMetadata: "never retained" });
+test("Help parser accepts only finite private numeric schema and valid phase/sequence relationships", () => {
+  for (const phase of ["help-press-in", "help-press-out", "help-handler", "help-callback-returned", "help-callback-threw", "help-observation-detached", "help-observation-disabled", "help-observation-superseded"]) {
+    const helpId = phase === "help-press-in" ? 1 : 0;
+    assert.equal(inputEvent(line(phase, { helpId }))?.phase, phase);
+    for (const extra of [{ helpId, route: "/private" }, { helpId: -1 }, { helpId: 8192 }, { helpId, sequence: 8192 }, { helpId, atMs: -1 }, { helpId, nativeEvent: {} }]) assert.equal(inputEvent(line(phase, extra)), null);
+  }
+  assert.equal(inputEvent(line("help-native-ack", { helpId: 0 })), null);
+  assert.equal(inputEvent(line("help-callback-returned", { helpId: 1 })), null);
+});
 function harness(options = {}) {
   const child = new EventEmitter(); child.stdout = new PassThrough(); const signals = [];
   child.kill = (signal) => {

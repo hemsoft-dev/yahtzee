@@ -42,6 +42,7 @@ function Content({ playing, resumeId, resumeCommitted, startId, startCommitted, 
 }
 export function NativeGameScreen({ onHistory, onHelp }: { onHistory: () => void; onHelp: () => void }) {
   const { store, view, colors } = useLocalGame();
+  const [helpPress] = useState(() => inputTrace.helpPressObservation());
   // Keep the request ID in the same React update as the existing screen state.
   // Suspended/abandoned renders must not borrow a later request's ID from a ref.
   const [{ playing, resumeId, startId }, setScreen] = useState<{ playing: boolean; resumeId?: number; startId?: number }>({ playing: false });
@@ -87,7 +88,7 @@ export function NativeGameScreen({ onHistory, onHelp }: { onHistory: () => void;
   return <SafeAreaView edges={["bottom", "left", "right"]} style={[styles.screen, { backgroundColor: colors.page }]}>
     <View style={{ flexDirection: "row", paddingHorizontal: 12 }}>
       <View style={{ flex: 1 }}><Action label="History" disabled={!view.data} onPress={onHistory} /></View>
-      <View style={{ flex: 1 }}><Action label="Help" onPress={onHelp} /></View>
+      <View style={{ flex: 1 }}><Action label="Help" pressObservation={helpPress} onPress={() => inputTrace.helpCallback(onHelp, helpPress?.request())} /></View>
     </View>
     <SaveStatus confirm={confirm} />
     <Content key={view.generation} playing={playing} resumeId={resumeId} resumeCommitted={resumeCommitted} startId={startId} startCommitted={startCommitted} start={(name, pressId, selections) => { void start(name, pressId, selections); }}

@@ -1,6 +1,22 @@
 import { test, expect } from "bun:test";
 import { createInputTrace, INPUT_TRACE_PREFIX } from "../../../apps/mobile/src/diagnostics/inputTrace";
 
+test("Help correlation preserves callback return/error, bounds, cancellation and diagnostic isolation", () => {
+  const lines: string[] = [], trace = createInputTrace(true, (line) => lines.push(line));
+  const press = trace.helpPressObservation()!;
+  press.pressIn(10); press.disabled(true); press.pressOut(11);
+  expect(press.request()).toBeUndefined();
+  const original = new Error("PRIVATE");
+  expect(() => trace.helpCallback(() => { throw original; }, press.request())).toThrow(original);
+  expect(lines.map((line) => JSON.parse(line.slice(INPUT_TRACE_PREFIX.length)).phase)).toEqual(["help-press-in", "help-observation-disabled", "help-handler", "help-callback-threw"]);
+  for (let i = 0; i < 9000; i++) trace.helpCallback(() => 42);
+  expect(lines.length).toBe(8192);
+  for (const broken of [createInputTrace(false, () => { throw original; }), createInputTrace(true, () => { throw original; }), createInputTrace(true, () => {}, () => { throw original; })]) {
+    expect(broken.helpCallback(() => original)).toBe(original);
+    let caught; try { broken.helpCallback(() => { throw original; }); } catch (e) { caught = e; } expect(caught).toBe(original);
+  }
+});
+
 test("shipping trace is inert and does not schedule work", () => {
   const lines: string[] = [];
   const trace = createInputTrace(false, (line) => lines.push(line));

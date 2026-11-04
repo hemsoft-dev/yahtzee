@@ -4,6 +4,7 @@ import { appendFileSync, writeFileSync } from "node:fs";
 
 const marker = "THIRD_ROLL_INPUT ";
 const phases = new Set(["boot", "heartbeat", "score-press-in", "score-press-out", "score-handler", "score-ack", "score-rejected"]);
+const helpPhases = new Set(["help-press-in", "help-press-out", "help-handler", "help-callback-returned", "help-callback-threw", ...["detached", "disabled", "superseded"].map((p) => `help-observation-${p}`)]);
 const resumePhases = new Set(["resume-press-in", "resume-press-out", "resume-handler",
   "resume-observation-detached", "resume-observation-disabled", "resume-observation-superseded",
   "resume-react-commit-loading", "resume-react-commit-setup", "resume-react-commit-play", "resume-react-commit-results"]);
@@ -34,6 +35,13 @@ export function inputEvent(line) {
     const event = JSON.parse(message.slice(offset + marker.length));
     if (!Number.isSafeInteger(event.sequence) || event.sequence < 0 || event.sequence >= 8192) return null;
     if (startPhases.has(event.phase) || preferencePhases.has(event.phase) || ["start-preference-dice-intent", "start-preference-ai-intent"].includes(event.phase)) return setupEvent(event);
+    if (helpPhases.has(event.phase)) {
+      if (Object.keys(event).sort().join() !== "atMs,helpId,monotonicMs,phase,sequence"
+        || !Number.isSafeInteger(event.atMs) || event.atMs < 0 || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0
+        || !Number.isSafeInteger(event.helpId) || event.helpId < 0 || event.helpId >= 8192
+        || (event.phase === "help-press-in" ? event.helpId !== event.sequence : event.phase === "help-handler" ? event.helpId > event.sequence : event.helpId >= event.sequence)) return null;
+      return event;
+    }
     const resume = resumePhases.has(event.phase);
     if (Object.keys(event).sort().join() !== (resume ? "atMs,monotonicMs,phase,resumeId,sequence" : "atMs,monotonicMs,phase,sequence")
       || (!resume && !phases.has(event.phase))) return null;
