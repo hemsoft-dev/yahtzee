@@ -11,9 +11,10 @@ contact address, store account, signed artifact or private identity is published
 - [Rules and support](https://hemsoft-dev.github.io/yahtzee/support.html)
 - [Privacy policy](https://hemsoft-dev.github.io/yahtzee/privacy.html)
 
-These are deployment targets until the first successful main-branch deployment
-and unauthenticated HTTPS verification. Record that receipt in
-[issue #49](https://github.com/hemsoft-dev/yahtzee/issues/49) after merge. No App
+These URLs are live on GitHub Pages. The existing main-branch workflow publishes
+site changes after review and merge. Retain source-bound deployment and
+unauthenticated HTTPS evidence with each delivery. Initial publication is tracked
+in [issue #49](https://github.com/hemsoft-dev/yahtzee/issues/49). No App
 Store link or badge is shown before a verified listing exists. The primary
 prerelease action opens the rules; release tracking is linked alongside it.
 
@@ -57,10 +58,12 @@ The [release brief](../docs/mobile-release-brief.md) controls launch claims.
 Native source and unsigned simulator evidence establish development behavior;
 signed-device, backup/restore and privacy acceptance remain release gates.
 
-The two original PNGs are unaltered simulator captures of empty setup and Help,
-with no player information or test records. [Provenance](assets/provenance.json)
-records the exact source, CI artifact and hashes. They illustrate the current
-development UI, not final App Store screenshots. No fictional fixture or played
+The two original PNGs are unaltered simulator captures of Setup and Help from
+different development sources. Setup shows the fictional player name Maya; neither
+image shows a played game or test records. [Provenance](assets/provenance.json)
+records each capture's source, CI artifact, dimensions and hash, and the Setup image
+it replaced. They illustrate development UI, not final App Store screenshots or
+current-head native acceptance. No fictional fixture or played
 score is represented as release evidence.
 
 The site retains [DESIGN.md](../DESIGN.md), bundled Manrope with its
