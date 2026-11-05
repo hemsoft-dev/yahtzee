@@ -8,10 +8,43 @@ export type PreferenceObservation = { id: number; kind: "dice" | "ai"; value: nu
 const storePhases = new Set<StoreObservationPhase>(["decision-busy", "decision-accepted", "decision-can-retry", "decision-pending", "decision-no-data",
   "write-begin", "write-ack", "write-failed", "operation-failed", "no-op", "settled-success", "settled-failure"]);
 type ResumeEnd = "detached" | "disabled" | "superseded";
+/** Passive hooks only the Resume factory implements. Events are read here as validated primitives and never retained. */
+export type ResumeNativeTouch = {
+  activated: (event: unknown) => void;
+  props: { onTouchStart: (event: unknown) => void; onTouchEnd: (event: unknown) => void; onTouchCancel: (event: unknown) => void };
+};
 export type ResumePressObservation = {
   attach: () => void; unmount: () => void; disabled: (disabled: boolean) => void;
   pressIn: (eventTime?: number) => void; pressOut: (eventTime?: number) => void; request: () => number | undefined;
+  nativeTouch?: ResumeNativeTouch;
 };
+type ChangedTouch = { identifier: number; time: number | undefined };
+const touchIdentifier = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+const touchTime = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+/** Undefined means this payload cannot support correlation. A hostile or malformed payload never throws out. */
+function changedTouches(event: unknown): ChangedTouch[] | undefined {
+  try {
+    const changed: unknown = (event as { nativeEvent: { changedTouches: unknown } }).nativeEvent.changedTouches;
+    if (!Array.isArray(changed) || changed.length === 0) return;
+    const touches = changed.map((touch: { identifier: unknown; timestamp: unknown }) => ({ identifier: touchIdentifier(touch.identifier), time: touchTime(touch.timestamp) }));
+    return touches.every((touch) => touch.identifier !== undefined) ? touches as ChangedTouch[] : undefined;
+  } catch { return; }
+}
+/** The one touch that began this activation. Simultaneous or inconsistent touches leave it UNKNOWN. */
+function activationTouch(event: unknown) {
+  const [touch, other] = changedTouches(event) ?? [];
+  if (!touch || other || touch.time === undefined) return;
+  try {
+    const { identifier, timestamp } = (event as { nativeEvent: { identifier: unknown; timestamp: unknown } }).nativeEvent;
+    return identifier === touch.identifier && timestamp === touch.time ? { identifier: touch.identifier, time: touch.time } : undefined;
+  } catch { return; }
+}
+/** The bound touch's time, "other" if this payload does not name it, or undefined if that cannot be known. */
+function boundTouchTime(event: unknown, identifier: number) {
+  const matches = changedTouches(event)?.filter((touch) => touch.identifier === identifier);
+  if (!matches) return;
+  return matches.length === 0 ? "other" as const : matches.length === 1 ? matches[0].time : undefined;
+}
 export type PickerSheetPhase = "native-call" | "native-returned" | "native-threw" | "callback-cancel" | "callback-unknown" | "inline-fallback" | `callback-option-${0 | 1 | 2 | 3}`;
 export type PickerSheetObservation = (phase: PickerSheetPhase) => void;
 
@@ -34,7 +67,7 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
   // scoped to this trace's process epoch. No native event payload is retained.
   const requests = new Map<number, { kind: "resume" | "start" | "help" | "picker"; acknowledged?: boolean; storeDone?: boolean; handled: boolean; ended: boolean; out: boolean; branches: Set<ResumeBranch> }>();
   const write = (phase: InputPhase | "resume-handler" | "resume-press-in" | "resume-press-out"
-    | `resume-observation-${ResumeEnd}` | `resume-react-commit-${ResumeBranch}` | `start-${string}` | `preference-${string}` | `help-${string}` | `picker-${string}`, resumeId?: number, extra?: { pickerId?: number; helpId?: number; startId?: number; preferenceId?: number }) => {
+    | `resume-observation-${ResumeEnd}` | `resume-react-commit-${ResumeBranch}` | `resume-touch-${"end" | "cancel"}` | `start-${string}` | `preference-${string}` | `help-${string}` | `picker-${string}`, resumeId?: number, extra?: { pickerId?: number; helpId?: number; startId?: number; preferenceId?: number }) => {
     if (!enabled || sequence >= 8192) return;
     const id = sequence++;
     try { sink(INPUT_TRACE_PREFIX + JSON.stringify({ phase, atMs: clock(), monotonicMs: monotonic(), sequence: id,
@@ -96,7 +129,38 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
     };
   return {
     emit,
-    resumePressObservation: () => pressObservation("resume"),
+    resumePressObservation(): ResumePressObservation | undefined {
+      const press = pressObservation("resume"); if (!press) return;
+      // Memory only, one per control, replaced by each activation. It reads a native
+      // identifier and time to reject another or newer gesture; neither is ever written.
+      let bound: { id: number; identifier: number; at: number } | undefined;
+      const boundary = (kind: "end" | "cancel") => (event: unknown) => {
+        if (!bound) return;
+        const time = boundTouchTime(event, bound.identifier);
+        // Another finger, or an older gesture's late delivery: this gesture's boundary can still arrive.
+        if (time === "other" || (time !== undefined && time < bound.at)) return;
+        const { id } = bound; bound = undefined; // Passed, known or not. A later match would be another gesture.
+        if (time !== undefined && !requests.get(id)!.ended) write(`resume-touch-${kind}`, id);
+      };
+      return { ...press,
+        pressIn(time) { bound = undefined; press.pressIn(time); },
+        nativeTouch: {
+          activated(event) {
+            const id = press.request(), touch = activationTouch(event);
+            if (id !== undefined && touch) bound = { id, identifier: touch.identifier, at: touch.time };
+          },
+          props: {
+            onTouchStart(event) {
+              if (!bound) return;
+              const time = boundTouchTime(event, bound.identifier);
+              // Native identifiers are reused. A later start with no press-in means this correlation is over.
+              if (time !== "other" && (time === undefined || time > bound.at)) bound = undefined;
+            },
+            onTouchEnd: boundary("end"), onTouchCancel: boundary("cancel"),
+          },
+        },
+      };
+    },
     startPressObservation: () => pressObservation("start"),
     pickerPressObservation(): PickerPressObservation | undefined {
       const press = pressObservation("picker"); if (!press) return;

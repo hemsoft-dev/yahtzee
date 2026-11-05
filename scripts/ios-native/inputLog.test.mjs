@@ -92,6 +92,28 @@ test("Resume protocol retains only a bounded numeric correlation ID and fixed ob
     ["heartbeat", "resume-handler", "resume-react-commit-play", "score-ack"]);
 });
 
+test("native touch boundary phases accept one bounded ID only and reject native values or other touch phases", async () => {
+  for (const phase of ["resume-touch-end", "resume-touch-cancel"]) {
+    assert.equal(inputEvent(line(phase, { resumeId: 0 })).resumeId, 0);
+    for (const extra of [{ resumeId: 1 }, { resumeId: 2 }, { resumeId: -1 }, { resumeId: "0" }, { resumeId: 8192 }, { resumeId: 0, sequence: 8192 }, {},
+      { resumeId: 0, identifier: 1 }, { resumeId: 0, timestamp: 1 }, { resumeId: 0, changedTouches: [] }, { resumeId: 0, pageX: 1 }, { resumeId: 0, target: 1 }, { resumeId: 0, reason: "PRIVATE" }, { resumeId: 0, nativeEvent: {} }]) {
+      assert.equal(inputEvent(line(phase, extra)), null);
+    }
+    assert.equal(inputEvent(line(phase, { helpId: 0 })), null);
+  }
+  for (const phase of ["resume-touch-start", "resume-touch-move", "resume-touch-ended", "resume-native-cancel", "start-touch-end", "help-touch-end", "picker-touch-cancel"]) {
+    for (const id of ["resumeId", "startId", "helpId", "pickerId"]) assert.equal(inputEvent(line(phase, { [id]: 0 })), null);
+  }
+  const h = harness(); heartbeat(h);
+  const phases = ["resume-press-in", "resume-touch-cancel", "resume-press-out"];
+  for (const [index, phase] of phases.entries()) h.child.stdout.write(line(phase, { resumeId: 1, sequence: index + 1 }) + "\n");
+  const result = await h.stop();
+  assert.equal(inputTraceUsable(result), true);
+  assert.deepEqual(h.read().trim().split("\n").map(JSON.parse).slice(1).map((record) => record.phase), phases);
+  // Collector health stays unrelated to which phases arrived.
+  assert.equal(inputTraceUsable({ ...result, exitCode: 143, exitSignal: null }), false);
+});
+
 test("streamed press, handler and React commit retain one ID without changing capture health", async () => {
   const h = harness(); heartbeat(h);
   const phases = ["resume-press-in", "resume-handler", "resume-react-commit-play", "resume-press-out"];

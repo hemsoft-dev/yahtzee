@@ -1,5 +1,6 @@
 import { test, expect } from "bun:test";
 import { createInputTrace, INPUT_TRACE_PREFIX, pickerSheetCallbackPhase } from "../../../apps/mobile/src/diagnostics/inputTrace";
+import { createDoneTrace } from "../../../apps/mobile/src/diagnostics/doneTrace";
 
 test("picker retirement keeps late callbacks on their original ID; clocks/sinks/cap remain isolated", () => {
   const lines: string[] = [], trace = createInputTrace(true, line => lines.push(line));
@@ -232,4 +233,156 @@ test("picker callback classification stays finite without changing selection eli
     [{ valueOf() { throw new Error("must not coerce private values"); } }, 4, "callback-unknown"],
   ];
   for (const [index, count, expected] of cases) expect(pickerSheetCallbackPhase(index as number, count)).toBe(expected);
+});
+
+const nativeTouch = (identifier: unknown, timestamp: unknown) => ({ identifier, timestamp });
+const touchEvent = (changed: unknown, identifier?: unknown, timestamp?: unknown) => ({ nativeEvent: { changedTouches: changed, identifier, timestamp } });
+const single = (identifier: number, timestamp: number) => touchEvent([nativeTouch(identifier, timestamp)], identifier, timestamp);
+function touchTrace() {
+  const lines: string[] = [], trace = createInputTrace(true, (line) => lines.push(line), () => 5, () => 1);
+  const press = trace.resumePressObservation()!, touch = press.nativeTouch!;
+  const activate = (identifier: number, time: number) => { press.pressIn(time); touch.activated(single(identifier, time)); return press.request()!; };
+  const records = () => lines.map((line) => JSON.parse(line.slice(INPUT_TRACE_PREFIX.length)) as { phase: string; resumeId?: number; sequence: number });
+  const boundaries = () => records().filter((record) => record.phase.startsWith("resume-touch-")).map((record) => [record.phase, record.resumeId]);
+  return { lines, trace, press, touch, activate, records, boundaries };
+}
+
+test("only the Resume factory offers native touch hooks, and only the three passive ones", () => {
+  const t = touchTrace();
+  expect(Object.keys(t.touch.props).sort()).toEqual(["onTouchCancel", "onTouchEnd", "onTouchStart"]);
+  for (const other of [t.trace.startPressObservation(), t.trace.helpPressObservation(), t.trace.pickerPressObservation(), createDoneTrace(true, () => {}).routeObservation()?.press]) {
+    expect(other).toBeDefined(); expect(other!.nativeTouch).toBeUndefined();
+  }
+  expect(createInputTrace(false, () => { throw new Error("disabled"); }).resumePressObservation()).toBeUndefined();
+});
+
+test("touch end and cancel keep their activation ID in every order with press-out and handler, retaining no native value", () => {
+  const orders = [["boundary", "out", "handler"], ["boundary", "handler", "out"], ["out", "boundary", "handler"], ["out", "handler", "boundary"], ["handler", "boundary", "out"], ["handler", "out", "boundary"]];
+  for (const [hook, phase] of [["onTouchEnd", "resume-touch-end"], ["onTouchCancel", "resume-touch-cancel"]] as const) for (const order of orders) {
+    const t = touchTrace(), id = t.activate(987654, 123456.75);
+    const steps = {
+      boundary: () => expect(t.touch.props[hook](single(987654, 123999.25))).toBeUndefined(),
+      out: () => t.press.pressOut(123999.25),
+      handler: () => expect(t.trace.beginResume(t.press.request())).toBe(id),
+    };
+    for (const step of order) steps[step as keyof typeof steps]();
+    const names = { boundary: phase, out: "resume-press-out", handler: "resume-handler" };
+    expect(t.records().map((record) => record.phase)).toEqual(["resume-press-in", ...order.map((step) => names[step as keyof typeof names])]);
+    expect(t.records().every((record) => record.resumeId === id)).toBe(true);
+    for (const record of t.records()) expect(Object.keys(record).sort()).toEqual(["atMs", "monotonicMs", "phase", "resumeId", "sequence"]);
+    expect(t.lines.join()).not.toMatch(/987654|123456|123999|identifier|timestamp|changedTouches/);
+  }
+});
+
+test("a boundary is one-shot and never fabricates a handler, a commit or a closed observation", () => {
+  const t = touchTrace(), id = t.activate(1, 10);
+  t.touch.props.onTouchCancel(single(1, 20)); t.touch.props.onTouchEnd(single(1, 30)); t.touch.props.onTouchCancel(single(1, 40));
+  expect(t.boundaries()).toEqual([["resume-touch-cancel", id]]);
+  t.trace.resumeReactCommit(id, "play");
+  expect(t.records().map((record) => record.phase)).toEqual(["resume-press-in", "resume-touch-cancel"]);
+  // Passive: a later original handler for this activation remains reachable and unsuppressed.
+  expect(t.press.request()).toBe(id);
+  expect(t.trace.beginResume(t.press.request())).toBe(id);
+});
+
+test("malformed, missing or duplicate boundary touches stay UNKNOWN and end the correlation without throwing", () => {
+  const hostile = new Proxy({}, { get() { throw new Error("PRIVATE"); } });
+  const malformed: unknown[] = [undefined, null, 7, {}, { nativeEvent: null }, hostile, { nativeEvent: hostile }, touchEvent(undefined), touchEvent({ length: 1, 0: nativeTouch(1, 20) }), touchEvent([]), touchEvent(hostile),
+    touchEvent([null]), touchEvent([nativeTouch("1", 20)]), touchEvent([nativeTouch(1.5, 20)]), touchEvent([nativeTouch(-1, 20)]), touchEvent([nativeTouch(1, undefined)]), touchEvent([nativeTouch(1, Number.NaN)]),
+    touchEvent([nativeTouch(1, Infinity)]), touchEvent([nativeTouch(1, -1)]), touchEvent([nativeTouch(1, "20")]), touchEvent([nativeTouch(1, 20), nativeTouch(1, 21)]), touchEvent([nativeTouch(1, 20), null]), touchEvent([nativeTouch(1, 20), nativeTouch("2", 20)]), touchEvent([hostile])];
+  for (const hook of ["onTouchEnd", "onTouchCancel"] as const) for (const event of malformed) {
+    const t = touchTrace(); t.activate(1, 10);
+    expect(t.touch.props[hook](event)).toBeUndefined();
+    t.touch.props[hook](single(1, 30));
+    expect(t.boundaries()).toEqual([]);
+    expect(t.records().map((record) => record.phase)).toEqual(["resume-press-in"]);
+    expect(t.press.request()).toBeDefined();
+  }
+});
+
+test("an activation whose identity or time is unclear leaves its boundary UNKNOWN while the press record stays", () => {
+  const unclear: unknown[] = [undefined, null, {}, touchEvent(undefined, 1, 10), touchEvent([], 1, 10), touchEvent([nativeTouch(1, 10), nativeTouch(2, 10)], 1, 10), touchEvent([nativeTouch(1, 10)], 2, 10), touchEvent([nativeTouch(1, 10)], undefined, 10),
+    touchEvent([nativeTouch(1, 10)], 1, 11), touchEvent([nativeTouch(1, 10)], 1, undefined), touchEvent([nativeTouch(1.5, 10)], 1.5, 10), touchEvent([nativeTouch(-1, 10)], -1, 10), touchEvent([nativeTouch("1", 10)], "1", 10), touchEvent([nativeTouch(1, Number.NaN)], 1, Number.NaN),
+    new Proxy({}, { get() { throw new Error("PRIVATE"); } })];
+  for (const event of unclear) {
+    const t = touchTrace(); t.press.pressIn(10);
+    expect(() => t.touch.activated(event)).not.toThrow();
+    t.touch.props.onTouchEnd(single(1, 20));
+    expect(t.boundaries()).toEqual([]);
+    expect(t.records().map((record) => record.phase)).toEqual(["resume-press-in"]);
+  }
+});
+
+test("a late old boundary and a reused identifier never reach a newer gesture", () => {
+  const t = touchTrace(), first = t.activate(1, 10), second = t.activate(1, 30);
+  expect(second).not.toBe(first);
+  t.touch.props.onTouchEnd(single(1, 20)); t.touch.props.onTouchCancel(single(1, 29.5));
+  expect(t.boundaries()).toEqual([]); // Older than this activation, so the real boundary can still arrive.
+  t.touch.props.onTouchEnd(single(1, 40));
+  expect(t.boundaries()).toEqual([["resume-touch-end", second]]);
+  expect(t.records().filter((record) => record.resumeId === first).map((record) => record.phase)).toEqual(["resume-press-in", "resume-observation-superseded"]);
+  const replaced = touchTrace(); replaced.activate(1, 10); replaced.activate(2, 30);
+  replaced.touch.props.onTouchEnd(single(1, 40));
+  expect(replaced.boundaries()).toEqual([]);
+});
+
+test("a new gesture's touch start without press-in ends the old correlation; its own start and other fingers do not", () => {
+  const t = touchTrace(), id = t.activate(1, 10);
+  for (const event of [single(1, 10), single(1, 5), single(2, 15), touchEvent([nativeTouch(2, 15), nativeTouch(3, 15)])]) expect(t.touch.props.onTouchStart(event)).toBeUndefined();
+  t.touch.props.onTouchEnd(single(1, 20));
+  expect(t.boundaries()).toEqual([["resume-touch-end", id]]);
+  for (const stale of [single(1, 50), touchEvent([nativeTouch(1, undefined)]), touchEvent(undefined), undefined, touchEvent([nativeTouch(1, 50), nativeTouch(1, 51)])]) {
+    const reused = touchTrace(); reused.activate(1, 10);
+    reused.touch.props.onTouchStart(stale);
+    reused.touch.props.onTouchEnd(single(1, 60));
+    expect(reused.boundaries()).toEqual([]);
+  }
+});
+
+test("another finger's boundary is ignored and a shared lift still matches exactly one bound touch", () => {
+  const t = touchTrace(), id = t.activate(1, 10);
+  t.touch.props.onTouchCancel(single(2, 20));
+  expect(t.boundaries()).toEqual([]);
+  t.touch.props.onTouchEnd(touchEvent([nativeTouch(2, 30), nativeTouch(1, 30)], 2, 30));
+  expect(t.boundaries()).toEqual([["resume-touch-end", id]]);
+});
+
+test("a closed observation stays closed; a handled one may still report after unmount; replay allocates nothing", () => {
+  for (const close of ["disabled", "detached", "superseded-by-rejected"] as const) {
+    const t = touchTrace(), id = t.activate(1, 10);
+    if (close === "disabled") t.press.disabled(true); else if (close === "detached") t.press.unmount();
+    else { expect(t.trace.beginResume(t.press.request())).toBe(id); t.press.disabled(true); t.press.pressIn(30); t.touch.activated(single(1, 30)); }
+    t.touch.props.onTouchEnd(single(1, 40)); t.touch.props.onTouchCancel(single(1, 40));
+    expect(t.boundaries()).toEqual([]);
+  }
+  const rebound = touchTrace(); rebound.press.disabled(true); rebound.press.pressIn(10); rebound.touch.activated(single(1, 10));
+  rebound.press.disabled(false); rebound.touch.props.onTouchEnd(single(1, 20));
+  expect(rebound.lines).toEqual([]);
+  const handled = touchTrace(), id = handled.activate(1, 10);
+  handled.trace.beginResume(handled.press.request()); handled.press.unmount();
+  handled.touch.props.onTouchCancel(single(1, 20));
+  expect(handled.boundaries()).toEqual([["resume-touch-cancel", id]]);
+  const strict = touchTrace();
+  strict.press.attach(); strict.press.unmount(); strict.press.attach();
+  strict.touch.props.onTouchStart(single(1, 5)); strict.touch.props.onTouchEnd(single(1, 6)); strict.touch.props.onTouchCancel(single(1, 7));
+  expect(strict.lines).toEqual([]);
+});
+
+test("boundary observation stays capped, private and isolated from broken clocks or sinks", () => {
+  const lines: string[] = [];
+  const fail = () => { throw new Error("PRIVATE ERROR"); };
+  for (const fault of ["none", "sink", "wall", "monotonic"] as const) {
+    const trace = createInputTrace(true, fault === "sink" ? fail : (line) => lines.push(line), fault === "wall" ? fail : () => 123, fault === "monotonic" ? fail : () => 1);
+    const press = trace.resumePressObservation()!;
+    expect(() => {
+      for (let i = 0; i < 9000; i++) {
+        press.pressIn(i); press.nativeTouch!.activated(single(1, i));
+        press.nativeTouch!.props.onTouchStart(single(1, i));
+        press.nativeTouch!.props[i % 2 ? "onTouchEnd" : "onTouchCancel"](single(1, i));
+      }
+    }).not.toThrow();
+  }
+  expect(lines.length).toBe(8192);
+  expect(lines.join()).not.toContain("PRIVATE");
+  expect(lines.every((line) => Object.keys(JSON.parse(line.slice(INPUT_TRACE_PREFIX.length))).sort().join() === "atMs,monotonicMs,phase,resumeId,sequence")).toBe(true);
 });

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
 
 // Real React DOM commits of NativeGameScreen + Setup + Action. Only the store,
@@ -8,6 +9,10 @@ import { chromium, type Browser, type Page } from "playwright";
 const root = resolve(import.meta.dir, "../..");
 const require = createRequire(import.meta.url);
 let browser: Browser, script: string, shippingScript: string;
+let touchScript: string, touchShippingScript: string, baselineScript: string, baselineShippingScript: string;
+const BASELINE_SHA256 = "58ca3dc7c4d1e494ab199e6142c102b5bcd17ceac229d359d056330523e7ca24";
+// RESUME_BOUNDARY_BASELINE=1 runs the boundary regressions against the pinned 2453 Action.
+const boundarySource = () => process.env.RESUME_BOUNDARY_BASELINE === "1" ? baselineScript : touchScript;
 const entry = `
 import React, { StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -121,9 +126,72 @@ export function Provider({ children }) {
 }
 export function useLocalGame() { return useContext(Context); }
 `;
+// Records each Pressable's real props, then renders the real react-native-web one.
+const capture = `
+import React, { forwardRef, useLayoutEffect } from 'react';
+import { Pressable as Host } from 'rnw-host';
+export * from 'rnw-host';
+export const Pressable = forwardRef((props, ref) => {
+  useLayoutEffect(() => { (window.pressableProps ??= {})[props.accessibilityLabel] = props; });
+  return <Host {...props} ref={ref} />;
+});
+`;
+// Adapter events carry RN's documented NativeTouchEvent shape. They are fixtures, never native evidence.
+const touchEntry = `
+import { Action } from './apps/mobile/src/ui/controls';
+import { createInputTrace } from './apps/mobile/src/diagnostics/inputTrace';
+import { createDoneTrace } from './apps/mobile/src/diagnostics/doneTrace';
+const button = (label) => document.querySelector('[aria-label="' + label + '"]');
+window.touchEndSeen = [];
+document.addEventListener('touchend', (event) => { window.touchEndSeen.push(event.defaultPrevented); });
+Object.assign(window.fixture, {
+  dispatch(type, label, changed, active = []) {
+    const target = button(label);
+    const shape = (touch) => ({ force: 0, target, clientX: 8, clientY: 8, pageX: 8, pageY: 8, ...touch });
+    const event = new Event(type, { bubbles: true, cancelable: true, composed: true });
+    Object.defineProperties(event, {
+      changedTouches: { value: changed.map(shape) }, touches: { value: active.map(shape) }, targetTouches: { value: active.map(shape) },
+      timeStamp: { value: changed[0].timestamp }, timestamp: { value: changed[0].timestamp }, identifier: { value: changed[0].identifier },
+    });
+    target.dispatchEvent(event);
+  },
+  click(label) { button(label).click(); },
+  retained(hook, label, nativeEvent) {
+    try { return { threw: false, returned: window.pressableProps[label][hook]({ nativeEvent }) === undefined }; }
+    catch { return { threw: true }; }
+  },
+  catalog() {
+    return Object.fromEntries(Object.entries(window.pressableProps).map(([label, props]) => [label, {
+      keys: Object.keys(props).sort(),
+      values: Object.fromEntries(Object.entries(props).filter(([, value]) => ['string', 'boolean', 'number'].includes(typeof value))),
+      originalOnPress: props.onPress === window.controlPress,
+    }]));
+  },
+  mountControls() {
+    const enabled = process.env.EXPO_PUBLIC_NATIVE_INPUT_TRACE === '1';
+    const trace = createInputTrace(enabled, () => {});
+    const done = createDoneTrace(enabled, () => {}).routeObservation();
+    window.controlPress = (...args) => { window.controlArgs = args; if (window.controlThrow) throw window.controlThrow; return 'original result'; };
+    app = createRoot(document.getElementById('root'));
+    flushSync(() => app.render(<Provider>
+      <Action label="Resume control" onPress={window.controlPress} pressObservation={trace.resumePressObservation()} />
+      <Action label="Start control" onPress={window.controlPress} pressObservation={trace.startPressObservation()} />
+      <Action label="Help control" onPress={window.controlPress} pressObservation={trace.helpPressObservation()} />
+      <Action label="Picker control" onPress={window.controlPress} pressObservation={trace.pickerPressObservation()} />
+      <Action label="Done control" onPress={window.controlPress} pressObservation={done?.press} />
+      <Action label="Plain control" onPress={window.controlPress} />
+    </Provider>));
+  },
+  invokeControl(args, thrown) {
+    window.controlThrow = thrown ? new Error('PRIVATE callback') : undefined;
+    try { return { result: window.pressableProps['Resume control'].onPress(...args), args: window.controlArgs }; }
+    catch (error) { return { same: error === window.controlThrow, args: window.controlArgs }; }
+  },
+});
+`;
 
 beforeAll(async () => {
-  async function bundle(enabled: string) {
+  async function bundle(enabled: string, variant: "plain" | "touch" | "baseline" = "plain") {
     const result = await Bun.build({ entrypoints: ["resume-fixture"], target: "browser", format: "iife",
       define: { process: "{}", "process.env.NODE_ENV": '"development"', __DEV__: "true", "process.env.EXPO_PUBLIC_NATIVE_INPUT_TRACE": JSON.stringify(enabled) },
       plugins: [{ name: "resume-component-lifecycle", setup(build) {
@@ -131,10 +199,17 @@ beforeAll(async () => {
         build.onResolve({ filter: /^(resume-store|.*\/LocalProvider)$/ }, () => ({ path: "store", namespace: "resume" }));
         build.onResolve({ filter: /^\.\/(Play|Results)$/ }, ({ path, importer }) => importer.endsWith("NativeGameScreen.tsx")
           ? { path: path.slice(2), namespace: "resume" } : undefined);
-        build.onResolve({ filter: /^react-native$/ }, () => ({ path: require.resolve("react-native-web") }));
+        build.onResolve({ filter: /^rnw-host$/ }, () => ({ path: require.resolve("react-native-web") }));
+        build.onResolve({ filter: /^react-native$/ }, () => variant === "plain" ? { path: require.resolve("react-native-web") } : { path: "capture", namespace: "resume" });
         build.onResolve({ filter: /^react-native-safe-area-context$/ }, () => ({ path: resolve(root, "tests/clients/native-safe-area.tsx") }));
+        // Exact pinned Action bytes, so normal CI needs no old Git objects.
+        if (variant === "baseline") build.onLoad({ filter: /src[\\/]ui[\\/]controls\.tsx$/ }, async () => {
+          const contents = (await Bun.file(resolve(import.meta.dir, "fixtures/resume-boundary-baseline-2453.tsx.fixture")).text()).replace(/\r\n/g, "\n");
+          if (createHash("sha256").update(contents).digest("hex") !== BASELINE_SHA256) throw new Error("Pinned Resume boundary baseline changed");
+          return { contents, loader: "tsx", resolveDir: resolve(root, "apps/mobile/src/ui") };
+        });
         build.onLoad({ filter: /.*/, namespace: "resume" }, ({ path }) => ({ loader: "tsx", resolveDir: root, contents:
-          path === "entry" ? entry : path === "store" ? store : `
+          path === "entry" ? (variant === "plain" ? entry : entry + touchEntry) : path === "store" ? store : path === "capture" ? capture : `
             import React from 'react';
             import { destination, pending } from 'resume-store';
             export function ${path}({ onPause, onAgain }) {
@@ -148,18 +223,20 @@ beforeAll(async () => {
     return result.outputs[0].text();
   }
   script = await bundle("1"); shippingScript = await bundle("0");
+  touchScript = await bundle("1", "touch"); touchShippingScript = await bundle("0", "touch");
+  baselineScript = await bundle("1", "baseline"); baselineShippingScript = await bundle("0", "baseline");
   browser = await chromium.launch({ headless: true });
 }, 30_000);
 afterAll(async () => { await browser?.close(); });
 
 type Event = { phase: string; resumeId?: number; sequence: number };
-async function fixture(mode = "play", locked = false, qualification = true) {
-  const page = await browser.newPage(); const events: Event[] = [];
+async function fixture(mode = "play", locked = false, qualification = true, source?: string, context?: Parameters<Browser["newPage"]>[0]) {
+  const page = await browser.newPage(context); const events: Event[] = [];
   page.on("console", (message) => {
     if (message.text().startsWith("THIRD_ROLL_INPUT ")) events.push(JSON.parse(message.text().slice(17)));
   });
   await page.setContent('<div id="root"></div>');
-  await page.addScriptTag({ content: qualification ? script : shippingScript });
+  await page.addScriptTag({ content: source ?? (qualification ? script : shippingScript) });
   await page.evaluate(async ({ mode, locked }) => {
     await (window as unknown as { fixture: { mount(mode: string, locked: boolean): Promise<void> } }).fixture.mount(mode, locked);
   }, { mode, locked });
@@ -399,4 +476,230 @@ test("a pending Resume can observe loading then its committed destination, but n
     await f.page.getByRole("button", { name: "Play Again fixture" }).waitFor();
     expect(f.transitions()).toEqual(initial);
   } finally { await f.page.close(); }
+});
+
+// Passive native touch boundary. The real Action, Setup, NativeGameScreen and
+// react-native-web Pressable run here; adapter events only supply RN's documented
+// payload shape. None of this proves UIKit delivery or reproduces a native failure.
+type Touch = { identifier: number; timestamp: number };
+const RESUME = "Resume Game";
+const point = (identifier: number, timestamp: number): Touch => ({ identifier, timestamp });
+const payload = (...changed: Touch[]) => ({ changedTouches: changed, identifier: changed[0].identifier, timestamp: changed[0].timestamp });
+const records = (page: Page) => page.evaluate<Event[]>("window.traceRecords");
+const phases = async (page: Page) => (await records(page)).filter((event) => event.phase.startsWith("resume-")).map((event) => event.phase);
+const dispatch = (page: Page, type: string, changed: Touch[], active: Touch[] = []) =>
+  page.evaluate(`window.fixture.dispatch(${JSON.stringify(type)}, ${JSON.stringify(RESUME)}, ${JSON.stringify(changed)}, ${JSON.stringify(active)})`);
+const retained = (page: Page, hook: string, nativeEvent: unknown) =>
+  page.evaluate<{ threw: boolean; returned?: boolean }>(`window.fixture.retained(${JSON.stringify(hook)}, ${JSON.stringify(RESUME)}, ${JSON.stringify(nativeEvent)})`);
+const phaseCount = (page: Page, phase: string, count = 1) => page.waitForFunction(
+  ({ phase, count }) => (window as unknown as { traceRecords: Event[] }).traceRecords.filter((event) => event.phase === phase).length >= count, { phase, count });
+async function touchDown(page: Page, touch: Touch, count = 1) {
+  await dispatch(page, "touchstart", [touch], [touch]);
+  await phaseCount(page, "resume-press-in", count);
+}
+const click = async (page: Page) => {
+  await page.evaluate(`window.fixture.click(${JSON.stringify(RESUME)})`);
+  await page.getByRole("button", { name: "Destination committed" }).waitFor();
+};
+
+test("pinned 2453 Action reaches the original press and handler callbacks but retains no native boundary", async () => {
+  const f = await fixture("play", false, true, baselineScript);
+  try {
+    await touchDown(f.page, point(1, 1000));
+    await dispatch(f.page, "touchend", [point(1, 1100)]);
+    await phaseCount(f.page, "resume-press-out");
+    await click(f.page);
+    expect(await phases(f.page)).toEqual(["resume-press-in", "resume-press-out", "resume-handler", "resume-react-commit-play"]);
+    expect((await retained(f.page, "onTouchEnd", payload(point(1, 1200)))).threw).toBe(true);
+    expect(await phases(f.page)).toHaveLength(4);
+  } finally { await f.page.close(); }
+});
+
+test("a delivered touch end keeps its activation ID and stays distinct from press-out and handler", async () => {
+  const f = await fixture("play", false, true, boundarySource());
+  try {
+    await touchDown(f.page, point(1, 1000));
+    await dispatch(f.page, "touchend", [point(1, 1100)]);
+    await phaseCount(f.page, "resume-press-out");
+    expect(await phases(f.page)).toEqual(["resume-press-in", "resume-touch-end", "resume-press-out"]);
+    expect((await records(f.page)).some((event) => event.phase === "resume-handler")).toBe(false);
+    await click(f.page);
+    const events = (await records(f.page)).filter((event) => event.phase.startsWith("resume-"));
+    expect(events.map((event) => event.phase)).toEqual(["resume-press-in", "resume-touch-end", "resume-press-out", "resume-handler", "resume-react-commit-play"]);
+    expect(new Set(events.map((event) => event.resumeId)).size).toBe(1);
+    for (const event of events) expect(Object.keys(event).sort()).toEqual(["atMs", "monotonicMs", "phase", "resumeId", "sequence"]);
+  } finally { await f.page.close(); }
+});
+
+for (const [hook, phase] of [["onTouchEnd", "resume-touch-end"], ["onTouchCancel", "resume-touch-cancel"]]) {
+  test(`${phase} after the handler unmounts Setup keeps the old ID and adds no navigation record`, async () => {
+    const f = await fixture("play", false, true, boundarySource());
+    try {
+      await touchDown(f.page, point(1, 1000));
+      await click(f.page);
+      const result = await retained(f.page, hook, payload(point(1, 1100)));
+      const events = (await records(f.page)).filter((event) => event.phase.startsWith("resume-") && event.phase !== "resume-press-out");
+      expect(events.map((event) => event.phase)).toEqual(["resume-press-in", "resume-handler", "resume-react-commit-play", phase]);
+      expect(new Set(events.map((event) => event.resumeId)).size).toBe(1);
+      expect(result).toEqual({ threw: false, returned: true });
+    } finally { await f.page.close(); }
+  });
+}
+
+test("a delivered touch cancel invents no handler, a reused identifier gets a new ID, and a late old cancel is not borrowed", async () => {
+  const f = await fixture("play", false, true, boundarySource());
+  try {
+    await touchDown(f.page, point(1, 1000));
+    await dispatch(f.page, "touchcancel", [point(1, 1100)]);
+    await phaseCount(f.page, "resume-press-out");
+    expect(await phases(f.page)).toEqual(["resume-press-in", "resume-touch-cancel", "resume-press-out"]);
+    await touchDown(f.page, point(1, 2000), 2);
+    await retained(f.page, "onTouchCancel", payload(point(1, 1100)));
+    await dispatch(f.page, "touchend", [point(1, 2100)]);
+    await phaseCount(f.page, "resume-press-out", 2);
+    const events = await records(f.page);
+    const [first, second] = events.filter((event) => event.phase === "resume-press-in").map((event) => event.resumeId);
+    expect(second).not.toBe(first);
+    expect(events.filter((event) => event.phase.startsWith("resume-touch-")).map((event) => [event.phase, event.resumeId]))
+      .toEqual([["resume-touch-cancel", first], ["resume-touch-end", second]]);
+    await click(f.page);
+    expect((await records(f.page)).find((event) => event.phase === "resume-handler")?.resumeId).toBe(second);
+  } finally { await f.page.close(); }
+});
+
+test("a committed disable or unmount closes the activation, so a late boundary stays UNKNOWN", async () => {
+  const disabled = await fixture("store", false, true, touchScript);
+  try {
+    await touchDown(disabled.page, point(1, 1000));
+    await command(disabled.page, "lockResume");
+    await phaseCount(disabled.page, "resume-observation-disabled");
+    await dispatch(disabled.page, "touchend", [point(1, 1100)]);
+    expect((await phases(disabled.page)).filter((phase) => phase.startsWith("resume-touch-") || phase === "resume-handler")).toEqual([]);
+    await command(disabled.page, "releaseDiscard");
+  } finally { await disabled.page.close(); }
+  const unmounted = await fixture("play", false, true, touchScript);
+  try {
+    await touchDown(unmounted.page, point(1, 1000));
+    await command(unmounted.page, "unmount");
+    expect(await retained(unmounted.page, "onTouchCancel", payload(point(1, 1100)))).toEqual({ threw: false, returned: true });
+    expect(await phases(unmounted.page)).toEqual(["resume-press-in", "resume-observation-detached"]);
+  } finally { await unmounted.page.close(); }
+});
+
+test("simultaneous touches at activation leave the boundary UNKNOWN without touching press records", async () => {
+  const f = await fixture("play", false, true, touchScript);
+  try {
+    const both = [point(1, 1000), point(2, 1000)];
+    await dispatch(f.page, "touchstart", both, both);
+    await phaseCount(f.page, "resume-press-in");
+    await dispatch(f.page, "touchend", [point(1, 1100), point(2, 1100)]);
+    await phaseCount(f.page, "resume-press-out");
+    expect(await phases(f.page)).toEqual(["resume-press-in", "resume-press-out"]);
+  } finally { await f.page.close(); }
+});
+
+test("a browser's real DOM touch tap navigates unchanged and its non-native payload stays UNKNOWN", async () => {
+  const f = await fixture("play", false, true, touchScript, { hasTouch: true });
+  try {
+    const box = await f.page.getByRole("button", { name: RESUME, exact: true }).boundingBox();
+    await f.page.touchscreen.tap(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await f.page.getByRole("button", { name: "Destination committed" }).waitFor();
+    const seen = await phases(f.page);
+    expect(seen).toContain("resume-handler"); expect(seen).toContain("resume-react-commit-play");
+    expect(seen.filter((phase) => phase.startsWith("resume-touch-"))).toEqual([]);
+  } finally { await f.page.close(); }
+});
+
+test("a failing trace sink cannot change the touch path or navigation", async () => {
+  const f = await fixture("play", false, true, touchScript);
+  try {
+    await command(f.page, "failSink");
+    await dispatch(f.page, "touchstart", [point(1, 1000)], [point(1, 1000)]);
+    await dispatch(f.page, "touchcancel", [point(1, 1100)]);
+    await click(f.page);
+  } finally { await f.page.close(); }
+});
+
+test("differential: the hooks add only boundary records and leave press order and event defaults unchanged", async () => {
+  const observed = [];
+  for (const source of [baselineScript, touchScript]) {
+    const f = await fixture("play", false, true, source);
+    try {
+      await touchDown(f.page, point(1, 1000));
+      await dispatch(f.page, "touchend", [point(1, 1100)]);
+      await phaseCount(f.page, "resume-press-out");
+      await touchDown(f.page, point(1, 2000), 2);
+      await dispatch(f.page, "touchcancel", [point(1, 2100)]);
+      await phaseCount(f.page, "resume-press-out", 2);
+      await click(f.page);
+      const seen = (await phases(f.page)).filter((phase) => !phase.startsWith("resume-touch-"));
+      observed.push({ seen, defaults: await f.page.evaluate<unknown>("window.touchEndSeen") });
+    } finally { await f.page.close(); }
+  }
+  expect(observed[1]).toEqual(observed[0]);
+  expect(observed[0].defaults).toEqual([false]); // Delivered to document, not prevented or stopped.
+});
+
+async function controls(source: string) {
+  const page = await browser.newPage();
+  await page.setContent('<div id="root"></div>');
+  await page.addScriptTag({ content: source });
+  await page.evaluate("window.fixture.mountControls()");
+  return { page, catalog: await page.evaluate<Record<string, { keys: string[]; values: unknown; originalOnPress: boolean }>>("window.fixture.catalog()") };
+}
+
+test("only an enabled Resume adds touch hooks; every other Action's props match the pinned 2453 Action", async () => {
+  const hooks = ["onTouchCancel", "onTouchEnd", "onTouchStart"];
+  const others = ["Start control", "Help control", "Picker control", "Done control", "Plain control"];
+  const [current, base] = [await controls(touchScript), await controls(baselineScript)];
+  const [shipping, baseShipping] = [await controls(touchShippingScript), await controls(baselineShippingScript)];
+  try {
+    expect(current.catalog["Resume control"].keys).toEqual([...base.catalog["Resume control"].keys, ...hooks].sort());
+    expect(current.catalog["Resume control"].values).toEqual(base.catalog["Resume control"].values);
+    expect(base.catalog["Resume control"].keys.filter((key) => key.startsWith("onTouch") || key.startsWith("onResponder"))).toEqual([]);
+    for (const label of others) expect(current.catalog[label]).toEqual(base.catalog[label]);
+    expect(shipping.catalog).toEqual(baseShipping.catalog);
+    expect(shipping.catalog["Resume control"].keys).toEqual(shipping.catalog["Plain control"].keys);
+    for (const entry of Object.values({ ...current.catalog, ...shipping.catalog })) {
+      expect(entry.originalOnPress).toBe(true);
+      expect(entry.keys.filter((key) => key.startsWith("onResponder"))).toEqual([]);
+    }
+    for (const { page } of [current, base]) {
+      expect(await page.evaluate<unknown>("window.fixture.invokeControl(['first', 2], false)")).toEqual({ result: "original result", args: ["first", 2] });
+      expect(await page.evaluate<unknown>("window.fixture.invokeControl([], true)")).toEqual({ same: true, args: [] });
+    }
+  } finally { await Promise.all([current, base, shipping, baseShipping].map(({ page }) => page.close())); }
+});
+
+test("baseline fixture is the exact LF-canonical 2453 Action, with no native boundary capability", async () => {
+  const contents = (await Bun.file(resolve(import.meta.dir, "fixtures/resume-boundary-baseline-2453.tsx.fixture")).text()).replace(/\r\n/g, "\n");
+  expect(createHash("sha256").update(contents).digest("hex")).toBe(BASELINE_SHA256);
+  expect(contents).not.toContain("nativeTouch");
+  expect(contents).toContain("export function Action");
+});
+
+// Static source facts only. They do not execute Pressability or show UIKit delivery.
+test("pinned React Native forwards passive touch props beside Pressability's responder handlers, never replacing them", async () => {
+  const native = dirname(createRequire(resolve(root, "apps/mobile/package.json")).resolve("react-native/package.json"));
+  const read = (path: string) => Bun.file(resolve(native, path)).text();
+  const pressable = await read("Libraries/Components/Pressable/Pressable.js");
+  expect(pressable).toMatch(/\.\.\.restProps\r?\n\s*\} = props;/);
+  expect(pressable).toMatch(/const restPropsWithDefaults[^=]*= \{\r?\n\s*\.\.\.restProps,/);
+  expect(pressable).toMatch(/\{\.\.\.restPropsWithDefaults\}\r?\n\s*\{\.\.\.eventHandlers\}/);
+  expect(pressable).toContain("collapsable={false}");
+  const pressability = await read("Libraries/Pressability/Pressability.js");
+  expect(pressability).not.toMatch(/onTouch(Start|End|Cancel)/);
+  for (const handler of ["onStartShouldSetResponder", "onResponderGrant", "onResponderRelease", "onResponderTerminate"]) expect(pressability).toContain(`${handler}:`);
+  const viewProps = await read("Libraries/Components/View/ViewPropTypes.js");
+  for (const hook of ["onTouchStart", "onTouchEnd", "onTouchCancel"]) expect(viewProps).toContain(`${hook}?:`);
+  const viewConfig = await read("Libraries/NativeComponent/BaseViewConfig.ios.js");
+  for (const [top, bubbled] of [["topTouchEnd", "onTouchEnd"], ["topTouchCancel", "onTouchCancel"]]) {
+    expect(viewConfig).toMatch(new RegExp(`${top}: \\{\\s*phasedRegistrationNames: \\{\\s*bubbled: '${bubbled}'`));
+  }
+  const renderer = await read("Libraries/Renderer/implementations/ReactFabric-prod.js");
+  expect(renderer).toMatch(/"ResponderEventPlugin",\s*"ReactNativeBridgeEventPlugin"/);
+  const emitter = await read("ReactCommon/react/renderer/components/view/BaseTouch.cpp");
+  expect(emitter).toContain('"timestamp"'); expect(emitter).toContain('"identifier"');
+  const action = await Bun.file(resolve(root, "apps/mobile/src/ui/controls.tsx")).text();
+  expect(action).not.toMatch(/onResponder|onStartShould|onMoveShould|pressRetentionOffset|unstable_pressDelay|cancelable/);
 });

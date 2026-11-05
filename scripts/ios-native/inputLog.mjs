@@ -7,6 +7,7 @@ const phases = new Set(["boot", "heartbeat", "score-press-in", "score-press-out"
 const pickerPhases = new Set(["picker-press-in", "picker-press-out", "picker-handler", "picker-native-call", "picker-native-returned", "picker-native-threw", "picker-callback-cancel", "picker-callback-unknown", "picker-callback-late", "picker-inline-fallback", ...[0, 1, 2, 3].map((i) => `picker-callback-option-${i}`), ...["detached", "disabled", "superseded"].map((p) => `picker-observation-${p}`)]);
 const helpPhases = new Set(["help-press-in", "help-press-out", "help-handler", "help-callback-returned", "help-callback-threw", ...["detached", "disabled", "superseded"].map((p) => `help-observation-${p}`)]);
 const resumePhases = new Set(["resume-press-in", "resume-press-out", "resume-handler",
+  "resume-touch-end", "resume-touch-cancel",
   "resume-observation-detached", "resume-observation-disabled", "resume-observation-superseded",
   "resume-react-commit-loading", "resume-react-commit-setup", "resume-react-commit-play", "resume-react-commit-results"]);
 const storeObservationPhases = ["decision-busy", "decision-accepted", "decision-can-retry", "decision-pending", "decision-no-data", "write-begin", "write-ack", "write-failed", "operation-failed", "no-op", "settled-success", "settled-failure"];
