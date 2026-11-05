@@ -1,20 +1,41 @@
 {
-  "sourceCommit": "7f2735a383645d9fc4bc27e54ef518a052fba481",
-  "run": "https://github.com/hemsoft-dev/yahtzee/actions/runs/41538094186",
-  "artifactId": 13188370209,
   "kind": "unaltered simulator development capture",
-  "version": "1.0.0",
-  "build": "1",
   "captures": [
     {
       "file": "iphone-setup.png",
-      "sourcePath": "phone-5-solo-light/setup.png",
-      "sha256": "d7b755f156e98a1786bb4b625e250944501f29921438f60d862639743a3b16da"
+      "sourceCommit": "490c326c380900d412c58541d0b877f8f1d9696b",
+      "run": "https://github.com/hemsoft-dev/yahtzee/actions/runs/41692655645",
+      "artifactId": 13263910513,
+      "profile": "phone-63",
+      "sourcePath": "01-setup-light.png",
+      "version": "1.0.0",
+      "build": "1",
+      "sha256": "512760b396ad574e146c52b12c1d827224d2dbf41d54b8b52b9eabc1ce421730",
+      "bytes": 170507,
+      "width": 1206,
+      "height": 2622,
+      "fixture": { "playerName": "Maya", "fictional": true },
+      "supersedes": {
+        "sourceCommit": "7f2735a383645d9fc4bc27e54ef518a052fba481",
+        "run": "https://github.com/hemsoft-dev/yahtzee/actions/runs/41538094186",
+        "artifactId": 13188370209,
+        "sourcePath": "phone-5-solo-light/setup.png",
+        "sha256": "d7b755f156e98a1786bb4b625e250944501f29921438f60d862639743a3b16da",
+        "reason": "Appearance control cut off; predates the merged Setup spacing correction"
+      }
     },
     {
       "file": "iphone-help.png",
+      "sourceCommit": "7f2735a383645d9fc4bc27e54ef518a052fba481",
+      "run": "https://github.com/hemsoft-dev/yahtzee/actions/runs/41538094186",
+      "artifactId": 13188370209,
       "sourcePath": "phone-5-solo-light/help.png",
-      "sha256": "39bd2431767ed6556ec6308cd96875767f302467de6f28141789f1431588dcef"
+      "version": "1.0.0",
+      "build": "1",
+      "sha256": "39bd2431767ed6556ec6308cd96875767f302467de6f28141789f1431588dcef",
+      "bytes": 275681,
+      "width": 1206,
+      "height": 2622
     }
   ]
 }

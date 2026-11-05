@@ -1,7 +1,8 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { AccessibilityInfo, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { calculateTotal } from "@yahtzee/game-engine";
 import { useLocalGame } from "../local/LocalProvider";
+import { inputTrace } from "../diagnostics/inputTrace";
 import { Action, Label } from "../ui/controls";
 import { Dice } from "./Dice";
 import { NativeScorecard } from "./NativeScorecard";
@@ -27,11 +28,12 @@ function Deck() {
 export function Play({ onPause }: { onPause: () => void }) {
   const { store, view, colors } = useLocalGame();
   const game = view.data!.active!.game;
+  const [rerollObservation] = useState(() => inputTrace.rerollPressObservation());
   const { width, fontScale } = useWindowDimensions();
   const expanded = width >= 820 && fontScale <= 1.4;
   const locked = view.busy || view.canRetry;
   const roll = <View style={[styles.roll, { backgroundColor: colors.page }]}>
-    <Action testID="reroll-action" label={`Re-roll (${game.rollsLeft})`} primary disabled={locked || game.rollsLeft === 0} onPress={() => { void store.move({ kind: "roll" }); }} />
+    <Action testID="reroll-action" label={`Re-roll (${game.rollsLeft})`} primary disabled={locked || game.rollsLeft === 0} pressObservation={rerollObservation} onPress={() => { void store.move({ kind: "roll" }, rerollObservation?.handler()); }} />
   </View>;
   const controls = <>
     <Action label="Pause Game" onPress={onPause} disabled={view.busy} />
