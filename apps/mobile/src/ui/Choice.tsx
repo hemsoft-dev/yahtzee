@@ -1,19 +1,31 @@
-import React, { useState } from "react";
+import React, { useLayoutEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useLocalGame } from "../local/LocalProvider";
 import { Label, styles } from "./controls";
 import { showChoice } from "./showChoice";
 
-export function Choice({ title, options, selected, onSelect, disabled = false }: {
-  title: string; options: string[]; selected: number; onSelect: (index: number) => void; disabled?: boolean;
+import type { PickerPressObservation, PickerSheetObservation } from "../diagnostics/inputTrace";
+
+export function Choice({ title, options, selected, onSelect, disabled = false, observation }: {
+  title: string; options: string[]; selected: number; onSelect: (index: number) => void; disabled?: boolean; observation?: PickerPressObservation;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { colors, dark } = useLocalGame();
+  const advisory = (action: () => void) => { try { action(); } catch { /* Observation must not change a choice. */ } };
+  useLayoutEffect(() => { advisory(() => observation?.attach()); return () => advisory(() => observation?.unmount()); }, [observation]);
+  useLayoutEffect(() => { advisory(() => observation?.disabled(disabled)); }, [disabled, observation]);
   const select = (index: number) => { onSelect(index); setExpanded(false); };
-  const open = () => { if (!showChoice(title, options, selected, select, dark)) setExpanded(!expanded); };
+  const open = () => {
+    let observe: PickerSheetObservation | undefined; try { observe = observation?.handler(); } catch { /* Advisory only. */ }
+    if (!showChoice(title, options, selected, select, dark, observe)) {
+      advisory(() => observe?.("inline-fallback")); setExpanded(!expanded);
+    }
+  };
   return <View>
     <Pressable accessibilityRole="button" accessibilityLabel={title} aria-valuetext={options[selected]}
       aria-disabled={disabled} aria-expanded={expanded} disabled={disabled} onPress={open}
+      onPressIn={observation ? (event) => advisory(() => observation.pressIn(event.nativeEvent.timestamp)) : undefined}
+      onPressOut={observation ? (event) => advisory(() => observation.pressOut(event.nativeEvent.timestamp)) : undefined}
       style={[styles.row, { borderBottomWidth: 0.5, borderBottomColor: colors.line }]}>
       <Label>{title}</Label><Label color={colors.tint}>{options[selected]}</Label>
     </Pressable>

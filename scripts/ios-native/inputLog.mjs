@@ -4,15 +4,53 @@ import { appendFileSync, writeFileSync } from "node:fs";
 
 const marker = "THIRD_ROLL_INPUT ";
 const phases = new Set(["boot", "heartbeat", "score-press-in", "score-press-out", "score-handler", "score-ack", "score-rejected"]);
+const pickerPhases = new Set(["picker-press-in", "picker-press-out", "picker-handler", "picker-native-call", "picker-native-returned", "picker-native-threw", "picker-callback-cancel", "picker-callback-unknown", "picker-callback-late", "picker-inline-fallback", ...[0, 1, 2, 3].map((i) => `picker-callback-option-${i}`), ...["detached", "disabled", "superseded"].map((p) => `picker-observation-${p}`)]);
+const helpPhases = new Set(["help-press-in", "help-press-out", "help-handler", "help-callback-returned", "help-callback-threw", ...["detached", "disabled", "superseded"].map((p) => `help-observation-${p}`)]);
 const resumePhases = new Set(["resume-press-in", "resume-press-out", "resume-handler",
+  "resume-touch-end", "resume-touch-cancel",
   "resume-observation-detached", "resume-observation-disabled", "resume-observation-superseded",
   "resume-react-commit-loading", "resume-react-commit-setup", "resume-react-commit-play", "resume-react-commit-results"]);
+const storeObservationPhases = ["decision-busy", "decision-accepted", "decision-can-retry", "decision-pending", "decision-no-data", "write-begin", "write-ack", "write-failed", "operation-failed", "no-op", "settled-success", "settled-failure"];
+const startPhases = new Set(["start-press-in", "start-press-out", "start-handler", ...["detached", "disabled", "superseded"].map((p) => `start-observation-${p}`),
+  ...["loading", "setup", "play", "results"].map((p) => `start-react-commit-${p}`), ...storeObservationPhases.filter((p) => p !== "no-op").map((p) => `start-${p}`)]);
+const preferencePhases = new Set([...[5, 6, 8, 10].map((v) => `preference-dice-${v}`), ...[0, 1, 2, 3].map((v) => `preference-ai-${v}`)]
+  .flatMap((prefix) => ["intent", "react-commit", "observation-detached", ...storeObservationPhases].map((p) => `${prefix}-${p}`)));
+function setupEvent(event) {
+  const start = startPhases.has(event.phase), preference = preferencePhases.has(event.phase);
+  const linked = ["start-preference-dice-intent", "start-preference-ai-intent"].includes(event.phase);
+  if (!start && !preference && !linked) return null;
+  if (linked && event.startId === event.preferenceId) return null;
+  const keys = ["atMs", "monotonicMs", "phase", "sequence", ...(start || linked ? ["startId"] : []), ...(preference || linked ? ["preferenceId"] : [])].sort().join();
+  if (Object.keys(event).sort().join() !== keys || !Number.isSafeInteger(event.atMs) || event.atMs < 0
+    || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0 || !Number.isSafeInteger(event.sequence) || event.sequence < 0) return null;
+  for (const id of [event.startId, event.preferenceId].filter((id) => id !== undefined)) if (!Number.isSafeInteger(id) || id < 0 || id >= 8192 || id > event.sequence) return null;
+  const origin = event.phase === "start-press-in" || (preference && event.phase.endsWith("-intent"));
+  if (origin && (event.startId ?? event.preferenceId) !== event.sequence) return null;
+  if (!origin && event.phase !== "start-handler" && (event.startId === event.sequence || event.preferenceId === event.sequence)) return null;
+  return event;
+}
 export function inputEvent(line) {
   try {
     const message = JSON.parse(line).eventMessage;
     if (typeof message !== "string") return null;
     const offset = message.indexOf(marker); if (offset < 0) return null;
     const event = JSON.parse(message.slice(offset + marker.length));
+    if (!Number.isSafeInteger(event.sequence) || event.sequence < 0 || event.sequence >= 8192) return null;
+    if (startPhases.has(event.phase) || preferencePhases.has(event.phase) || ["start-preference-dice-intent", "start-preference-ai-intent"].includes(event.phase)) return setupEvent(event);
+    if (pickerPhases.has(event.phase)) {
+      if (Object.keys(event).sort().join() !== "atMs,monotonicMs,phase,pickerId,sequence"
+        || !Number.isSafeInteger(event.atMs) || event.atMs < 0 || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0
+        || !Number.isSafeInteger(event.pickerId) || event.pickerId < 0 || event.pickerId >= 8192
+        || (event.phase === "picker-press-in" ? event.pickerId !== event.sequence : event.phase === "picker-handler" ? event.pickerId > event.sequence : event.pickerId >= event.sequence)) return null;
+      return event;
+    }
+    if (helpPhases.has(event.phase)) {
+      if (Object.keys(event).sort().join() !== "atMs,helpId,monotonicMs,phase,sequence"
+        || !Number.isSafeInteger(event.atMs) || event.atMs < 0 || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0
+        || !Number.isSafeInteger(event.helpId) || event.helpId < 0 || event.helpId >= 8192
+        || (event.phase === "help-press-in" ? event.helpId !== event.sequence : event.phase === "help-handler" ? event.helpId > event.sequence : event.helpId >= event.sequence)) return null;
+      return event;
+    }
     const resume = resumePhases.has(event.phase);
     if (Object.keys(event).sort().join() !== (resume ? "atMs,monotonicMs,phase,resumeId,sequence" : "atMs,monotonicMs,phase,sequence")
       || (!resume && !phases.has(event.phase))) return null;

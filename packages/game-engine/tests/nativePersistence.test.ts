@@ -270,3 +270,62 @@ describe("durable native storage boundary, without a native-runtime claim", () =
     expect(() => migratePreferences('not JSON', null)).toThrow();
   });
 });
+
+describe("optional Start and preference observations at the actual store boundary", () => {
+  test("pending preference rejects Start as busy, then acknowledges only the original selection", async () => {
+    const f = fixture(); await f.store.load();
+    let release!: () => void;
+    f.state.pause = new Promise<void>((resolve) => { release = resolve; });
+    const selection: string[] = [], start: string[] = [];
+    const changing = f.store.preferences({ diceCount: 10 }, (phase) => selection.push(phase));
+    const writes = f.state.attempts.length;
+    expect(f.store.getSnapshot().data!.preferences.diceCount).toBe(5);
+    expect(await f.store.start(options, (phase) => start.push(phase))).toBe(false);
+    expect(start).toEqual(["decision-busy"]); expect(f.state.attempts.length).toBe(writes);
+    expect(selection).toEqual(["decision-accepted", "write-begin"]);
+    release(); expect(await changing).toBe(true);
+    expect(selection).toEqual(["decision-accepted", "write-begin", "write-ack", "settled-success"]);
+    expect(f.store.getSnapshot().data!.preferences.diceCount).toBe(10);
+    expect(f.store.getSnapshot().data!.active).toBeNull();
+  });
+  test("accepted Start reports real write completion, and no-op selection writes nothing", async () => {
+    const f = fixture(); await f.store.load(); const phases: string[] = [];
+    const writes = f.state.attempts.length;
+    expect(await f.store.preferences({ diceCount: 5 }, (p) => phases.push(p))).toBe(true);
+    expect(phases).toEqual(["no-op"]); expect(f.state.attempts.length).toBe(writes);
+    phases.length = 0;
+    expect(await f.store.start(options, (p) => phases.push(p))).toBe(true);
+    expect(phases).toEqual(["decision-accepted", "write-begin", "write-ack", "settled-success"]);
+    expect(JSON.parse(f.values.get(SAVE_KEY)!).active.revision).toBe(0);
+  });
+  for (const failure of ["before", "after"] as const) test(`write ${failure} failure and pending/canRetry rejection are distinct from acknowledgment`, async () => {
+    const f = fixture(); await f.store.load(); f.state.fail = failure; const phases: string[] = [];
+    expect(await f.store.start(options, (p) => phases.push(p))).toBe(false);
+    expect(phases).toEqual(["decision-accepted", "write-begin", "write-failed", "operation-failed", "settled-failure"]);
+    expect(f.store.getSnapshot().canRetry).toBe(true);
+    const rejected: string[] = [];
+    expect(await f.store.start(options, (p) => rejected.push(p))).toBe(false);
+    expect(rejected).toEqual(["decision-accepted", "decision-can-retry", "decision-pending", "operation-failed", "settled-failure"]);
+    const beforeRetry = [...phases]; f.state.fail = null;
+    expect(await f.store.retry()).toBe(true); expect(phases).toEqual(beforeRetry);
+  });
+  test("observer exceptions preserve actual success/failure, publications and busy guards", async () => {
+    for (const failure of [null, "before"] as const) {
+      const f = fixture(); await f.store.load(); f.state.fail = failure;
+      const snapshots: boolean[] = []; f.store.subscribe(() => snapshots.push(f.store.getSnapshot().busy));
+      const result = await f.store.start(options, () => { throw new Error("PRIVATE observer error"); });
+      expect(result).toBe(failure === null);
+      expect(f.store.getSnapshot().busy).toBe(false);
+      expect(snapshots).toEqual([true, true, false]);
+      expect(f.state.attempts.length).toBe(2);
+    }
+  });
+  test("no-data and invalid-start operation failure do not falsely report a write", async () => {
+    const f = fixture(); const phases: string[] = [];
+    expect(await f.store.start(options, (p) => phases.push(p))).toBe(false);
+    expect(phases).toEqual(["decision-accepted", "decision-no-data", "operation-failed", "settled-failure"]);
+    await f.store.load(); phases.length = 0;
+    expect(await f.store.start({ ...options, name: "" }, (p) => phases.push(p))).toBe(false);
+    expect(phases).toEqual(["decision-accepted", "operation-failed", "settled-failure"]);
+  });
+});

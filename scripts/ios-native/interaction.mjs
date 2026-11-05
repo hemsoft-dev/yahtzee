@@ -4,9 +4,10 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { localMaestro, MaestroError } from "./mcp.mjs";
 import { redactDriverLog, retainXCTestLogs } from "./driverLogs.mjs";
+import { captureDriverEvidence, prepareDriverScratch, unavailableDriverEvidence } from "./driverEvidence.mjs";
 
 /** One bounded local driver session for the owned simulator. */
-export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay }) {
+export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay, evidenceWorker }) {
   assert(["complete", "hold", "scenario", "reset"].includes(prefix), "Unknown native interaction phase.");
   let diagnostics = "", sequence = 0, timingUnavailable = false;
   const timings = [];
@@ -20,9 +21,34 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   const childEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
     /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|JAVA_HOME|DEVELOPER_DIR|LANG|LC_ALL|MAESTRO_CLI_NO_ANALYTICS|MAESTRO_DISABLE_UPDATE_CHECK|MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED|MAESTRO_DRIVER_STARTUP_TIMEOUT)$/.test(key)));
   // An isolated hidden state directory keeps raw driver output out of published evidence.
-  childEnv.XDG_STATE_HOME = join(directory, `.${prefix}-driver-state`);
-  mkdirSync(childEnv.XDG_STATE_HOME, { recursive: true });
+  const state = join(directory, `.${prefix}-driver-state`);
+  mkdirSync(state, { recursive: true });
+  // Fresh log state also excludes old interactions, including failed prior attempts.
+  let isolatedState = false;
+  childEnv.XDG_STATE_HOME = state;
+  try { const isolated = prepareDriverScratch(state); if (isolated.root) { childEnv.XDG_STATE_HOME = isolated.root; isolatedState = true; } }
+  catch { /* Ownership telemetry must not change the interaction outcome. */ }
   let client, shutdownFailed = false, shutdownError, diagnosticFailed = false, diagnosticError;
+  let scratch, evidenceRemainingMs = 5000, evidenceCaptured = false;
+  const driverEvidence = { schemaVersion: 1, attempts: [] };
+  async function retainIdentity() {
+    if (evidenceCaptured) return;
+    evidenceCaptured = true;
+    const started = performance.now();
+    try {
+      // rpcClient.close may need its existing full 60-second shutdown allowance.
+      // Optional capture can use only time beyond that reserve, never extend it.
+      const captureBudgetMs = Math.min(evidenceRemainingMs, deadline - Date.now() - 60000);
+      const evidence = captureBudgetMs <= 0 ? unavailableDriverEvidence("budget") : scratch?.root ? await captureDriverEvidence({ root: scratch.root, path: childEnv.PATH,
+        deadline: Date.now() + captureBudgetMs, WorkerClass: evidenceWorker }) : unavailableDriverEvidence(scratch?.reason ?? "scratch-unavailable");
+      driverEvidence.attempts.push({ attempt: recovery.attempts.length, evidence });
+    } catch { driverEvidence.attempts.push({ attempt: recovery.attempts.length, evidence: unavailableDriverEvidence("capture-unavailable") }); }
+    finally {
+      evidenceRemainingMs = Math.max(0, evidenceRemainingMs - (performance.now() - started));
+      try { writeFileSync(join(directory, `${prefix}-driver-evidence.json`), JSON.stringify(driverEvidence) + "\n"); }
+      catch { diagnostics += "\nDriver identity retention unavailable.\n"; }
+    }
+  }
   async function call(name, args) {
     assert(now() < deadline, "Native interaction exceeded its bounded session budget.");
     const started = Date.now(), monotonicStarted = performance.now(); let outcome = "threw";
@@ -70,6 +96,10 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
       let operation = "initialize";
       try {
         assert(now() < deadline, "Native interaction exceeded its bounded session budget.");
+        // Each readiness connection has a fresh private root. Never adopt previous state.
+        scratch = isolatedState ? prepareDriverScratch(childEnv.XDG_STATE_HOME) : { reason: "state-unavailable" }; evidenceCaptured = false;
+        delete childEnv.MAESTRO_OPTS;
+        if (scratch.option) childEnv.MAESTRO_OPTS = scratch.option;
         client = await openSession({ cwd: directory, env: childEnv, deadline, onStderr: (text) => { diagnostics += text.slice(0, Math.max(0, 262144 - diagnostics.length)); } });
         operation = "list_devices";
         const devices = await call("list_devices", {});
@@ -84,6 +114,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
           && error.recoverySafe !== false && sequence === 0 && attempt < recovery.maxAttempts;
         if (!retry) throw error;
         // Retire the old process before another connection. Late replies cannot authorize a flow.
+        await retainIdentity();
         await client?.close(); client = undefined;
         const waitMs = 1000 * attempt;
         if (now() + waitMs >= deadline) throw error;
@@ -100,6 +131,9 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     try { await capture(`${prefix}-failure`); } catch { /* Preserve the original error; the runner also reads the saved document. */ }
     throw error;
   } finally {
+    // The driver deletes registered temporary files at close. Read metadata first,
+    // within the existing interaction deadline, shutdown reserve and shared five-second cap.
+    await retainIdentity();
     try { await client?.close(); }
     catch (error) {
       shutdownFailed = true; shutdownError = error;
@@ -107,7 +141,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
       diagnostics += "\nLocal Maestro shutdown failed.\n";
     }
     finally {
-      try { recovery.xctestLogs = retainXCTestLogs(childEnv.XDG_STATE_HOME, directory, prefix, env); }
+      try { recovery.xctestLogs = isolatedState ? retainXCTestLogs(childEnv.XDG_STATE_HOME, directory, prefix, env) : []; }
       catch { diagnostics += "\nXCTest diagnostic retention unavailable.\n"; }
       try { writeFileSync(join(directory, `${prefix}-tool-timing.jsonl`), timings.join("\n") + (timings.length ? "\n" : "")); }
       catch { timingNotice(); }
