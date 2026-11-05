@@ -506,3 +506,202 @@ test("Re-roll observation stays capped, private and isolated from broken clocks 
   expect(lines.join()).not.toContain("PRIVATE");
   expect(lines.every((line) => Object.keys(JSON.parse(line.slice(INPUT_TRACE_PREFIX.length))).sort().join() === "atMs,monotonicMs,phase,rerollId,sequence")).toBe(true);
 });
+
+type ScoreRecord = { phase: string; scoreId?: number; sequence: number };
+function scoreTrace(faults: { sink?: boolean; wall?: boolean; monotonic?: boolean } = {}) {
+  const lines: string[] = [], fail = () => { throw new Error("PRIVATE ERROR"); };
+  const trace = createInputTrace(true, faults.sink ? fail : (line) => lines.push(line), faults.wall ? fail : () => 5, faults.monotonic ? fail : () => 1);
+  const row = trace.scorePressObservation()!;
+  const records = () => lines.map((line) => JSON.parse(line.slice(INPUT_TRACE_PREFIX.length)) as ScoreRecord);
+  const lastPressIn = () => records().filter((record) => record.phase === "score-press-in").at(-1)?.sequence;
+  // ScoreRow's onPressIn: the unchanged emit, then the observation in the same callback.
+  const activate = (identifier: number, time: number, observed = row) => { trace.emit("score-press-in"); const id = lastPressIn(); observed.pressIn(single(identifier, time)); return id!; };
+  const handler = (observed = row) => { trace.emit("score-handler"); observed.handler(); };
+  const boundaries = () => records().filter((record) => record.phase.startsWith("score-touch-")).map((record) => [record.phase, record.scoreId]);
+  const scorePhases = () => records().filter((record) => record.phase.startsWith("score-")).map((record) => record.phase);
+  return { lines, trace, row, records, activate, handler, boundaries, scorePhases };
+}
+
+test("only the score factory offers the three passive score touch props; it writes nothing on creation and is absent when disabled", () => {
+  const t = scoreTrace();
+  expect(Object.keys(t.row).sort()).toEqual(["attach", "disabled", "handler", "pressIn", "props", "unmount"]);
+  expect(Object.keys(t.row.props).sort()).toEqual(["onTouchCancel", "onTouchEnd", "onTouchStart"]);
+  for (let i = 0; i < 100; i++) t.trace.scorePressObservation(); // StrictMode initializer replay and remounts allocate nothing.
+  expect(t.lines).toEqual([]);
+  expect(createInputTrace(false, () => { throw new Error("disabled"); }).scorePressObservation()).toBeUndefined();
+  expect(t.trace.rerollPressObservation()!.nativeTouch).toBeUndefined();
+});
+
+test("score touch end and cancel name the unchanged press-in record's sequence in every order with press-out and handler", () => {
+  const orders = [["boundary", "out", "handler"], ["boundary", "handler", "out"], ["out", "boundary", "handler"], ["out", "handler", "boundary"], ["handler", "boundary", "out"], ["handler", "out", "boundary"]];
+  for (const [hook, phase] of [["onTouchEnd", "score-touch-end"], ["onTouchCancel", "score-touch-cancel"]] as const) for (const order of orders) {
+    const t = scoreTrace(); t.trace.emit("boot");
+    const id = t.activate(987654, 123456.75);
+    const steps = {
+      boundary: () => expect(t.row.props[hook](single(987654, 123999.25))).toBeUndefined(),
+      out: () => t.trace.emit("score-press-out"),
+      handler: () => { t.handler(); t.trace.emit("score-ack"); },
+    };
+    for (const step of order) steps[step as keyof typeof steps]();
+    const names = { boundary: [phase], out: ["score-press-out"], handler: ["score-handler", "score-ack"] };
+    expect(t.scorePhases()).toEqual(["score-press-in", ...order.flatMap((step) => names[step as keyof typeof names])]);
+    expect(id).toBe(1);
+    for (const record of t.records()) {
+      expect(Object.keys(record).sort()).toEqual(record.phase === phase ? ["atMs", "monotonicMs", "phase", "scoreId", "sequence"] : ["atMs", "monotonicMs", "phase", "sequence"]);
+      if (record.phase === phase) expect(record.scoreId).toBe(id);
+    }
+    expect(t.lines.join()).not.toMatch(/987654|123456|123999|identifier|timestamp|changedTouches/);
+  }
+});
+
+test("a score boundary is one-shot and never fabricates a handler, acknowledgment, closure or press evidence", () => {
+  const t = scoreTrace(), id = t.activate(1, 10);
+  t.row.props.onTouchCancel(single(1, 20)); t.row.props.onTouchEnd(single(1, 30)); t.row.props.onTouchCancel(single(1, 40));
+  t.trace.emit("score-press-out");
+  expect(t.boundaries()).toEqual([["score-touch-cancel", id]]);
+  expect(t.scorePhases()).toEqual(["score-press-in", "score-touch-cancel", "score-press-out"]);
+  // Passive: the original handler path stays reachable and adds only its own old record.
+  t.handler();
+  expect(t.scorePhases()).toEqual(["score-press-in", "score-touch-cancel", "score-press-out", "score-handler"]);
+});
+
+test("malformed, missing or duplicate score boundary touches stay UNKNOWN and end the correlation without throwing", () => {
+  const hostile = new Proxy({}, { get() { throw new Error("PRIVATE"); } });
+  const malformed: unknown[] = [undefined, null, 7, {}, { nativeEvent: null }, hostile, { nativeEvent: hostile }, touchEvent(undefined), touchEvent({ length: 1, 0: nativeTouch(1, 20) }), touchEvent([]), touchEvent(hostile),
+    touchEvent([null]), touchEvent([nativeTouch("1", 20)]), touchEvent([nativeTouch(1.5, 20)]), touchEvent([nativeTouch(-1, 20)]), touchEvent([nativeTouch(1, undefined)]), touchEvent([nativeTouch(1, Number.NaN)]),
+    touchEvent([nativeTouch(1, Infinity)]), touchEvent([nativeTouch(1, -1)]), touchEvent([nativeTouch(1, "20")]), touchEvent([nativeTouch(1, 20), nativeTouch(1, 21)]), touchEvent([nativeTouch(1, 20), null]), touchEvent([nativeTouch(1, 20), nativeTouch("2", 20)]), touchEvent([hostile])];
+  for (const hook of ["onTouchEnd", "onTouchCancel"] as const) for (const event of malformed) {
+    const t = scoreTrace(); t.activate(1, 10);
+    expect(t.row.props[hook](event)).toBeUndefined();
+    t.row.props[hook](single(1, 30));
+    expect(t.boundaries()).toEqual([]);
+    expect(t.scorePhases()).toEqual(["score-press-in"]);
+  }
+});
+
+test("a score activation whose identity or time is unclear, including multitouch, leaves its boundary UNKNOWN while the press-in record stays", () => {
+  const unclear: unknown[] = [undefined, null, {}, touchEvent(undefined, 1, 10), touchEvent([], 1, 10), touchEvent([nativeTouch(1, 10), nativeTouch(2, 10)], 1, 10), touchEvent([nativeTouch(1, 10)], 2, 10), touchEvent([nativeTouch(1, 10)], undefined, 10),
+    touchEvent([nativeTouch(1, 10)], 1, 11), touchEvent([nativeTouch(1, 10)], 1, undefined), touchEvent([nativeTouch(1.5, 10)], 1.5, 10), touchEvent([nativeTouch(-1, 10)], -1, 10), touchEvent([nativeTouch("1", 10)], "1", 10), touchEvent([nativeTouch(1, Number.NaN)], 1, Number.NaN),
+    new Proxy({}, { get() { throw new Error("PRIVATE"); } })];
+  for (const event of unclear) {
+    const t = scoreTrace(); t.trace.emit("score-press-in");
+    expect(() => t.row.pressIn(event)).not.toThrow();
+    t.row.props.onTouchStart(single(1, 10)); t.row.props.onTouchEnd(single(1, 20)); t.row.props.onTouchCancel(single(1, 20));
+    expect(t.scorePhases()).toEqual(["score-press-in"]);
+  }
+});
+
+test("a score observation binds only the press-in record written immediately before it, never an older or absent one", () => {
+  const t = scoreTrace();
+  t.row.pressIn(single(1, 10)); t.row.props.onTouchEnd(single(1, 20)); // No press-in record at all.
+  t.trace.emit("score-press-in"); t.trace.emit("heartbeat"); t.row.pressIn(single(1, 30)); t.row.props.onTouchEnd(single(1, 40)); // Not adjacent.
+  // Consumed once: a second callback with no record of its own supersedes the first but binds nothing.
+  t.trace.emit("score-press-in"); t.row.pressIn(single(1, 50)); t.row.pressIn(single(1, 50)); t.row.props.onTouchEnd(single(1, 60));
+  expect(t.boundaries()).toEqual([]);
+  expect(t.records().map((record) => [record.phase, record.scoreId])).toEqual([["score-press-in", undefined], ["heartbeat", undefined], ["score-press-in", undefined], ["score-observation-superseded", 2]]);
+});
+
+test("a late old score boundary and a reused identifier never reach a newer gesture; an unhandled older one closes as superseded", () => {
+  const t = scoreTrace(), first = t.activate(1, 10), second = t.activate(1, 30);
+  expect(second).not.toBe(first);
+  t.row.props.onTouchEnd(single(1, 20)); t.row.props.onTouchCancel(single(1, 29.5));
+  expect(t.boundaries()).toEqual([]); // Older than this activation, so the real boundary can still arrive.
+  t.row.props.onTouchEnd(single(1, 40));
+  expect(t.boundaries()).toEqual([["score-touch-end", second]]);
+  expect(t.records().filter((record) => record.scoreId === first).map((record) => record.phase)).toEqual(["score-observation-superseded"]);
+  const replaced = scoreTrace(); replaced.activate(1, 10); replaced.activate(2, 30);
+  replaced.row.props.onTouchEnd(single(1, 40));
+  expect(replaced.boundaries()).toEqual([]);
+});
+
+test("a new gesture's score touch start without press-in ends the old correlation; its own start and other fingers do not", () => {
+  const t = scoreTrace(), id = t.activate(1, 10);
+  for (const event of [single(1, 10), single(1, 5), single(2, 15), touchEvent([nativeTouch(2, 15), nativeTouch(3, 15)])]) expect(t.row.props.onTouchStart(event)).toBeUndefined();
+  t.row.props.onTouchEnd(single(1, 20));
+  expect(t.boundaries()).toEqual([["score-touch-end", id]]);
+  for (const stale of [single(1, 50), touchEvent([nativeTouch(1, undefined)]), touchEvent(undefined), undefined, touchEvent([nativeTouch(1, 50), nativeTouch(1, 51)])]) {
+    const reused = scoreTrace(); reused.activate(1, 10);
+    reused.row.props.onTouchStart(stale);
+    reused.row.props.onTouchEnd(single(1, 60)); reused.row.props.onTouchCancel(single(1, 60));
+    expect(reused.boundaries()).toEqual([]);
+  }
+});
+
+test("another finger's boundary is ignored, a shared lift matches one bound touch, and another row's events never borrow an activation", () => {
+  const t = scoreTrace(), id = t.activate(1, 10);
+  t.row.props.onTouchCancel(single(2, 20));
+  expect(t.boundaries()).toEqual([]);
+  t.row.props.onTouchEnd(touchEvent([nativeTouch(2, 30), nativeTouch(1, 30)], 2, 30));
+  expect(t.boundaries()).toEqual([["score-touch-end", id]]);
+  // Each row's host view receives only its own subtree's events. A row without
+  // its own activation records nothing, and two rows never share an ID.
+  const rows = scoreTrace(), other = rows.trace.scorePressObservation()!;
+  const own = rows.activate(1, 10);
+  other.props.onTouchStart(single(1, 10)); other.props.onTouchCancel(single(1, 20)); other.props.onTouchEnd(single(1, 20)); other.handler();
+  expect(rows.boundaries()).toEqual([]);
+  const otherId = rows.activate(1, 30, other); // Same reused identifier, other row: its own ID only.
+  other.props.onTouchEnd(single(1, 20)); // Older than that row's activation.
+  other.props.onTouchCancel(single(1, 40)); rows.row.props.onTouchEnd(single(1, 15));
+  expect(otherId).not.toBe(own);
+  expect(rows.boundaries()).toEqual([["score-touch-cancel", otherId], ["score-touch-end", own]]);
+});
+
+test("disable, detach and supersession close an unhandled score activation once; a handled one keeps its boundary; replay is inert", () => {
+  for (const close of ["disabled", "detached", "superseded"] as const) {
+    const t = scoreTrace(), id = t.activate(1, 10);
+    if (close === "disabled") t.row.disabled(true); else if (close === "detached") t.row.unmount();
+    else { t.trace.emit("score-press-in"); t.row.pressIn(touchEvent([nativeTouch(1, 30), nativeTouch(2, 30)], 1, 30)); }
+    t.row.disabled(true); t.row.unmount(); t.row.attach(); t.row.disabled(false);
+    t.row.props.onTouchEnd(single(1, 40)); t.row.props.onTouchCancel(single(1, 40)); t.handler();
+    expect(t.boundaries()).toEqual([]);
+    expect(t.records().filter((record) => record.scoreId === id).map((record) => record.phase)).toEqual([`score-observation-${close}`]);
+  }
+  for (const after of ["disabled", "detached"] as const) for (const hook of ["onTouchEnd", "onTouchCancel"] as const) {
+    const t = scoreTrace(), id = t.activate(1, 10);
+    t.handler(); // The pending write disables every row before the bubbled boundary.
+    if (after === "disabled") t.row.disabled(true); else t.row.unmount();
+    t.row.props[hook](single(1, 20));
+    expect(t.boundaries()).toEqual([[hook === "onTouchEnd" ? "score-touch-end" : "score-touch-cancel", id]]);
+    expect(t.records().some((record) => record.phase.startsWith("score-observation-"))).toBe(false);
+  }
+  const disabledPress = scoreTrace(); disabledPress.row.disabled(true);
+  disabledPress.activate(1, 10); disabledPress.row.disabled(false); disabledPress.row.props.onTouchEnd(single(1, 20));
+  expect(disabledPress.scorePhases()).toEqual(["score-press-in"]);
+  const strict = scoreTrace();
+  strict.row.attach(); strict.row.unmount(); strict.row.attach(); strict.row.disabled(false);
+  strict.row.props.onTouchStart(single(1, 5)); strict.row.props.onTouchEnd(single(1, 6)); strict.row.props.onTouchCancel(single(1, 7));
+  expect(strict.lines).toEqual([]);
+});
+
+test("an unmatched score handler gets no ID, press, native evidence or binding", () => {
+  const t = scoreTrace();
+  t.handler(); t.trace.emit("score-rejected");
+  t.row.props.onTouchStart(single(1, 10)); t.row.props.onTouchEnd(single(1, 20)); t.row.props.onTouchCancel(single(1, 20));
+  t.row.disabled(true); t.row.unmount();
+  expect(t.records().map((record) => record.phase)).toEqual(["score-handler", "score-rejected"]);
+  expect(t.records().every((record) => !("scoreId" in record))).toBe(true);
+});
+
+test("score boundary observation stays capped, private and isolated from broken clocks, sinks and payload getters", () => {
+  const hostile = new Proxy({}, { get() { throw new Error("PRIVATE"); } });
+  for (const fault of ["none", "sink", "wall", "monotonic"] as const) {
+    const t = scoreTrace({ sink: fault === "sink", wall: fault === "wall", monotonic: fault === "monotonic" });
+    expect(() => {
+      for (let i = 0; i < 9000; i++) {
+        t.trace.emit("score-press-in"); t.row.pressIn(i % 7 ? single(1, i) : hostile);
+        t.row.props.onTouchStart(i % 5 ? single(1, i) : hostile);
+        if (i % 3) t.handler();
+        t.row.props[i % 2 ? "onTouchEnd" : "onTouchCancel"](i % 11 ? single(1, i) : hostile);
+        t.row.disabled(i % 13 === 0); if (i % 17 === 0) { t.row.unmount(); t.row.attach(); }
+      }
+    }).not.toThrow();
+    expect(t.lines.length).toBe(fault === "none" ? 8192 : 0); // A failing clock or sink drops the record, never the action.
+    if (fault === "none") {
+      expect(t.lines.join()).not.toContain("PRIVATE");
+      for (const record of t.records()) {
+        expect(Object.keys(record).sort().join()).toBe(record.phase.startsWith("score-touch-") || record.phase.startsWith("score-observation-") ? "atMs,monotonicMs,phase,scoreId,sequence" : "atMs,monotonicMs,phase,sequence");
+        if (record.scoreId !== undefined) expect(record.scoreId).toBeLessThan(record.sequence);
+      }
+    }
+  }
+});

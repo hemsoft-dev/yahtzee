@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useLayoutEffect, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { calculateTotal, fromWire, getScorecardCategories, getUpperBonusThreshold, getUpperBonusValue, pickAiCategory, type Category } from "@yahtzee/game-engine";
 import { useLocalGame } from "../local/LocalProvider";
@@ -14,13 +14,23 @@ function ScoreRow({ category, suggested }: { category: Category; suggested: bool
   const opponents = game.players.slice(1).map((player) => `${player.name}: ${player.scores[category.id] ?? "not scored"}`).join(" · ");
   const ownLabel = assigned === undefined ? `Score ${category.label}, ${points} points${suggested ? ", suggested" : ""}` : `${category.label}, ${points} points recorded`;
   const label = opponents ? `${ownLabel}. ${opponents}` : ownLabel;
+  // Qualification only: passive touch end/cancel for this row's own activation.
+  // Shipping builds get undefined and keep the base props. The original score
+  // emits, store call and acknowledgment below are unchanged.
+  const [observation] = useState(() => inputTrace.scorePressObservation());
+  useLayoutEffect(() => {
+    observation?.attach();
+    return () => observation?.unmount();
+  }, [observation]);
+  useLayoutEffect(() => { observation?.disabled(disabled); }, [disabled, observation]);
   return <Pressable testID={`score-${category.id}`} accessible accessibilityRole="button" accessibilityLabel={label}
     aria-disabled={disabled} disabled={disabled}
-    onPressIn={() => inputTrace.emit("score-press-in")} onPressOut={() => inputTrace.emit("score-press-out")}
+    onPressIn={(event) => { inputTrace.emit("score-press-in"); observation?.pressIn(event); }} onPressOut={() => inputTrace.emit("score-press-out")}
     onPress={() => {
-      inputTrace.emit("score-handler");
+      inputTrace.emit("score-handler"); observation?.handler();
       void store.move({ kind: "score", category: category.id }).then((saved) => inputTrace.emit(saved ? "score-ack" : "score-rejected"));
     }}
+    {...observation?.props}
     style={[styles.row, { borderBottomColor: colors.line }]}>
     <View style={styles.mainRow}>
       <View style={styles.name}><Label accessible={false}>{category.label}</Label>

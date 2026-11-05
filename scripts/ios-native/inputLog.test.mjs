@@ -252,3 +252,38 @@ test("streamed Re-roll phases keep one ID without changing capture health, and r
   assert.equal(rejected.error, "input-log-malformed-record"); assert.equal(inputTraceUsable(rejected), false);
   assert(!malformed.read().includes("PRIVATE"));
 });
+
+test("score boundary parser accepts fixed phases naming an earlier press-in sequence, and old score records keep their schema", () => {
+  const phases = ["score-touch-end", "score-touch-cancel", ...["detached", "disabled", "superseded"].map((end) => `score-observation-${end}`)];
+  for (const phase of phases) {
+    assert.deepEqual(inputEvent(line(phase, { scoreId: 0 })), { phase, atMs: 123, monotonicMs: 10, sequence: 1, scoreId: 0 });
+    for (const extra of [{}, { scoreId: 1 }, { scoreId: 2 }, { scoreId: -1 }, { scoreId: "0" }, { scoreId: 0.5 }, { scoreId: null }, { scoreId: 0, sequence: 8192 }, { scoreId: 0, atMs: -1 }, { scoreId: 0, atMs: 1.5 },
+      { scoreId: 0, monotonicMs: -1 }, { scoreId: 0, identifier: 1 }, { scoreId: 0, timestamp: 1 }, { scoreId: 0, changedTouches: [] }, { scoreId: 0, category: "full-house" }, { scoreId: 0, label: "PRIVATE" },
+      { scoreId: 0, reason: "PRIVATE" }, { scoreId: 0, nativeEvent: {} }, { scoreId: 0, resumeId: 0 }, { scoreId: 0, rerollId: 0 }]) assert.equal(inputEvent(line(phase, extra)), null);
+    for (const id of ["resumeId", "rerollId", "helpId", "startId", "pickerId"]) assert.equal(inputEvent(line(phase, { [id]: 0 })), null);
+  }
+  for (const phase of ["score-press-in", "score-press-out", "score-handler", "score-ack", "score-rejected"]) {
+    assert.deepEqual(inputEvent(line(phase)), { phase, atMs: 123, monotonicMs: 10, sequence: 1 });
+    assert.equal(inputEvent(line(phase, { scoreId: 0 })), null, "old score records gain no ID");
+  }
+  for (const phase of ["score-touch-start", "score-touch-move", "score-touch-ended", "score-native-cancel", "score-handler-matched", "score-react-commit", "score-observation-unmounted", "score-touch-end-late"]) {
+    assert.equal(inputEvent(line(phase, { scoreId: 0 })), null);
+  }
+});
+
+test("streamed score boundary keeps the press-in sequence as its ID without changing capture health, and requested exit 143 stays unavailable", async () => {
+  const h = harness(); heartbeat(h);
+  // The 4eafe phone-5 window shape, plus the new boundary record that build could not emit.
+  const records = [["score-press-in"], ["score-touch-cancel", 1], ["score-press-out"], ["heartbeat"]];
+  for (const [index, [phase, scoreId]] of records.entries()) h.child.stdout.write(line(phase, { sequence: index + 1, ...(scoreId === undefined ? {} : { scoreId }) }) + "\n");
+  const result = await h.stop();
+  assert.equal(inputTraceUsable(result), true);
+  const read = h.read().trim().split("\n").map(JSON.parse).slice(1);
+  assert.deepEqual(read.map((record) => [record.phase, record.scoreId]), [["score-press-in", undefined], ["score-touch-cancel", 1], ["score-press-out", undefined], ["heartbeat", undefined]]);
+  assert.equal(inputTraceUsable({ ...result, exitCode: 143, exitSignal: null }), false);
+  const malformed = harness(); heartbeat(malformed);
+  malformed.child.stdout.write(line("score-touch-end", { scoreId: 0, identifier: 987654 }) + "\n");
+  const rejected = await malformed.stop();
+  assert.equal(rejected.error, "input-log-malformed-record"); assert.equal(inputTraceUsable(rejected), false);
+  assert(!malformed.read().includes("987654"));
+});
