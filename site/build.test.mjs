@@ -4,9 +4,42 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { buildSite } from "./build.mjs";
+import { buildSite, siteRoot } from "./build.mjs";
 import { pages } from "./pages.mjs";
 import { serveSite } from "./serve.mjs";
+
+function pngDimensions(bytes) {
+  assert.equal(bytes.toString("latin1", 1, 4), "PNG");
+  assert.equal(bytes.toString("latin1", 12, 16), "IHDR");
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+test("each published screenshot matches its own provenance and declared dimensions", () => {
+  const temporary = mkdtempSync(join(tmpdir(), "dice-site-images-"));
+  try {
+    const receipt = buildSite(join(temporary, "site"), { publish: true });
+    const provenance = JSON.parse(readFileSync(join(siteRoot, "assets/provenance.json"), "utf8"));
+    const images = [...pages["index.html"].matchAll(/<img\b[^>]*>/g)].map(([tag]) => Object.fromEntries([...tag.matchAll(/(\w+)="([^"]*)"/g)].map(([, name, value]) => [name, value])));
+    assert.deepEqual(images.map((image) => image.src).sort(), provenance.captures.map((capture) => `assets/${capture.file}`).sort());
+    for (const shared of ["sourceCommit", "run", "artifactId", "sourcePath", "sha256"]) {
+      assert.equal(shared in provenance, false, `Mixed captures must not share a top-level ${shared}`);
+    }
+    for (const capture of provenance.captures) {
+      const image = images.find((candidate) => candidate.src === `assets/${capture.file}`);
+      const bytes = readFileSync(join(temporary, "site", image.src));
+      const size = { width: capture.width, height: capture.height };
+      assert.equal(createHash("sha256").update(bytes).digest("hex"), capture.sha256, capture.file);
+      assert.equal(bytes.length, capture.bytes, capture.file);
+      assert.equal(receipt.artifacts.find((artifact) => artifact.path === image.src).sha256, capture.sha256, capture.file);
+      assert.deepEqual(pngDimensions(bytes), size, capture.file);
+      assert.deepEqual({ width: Number(image.width), height: Number(image.height) }, size, capture.file);
+      assert.match(capture.sourceCommit, /^[a-f0-9]{40}$/);
+      assert.match(capture.run, /^https:\/\/github\.com\/hemsoft-dev\/yahtzee\/actions\/runs\/\d+$/);
+      assert(Number.isInteger(capture.artifactId) && capture.sourcePath, capture.file);
+      assert.notEqual(capture.supersedes?.sha256, capture.sha256, `${capture.file} cannot supersede itself`);
+    }
+  } finally { rmSync(temporary, { recursive: true, force: true }); }
+});
 
 test("preview is deterministic and publication includes public discovery files", () => {
   const temporary = mkdtempSync(join(tmpdir(), "dice-site-"));
@@ -49,7 +82,7 @@ test("unauthenticated preview serves only approved files under a repository subp
   const output = join(temporary, "site"); buildSite(output);
   const running = await serveSite(output, "/yahtzee/");
   try {
-    for (const file of ["", ...Object.keys(pages), "style.css", "assets/manrope-variable.ttf"]) {
+    for (const file of ["", ...Object.keys(pages), "style.css", "assets/manrope-variable.ttf", "assets/iphone-setup.png", "assets/iphone-help.png"]) {
       const response = await fetch(running.url + file);
       assert.equal(response.status, 200);
       assert.match(response.headers.get("content-security-policy"), /frame-ancestors 'none'/);
