@@ -1,6 +1,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, resolve, relative, sep } from "node:path";
 import { createHash } from "node:crypto";
+import { metadataBlockers } from "./metadata.mjs";
 import { readCapturePng } from "./png.mjs";
 
 export const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -31,7 +32,8 @@ export function copyBlockers(files, listing) {
     const review = listing.sourceReviews?.[role];
     if (!source || review?.status !== "approved" || review.sha256 !== sha256(Buffer.from(source.text.replaceAll("\r\n", "\n")))) blockers.push(`Source review missing or stale: ${role}`);
   }
-  for (const key of ["name", "subtitle", "keywords", "primaryCategory", "copyright", "supportUrl", "marketingUrl", "privacyUrl"]) {
+  blockers.push(...metadataBlockers({ ...listing, description: files.find((file) => file.role === "description")?.text }));
+  for (const key of ["primaryCategory", "copyright", "supportUrl", "marketingUrl", "privacyUrl"]) {
     if (typeof listing[key] !== "string" || !listing[key].trim()) blockers.push(`Listing field missing: ${key}`);
   }
   return blockers;

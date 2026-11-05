@@ -28,10 +28,26 @@ The editable text files retain an explicit draft banner. Remove that banner
 only as part of intentional source approval; the counts above describe the
 proposed upload copy. The candidate checker rejects unapproved sources.
 
-Limits were checked against Apple's current
+Limits were checked on November 4, 2026 EST against Apple's current
 [app-information reference](https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/)
 and [platform-version reference](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information).
-The platform reference specifies keyword bytes, not characters. The selected
+The candidate checker now blocks a name under 2 or over 30 characters, a
+subtitle over 30, promotional text over 170, a description over 4,000 and
+keywords over 100 UTF-8 bytes. It measures text as written, so its description
+count includes the final newline, and the draft banner until approval removes it.
+
+Apple's wording leaves three things open. It does not define how characters are
+counted, so the checker also blocks a value when grapheme-cluster and UTF-16
+counts land on opposite sides of a limit. The platform reference gives keywords
+in bytes without naming an encoding, while the
+[product-page guide](https://developer.apple.com/app-store/product-page/) says
+100 characters; the UTF-8 byte check is the stricter reading. Apple does not
+mark promotional text as required, so the checker accepts it absent or blank and limits
+it when present. A passing length check grants no approval and does not prove
+that App Store Connect will accept the text.
+
+Terms over two characters, commas without spaces and name restrictions remain
+manual copy review, not checker rules. The selected
 keywords contain no competitor names, trademarked game variants, app/company
 name duplication, pricing claims or unsupported features. Only Board is proposed as a Games subcategory, consistent with
 [Apple's current category guidance](https://developer.apple.com/app-store/categories/).
