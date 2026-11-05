@@ -10,6 +10,8 @@ const resumePhases = new Set(["resume-press-in", "resume-press-out", "resume-han
   "resume-touch-end", "resume-touch-cancel",
   "resume-observation-detached", "resume-observation-disabled", "resume-observation-superseded",
   "resume-react-commit-loading", "resume-react-commit-setup", "resume-react-commit-play", "resume-react-commit-results"]);
+// Score boundary records name the earlier score-press-in record's sequence. Old score records keep their schema.
+const scoreBoundaryPhases = new Set(["score-touch-end", "score-touch-cancel", ...["detached", "disabled", "superseded"].map((p) => `score-observation-${p}`)]);
 const storeObservationPhases = ["decision-busy", "decision-accepted", "decision-can-retry", "decision-pending", "decision-no-data", "write-begin", "write-ack", "write-failed", "operation-failed", "no-op", "settled-success", "settled-failure"];
 const startPhases = new Set(["start-press-in", "start-press-out", "start-handler", ...["detached", "disabled", "superseded"].map((p) => `start-observation-${p}`),
   ...["loading", "setup", "play", "results"].map((p) => `start-react-commit-${p}`), ...storeObservationPhases.filter((p) => p !== "no-op").map((p) => `start-${p}`)]);
@@ -51,6 +53,12 @@ export function inputEvent(line) {
         || !Number.isSafeInteger(event.atMs) || event.atMs < 0 || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0
         || !Number.isSafeInteger(event.rerollId) || event.rerollId < 0 || event.rerollId >= 8192
         || (event.phase === "reroll-press-in" ? event.rerollId !== event.sequence : event.phase === "reroll-handler" ? event.rerollId > event.sequence : event.rerollId >= event.sequence)) return null;
+      return event;
+    }
+    if (scoreBoundaryPhases.has(event.phase)) {
+      if (Object.keys(event).sort().join() !== "atMs,monotonicMs,phase,scoreId,sequence"
+        || !Number.isSafeInteger(event.atMs) || event.atMs < 0 || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0
+        || !Number.isSafeInteger(event.scoreId) || event.scoreId < 0 || event.scoreId >= event.sequence) return null;
       return event;
     }
     if (helpPhases.has(event.phase)) {
