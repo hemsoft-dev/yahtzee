@@ -386,3 +386,123 @@ test("boundary observation stays capped, private and isolated from broken clocks
   expect(lines.join()).not.toContain("PRIVATE");
   expect(lines.every((line) => Object.keys(JSON.parse(line.slice(INPUT_TRACE_PREFIX.length))).sort().join() === "atMs,monotonicMs,phase,resumeId,sequence")).toBe(true);
 });
+
+function rerollTrace() {
+  const lines: string[] = [], trace = createInputTrace(true, (line) => lines.push(line), () => 123, () => 1);
+  const press = trace.rerollPressObservation()!;
+  const records = () => lines.map((line) => JSON.parse(line.slice(INPUT_TRACE_PREFIX.length)) as { phase: string; rerollId?: number; sequence: number });
+  const phases = (id?: number) => records().filter((record) => id === undefined || record.rerollId === id).map((record) => record.phase);
+  return { lines, trace, press, records, phases };
+}
+
+test("Re-roll correlates press, handler and store phases on one ID in either out/handler order, and its record schema is fixed", () => {
+  for (const outFirst of [true, false]) {
+    const t = rerollTrace();
+    t.press.pressIn(10);
+    if (outFirst) t.press.pressOut(11);
+    const observe = t.press.handler()!;
+    for (const phase of ["decision-accepted", "write-begin", "write-ack", "settled-success"] as const) observe(phase);
+    if (!outFirst) t.press.pressOut(11);
+    expect(new Set(t.records().map((record) => record.rerollId)).size).toBe(1);
+    expect(t.records()[0].rerollId).toBe(t.records()[0].sequence);
+    const store = ["reroll-handler", "reroll-decision-accepted", "reroll-write-begin", "reroll-write-ack", "reroll-settled-success"];
+    expect(t.phases()).toEqual(["reroll-press-in", ...(outFirst ? ["reroll-press-out", ...store] : [...store, "reroll-press-out"])]);
+    for (const record of t.records()) expect(Object.keys(record).sort()).toEqual(["atMs", "monotonicMs", "phase", "rerollId", "sequence"]);
+  }
+});
+
+test("Re-roll never fabricates press evidence, and repeated handlers never share a request", () => {
+  const t = rerollTrace();
+  const unmatched = t.press.handler()!; unmatched("decision-busy");
+  expect(t.phases()).toEqual(["reroll-handler", "reroll-decision-busy"]);
+  t.press.pressIn(10);
+  const first = t.press.handler()!, second = t.press.handler()!;
+  first("decision-accepted"); second("decision-busy");
+  const ids = [...new Set(t.records().map((record) => record.rerollId))] as number[];
+  expect(ids.length).toBe(3);
+  expect(t.phases(ids[1])).toEqual(["reroll-press-in", "reroll-handler", "reroll-decision-accepted"]);
+  expect(t.phases(ids[2])).toEqual(["reroll-handler", "reroll-decision-busy"]);
+});
+
+test("an unhandled Re-roll activation closes once on disable, unmount or supersession, and never lends its ID", () => {
+  for (const reason of ["disabled", "detached", "superseded"] as const) {
+    const t = rerollTrace();
+    t.press.pressIn(10); const id = t.press.request()!;
+    if (reason === "disabled") { t.press.disabled(true); t.press.disabled(true); t.press.pressIn(11); }
+    else if (reason === "detached") { t.press.unmount(); t.press.unmount(); t.press.pressIn(11); }
+    else t.press.pressIn(11);
+    t.press.pressOut(12);
+    expect(t.phases(id)).toEqual(["reroll-press-in", `reroll-observation-${reason}`]);
+    expect(t.press.request()).not.toBe(id);
+    t.press.handler();
+    expect(t.phases(id)).toEqual(["reroll-press-in", `reroll-observation-${reason}`]);
+  }
+});
+
+test("a handled Re-roll keeps its late out after unmount, a stale out stays unknown, and strict replay is inert", () => {
+  const t = rerollTrace();
+  t.press.attach(); t.press.unmount(); t.press.attach();
+  expect(t.lines).toEqual([]);
+  t.press.pressIn(10); t.press.handler(); t.press.disabled(true); t.press.unmount();
+  t.press.pressOut(11); t.press.pressOut(12);
+  expect(t.phases()).toEqual(["reroll-press-in", "reroll-handler", "reroll-press-out"]);
+  const late = rerollTrace();
+  late.press.pressIn(30); late.press.pressOut(20); late.press.pressOut(); late.press.pressOut(Number.NaN);
+  expect(late.phases()).toEqual(["reroll-press-in"]);
+});
+
+test("a Re-roll acknowledgment records durability without claiming a React commit", () => {
+  const t = rerollTrace();
+  const observe = t.press.handler()!; observe("decision-accepted"); observe("write-begin");
+  observe("write-ack"); observe("settled-success");
+  expect(t.phases()).toEqual(["reroll-handler", "reroll-decision-accepted", "reroll-write-begin", "reroll-write-ack", "reroll-settled-success"]);
+  expect("commit" in t.press).toBe(false);
+  const detachedBefore = rerollTrace(), late = detachedBefore.press.handler()!;
+  detachedBefore.press.unmount(); late("write-ack"); detachedBefore.press.attach();
+  expect(detachedBefore.phases()).toEqual(["reroll-handler", "reroll-write-ack"]);
+});
+
+test("a Re-roll store observer stays on its own request, drops no-op or unknown phases and stops once settled", () => {
+  const t = rerollTrace();
+  const old = t.press.handler()!; t.press.pressIn(10); const next = t.press.handler()!;
+  old("no-op"); old("bogus" as never); old("decision-accepted"); next("decision-busy"); next("decision-accepted"); old("settled-success"); old("write-ack");
+  const ids = [...new Set(t.records().map((record) => record.rerollId))] as number[];
+  expect(t.phases(ids[0])).toEqual(["reroll-handler", "reroll-decision-accepted", "reroll-settled-success"]);
+  expect(t.phases(ids[1])).toEqual(["reroll-press-in", "reroll-handler", "reroll-decision-busy"]);
+});
+
+test("Re-roll is inert when disabled, has no native touch capability, and lends its ID to no other control", () => {
+  const off = createInputTrace(false, () => { throw new Error("must not emit"); });
+  expect(off.rerollPressObservation()).toBeUndefined();
+  const t = rerollTrace();
+  expect(t.press.nativeTouch).toBeUndefined();
+  expect(Object.keys(t.press).sort()).toEqual(["attach", "disabled", "handler", "pressIn", "pressOut", "request", "unmount"]);
+  t.press.pressIn(1);
+  const id = t.press.request()!;
+  expect(t.trace.beginStart(id)).not.toBe(id);
+  expect(t.trace.beginResume(id)).not.toBe(id);
+  expect(t.trace.helpCallback(() => "value", id)).toBe("value");
+  expect(t.phases(id)).toEqual(["reroll-press-in"]);
+  expect(t.press.request()).toBe(id);
+});
+
+test("Re-roll observation stays capped, private and isolated from broken clocks or sinks", () => {
+  const fail = () => { throw new Error("PRIVATE ERROR"); };
+  const lines: string[] = [];
+  for (const fault of ["none", "sink", "wall", "monotonic"] as const) {
+    const trace = createInputTrace(true, fault === "sink" ? fail : (line) => lines.push(line), fault === "wall" ? fail : () => 123, fault === "monotonic" ? fail : () => 1);
+    const press = trace.rerollPressObservation()!;
+    expect(() => {
+      for (let i = 0; i < 9000; i++) {
+        press.pressIn(i); press.pressOut(i);
+        const observe = press.handler();
+        observe?.("decision-accepted"); observe?.("write-ack"); observe?.("settled-success");
+      }
+      press.disabled(true); press.unmount();
+    }).not.toThrow();
+    expect(press.handler()).toBeUndefined();
+  }
+  expect(lines.length).toBe(8192);
+  expect(lines.join()).not.toContain("PRIVATE");
+  expect(lines.every((line) => Object.keys(JSON.parse(line.slice(INPUT_TRACE_PREFIX.length))).sort().join() === "atMs,monotonicMs,phase,rerollId,sequence")).toBe(true);
+});
