@@ -1,6 +1,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, resolve, relative, sep } from "node:path";
 import { createHash } from "node:crypto";
+import { metadataBlockers } from "./metadata.mjs";
 import { readCapturePng } from "./png.mjs";
 
 export const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -14,10 +15,11 @@ export function readSource(mobile, path, committedBytes) {
   relativeSource(path);
   const bytes = readFileSync(resolve(mobile, path));
   // git show fails for ignored/untracked files, and bytes must match that commit.
-  const text = bytes.toString("utf8").replaceAll("\r\n", "\n");
+  const rawText = bytes.toString("utf8");
+  const text = rawText.replaceAll("\r\n", "\n");
   if (committedBytes && text !== committedBytes(`apps/mobile/${path}`).toString("utf8").replaceAll("\r\n", "\n")) throw new Error(`Source differs from committed text: ${path}`);
   if (!text.trim()) throw new Error(`Empty release source: ${path}`);
-  return { path, text };
+  return { path, text, rawText };
 }
 
 export function copyBlockers(files, listing) {
@@ -31,7 +33,9 @@ export function copyBlockers(files, listing) {
     const review = listing.sourceReviews?.[role];
     if (!source || review?.status !== "approved" || review.sha256 !== sha256(Buffer.from(source.text.replaceAll("\r\n", "\n")))) blockers.push(`Source review missing or stale: ${role}`);
   }
-  for (const key of ["name", "subtitle", "keywords", "primaryCategory", "copyright", "supportUrl", "marketingUrl", "privacyUrl"]) {
+  const description = files.find((file) => file.role === "description");
+  blockers.push(...metadataBlockers({ ...listing, description: description?.rawText ?? description?.text }));
+  for (const key of ["primaryCategory", "copyright", "supportUrl", "marketingUrl", "privacyUrl"]) {
     if (typeof listing[key] !== "string" || !listing[key].trim()) blockers.push(`Listing field missing: ${key}`);
   }
   return blockers;
