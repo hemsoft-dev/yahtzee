@@ -13,6 +13,8 @@ const resumePhases = new Set(["resume-press-in", "resume-press-out", "resume-han
 const storeObservationPhases = ["decision-busy", "decision-accepted", "decision-can-retry", "decision-pending", "decision-no-data", "write-begin", "write-ack", "write-failed", "operation-failed", "no-op", "settled-success", "settled-failure"];
 const startPhases = new Set(["start-press-in", "start-press-out", "start-handler", ...["detached", "disabled", "superseded"].map((p) => `start-observation-${p}`),
   ...["loading", "setup", "play", "results"].map((p) => `start-react-commit-${p}`), ...storeObservationPhases.filter((p) => p !== "no-op").map((p) => `start-${p}`)]);
+const rerollPhases = new Set(["reroll-press-in", "reroll-press-out", "reroll-handler", ...["detached", "disabled", "superseded"].map((p) => `reroll-observation-${p}`),
+  ...storeObservationPhases.filter((p) => p !== "no-op").map((p) => `reroll-${p}`)]);
 const preferencePhases = new Set([...[5, 6, 8, 10].map((v) => `preference-dice-${v}`), ...[0, 1, 2, 3].map((v) => `preference-ai-${v}`)]
   .flatMap((prefix) => ["intent", "react-commit", "observation-detached", ...storeObservationPhases].map((p) => `${prefix}-${p}`)));
 function setupEvent(event) {
@@ -42,6 +44,13 @@ export function inputEvent(line) {
         || !Number.isSafeInteger(event.atMs) || event.atMs < 0 || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0
         || !Number.isSafeInteger(event.pickerId) || event.pickerId < 0 || event.pickerId >= 8192
         || (event.phase === "picker-press-in" ? event.pickerId !== event.sequence : event.phase === "picker-handler" ? event.pickerId > event.sequence : event.pickerId >= event.sequence)) return null;
+      return event;
+    }
+    if (rerollPhases.has(event.phase)) {
+      if (Object.keys(event).sort().join() !== "atMs,monotonicMs,phase,rerollId,sequence"
+        || !Number.isSafeInteger(event.atMs) || event.atMs < 0 || !Number.isFinite(event.monotonicMs) || event.monotonicMs < 0
+        || !Number.isSafeInteger(event.rerollId) || event.rerollId < 0 || event.rerollId >= 8192
+        || (event.phase === "reroll-press-in" ? event.rerollId !== event.sequence : event.phase === "reroll-handler" ? event.rerollId > event.sequence : event.rerollId >= event.sequence)) return null;
       return event;
     }
     if (helpPhases.has(event.phase)) {

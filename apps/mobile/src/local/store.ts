@@ -129,7 +129,7 @@ export function createLocalStore(storage: StoragePort, newId = () => `${Date.now
     getSnapshot: () => view,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     start: (options: Start, observer?: StoreObservation) => update((data) => begin(data, options, newId()), observer),
-    move: (move: Move) => update((data) => nextMove(data, move)),
+    move: (move: Move, observer?: StoreObservation) => update((data) => nextMove(data, move), observer),
     retry: () => attempt(writePending),
     discard: () => update((data) => ({ ...data, active: null })),
     preferences: (patch: Partial<Preferences>, observer?: StoreObservation) => {

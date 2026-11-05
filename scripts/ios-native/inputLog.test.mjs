@@ -219,3 +219,36 @@ test("Start and selection allowlists preserve fixed IDs and reject sensitive or 
     ["start-write-ack", { startId: 1 }], ["start-native-paint", { startId: 0 }], ["preference-dice-999-intent", { preferenceId: 1 }],
     ["preference-dice-10-intent", { preferenceId: "PRIVATE" }]]) assert.equal(inputEvent(line(phase, extra)), null);
 });
+
+test("Re-roll parser accepts only fixed phases and one bounded numeric ID", () => {
+  const phases = ["reroll-press-in", "reroll-press-out", "reroll-handler",
+    ...["detached", "disabled", "superseded"].map((end) => `reroll-observation-${end}`),
+    ...["decision-busy", "decision-accepted", "decision-can-retry", "decision-pending", "decision-no-data", "write-begin", "write-ack", "write-failed", "operation-failed", "settled-success", "settled-failure"].map((store) => `reroll-${store}`)];
+  for (const phase of phases) {
+    const rerollId = phase === "reroll-press-in" ? 1 : 0;
+    assert.equal(inputEvent(line(phase, { rerollId }))?.phase, phase);
+    for (const extra of [{ rerollId, label: "PRIVATE" }, { rerollId, error: "PRIVATE" }, { rerollId, dice: [1] }, { rerollId, nativeEvent: {} }, {}, { rerollId: -1 }, { rerollId: 8192 }, { rerollId: "0" }, { rerollId: 0.5 },
+      { rerollId, sequence: 8192 }, { rerollId, atMs: -1 }, { rerollId, monotonicMs: -1 }, { rerollId, resumeId: 0 }, { rerollId, helpId: 0 }]) assert.equal(inputEvent(line(phase, extra)), null);
+    for (const other of ["resumeId", "startId", "helpId", "pickerId", "preferenceId"]) assert.equal(inputEvent(line(phase, { [other]: 0 })), null);
+  }
+  assert.equal(inputEvent(line("reroll-handler", { rerollId: 1 }))?.rerollId, 1, "an unmatched handler's ID is its own sequence");
+  for (const [phase, rerollId] of [["reroll-handler", 2], ["reroll-press-in", 0], ["reroll-write-ack", 1], ["reroll-press-out", 1], ["reroll-react-commit", 1], ["reroll-observation-disabled", 1]]) assert.equal(inputEvent(line(phase, { rerollId })), null);
+  for (const phase of ["reroll-no-op", "reroll-write-acked", "reroll-native-paint", "reroll-ax-ready", "reroll-touch-end", "reroll-touch-cancel", "reroll-react-commit", "reroll-react-commit-play", "reroll-accepted", "reroll-rejected"]) assert.equal(inputEvent(line(phase, { rerollId: 0 })), null);
+});
+
+test("streamed Re-roll phases keep one ID without changing capture health, and requested exit 143 stays unavailable", async () => {
+  const h = harness(); heartbeat(h);
+  const phases = ["reroll-press-in", "reroll-handler", "reroll-decision-accepted", "reroll-write-begin", "reroll-press-out", "reroll-write-ack", "reroll-settled-success"];
+  for (const [index, phase] of phases.entries()) h.child.stdout.write(line(phase, { rerollId: 1, sequence: index + 1 }) + "\n");
+  const result = await h.stop();
+  assert.equal(inputTraceUsable(result), true);
+  const records = h.read().trim().split("\n").map(JSON.parse).slice(1);
+  assert.deepEqual(records.map((record) => record.phase), phases);
+  assert(records.every((record) => record.rerollId === 1));
+  assert.equal(inputTraceUsable({ ...result, exitCode: 143, exitSignal: null }), false);
+  const malformed = harness(); heartbeat(malformed);
+  malformed.child.stdout.write(line("reroll-handler", { rerollId: 1, label: "PRIVATE" }) + "\n");
+  const rejected = await malformed.stop();
+  assert.equal(rejected.error, "input-log-malformed-record"); assert.equal(inputTraceUsable(rejected), false);
+  assert(!malformed.read().includes("PRIVATE"));
+});
