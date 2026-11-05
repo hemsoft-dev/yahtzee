@@ -35,6 +35,9 @@ The candidate checker now blocks a name under 2 or over 30 characters, a
 subtitle over 30, promotional text over 170, a description over 4,000 and
 keywords over 100 UTF-8 bytes. It measures text as written, so its description
 count includes the final newline, and the draft banner until approval removes it.
+Description limits use the raw source text, including CRLF pairs; approval hashes
+continue to use the existing LF-normalized text. The table describes committed LF
+copy, so a CRLF working copy can have a different upper-bound count.
 
 Apple's wording leaves three things open. It does not define how characters are
 counted, so the checker also blocks a value when grapheme-cluster and UTF-16

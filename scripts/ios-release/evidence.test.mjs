@@ -86,6 +86,24 @@ test("the description is measured as reviewed, without removing a draft banner o
   const newline = approvedCopy(`${"d".repeat(4000)}\n`);
   assert.deepEqual(copyBlockers(newline.files, newline.listing), ["Listing field outside limit: description has 4001 characters; allowed up to 4000"]);
 });
+test("description limits retain raw CRLF while approval hashes keep normalized text", () => {
+  const root = mkdtempSync(join(tmpdir(), "ios-source-raw-"));
+  assert.ok(root.startsWith(join(tmpdir(), "ios-source-raw-")));
+  try {
+    for (const [count, expected] of [
+      [3998, []],
+      [3999, ["Listing field count ambiguous: description has 4000 to 4001 characters; allowed up to 4000; Apple does not define the count"]],
+    ]) {
+      const normalized = `${"d".repeat(count)}\n`;
+      const raw = `${"d".repeat(count)}\r\n`;
+      writeFileSync(join(root, "description.txt"), raw);
+      const source = readSource(root, "description.txt", () => Buffer.from(normalized));
+      assert.equal(source.text, normalized);
+      const { files, listing } = approvedCopy(normalized);
+      assert.deepEqual(copyBlockers([{ ...source, role: "description" }, ...files.slice(1)], listing), expected);
+    }
+  } finally { rmSync(root, { recursive: true }); }
+});
 test("missing or non-text metadata stays blocked", () => {
   const { files, listing } = approvedCopy();
   for (const key of ["name", "subtitle", "keywords", "primaryCategory", "copyright", "supportUrl", "marketingUrl", "privacyUrl"]) {
