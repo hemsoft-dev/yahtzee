@@ -1,3 +1,4 @@
+import type { StoreObservation, StoreObservationPhase } from "../diagnostics/inputTrace";
 import { addGameLogEntry, applySessionMove, fromWire, newSessionGame, updateHighScores, type Move } from "@yahtzee/game-engine";
 import { decodeSave, emptySave, migratePreferences, MODES, SAVE_KEY, validPreferences, type LocalSave, type Preferences } from "./save";
 
@@ -60,7 +61,10 @@ export function createLocalStore(storage: StoragePort, newId = () => `${Date.now
     const bytes = JSON.stringify(data);
     pending = { data: decodeSave(bytes), bytes, reset };
   };
-  const writePending = async () => {
+  const observe = (observer: StoreObservation | undefined, phase: StoreObservationPhase) => {
+    try { observer?.(phase); } catch { /* Observation cannot change persistence. */ }
+  };
+  const writePending = async (observer?: StoreObservation) => {
     if (!pending) throw new Error("No save is waiting to be retried.");
     const transaction = pending;
     if (transaction.reset) {
@@ -75,27 +79,36 @@ export function createLocalStore(storage: StoragePort, newId = () => `${Date.now
         throw new Error("Reset did not finish. Some local data may already have been deleted. Retry reset or reload to check.");
       }
       // Absence is the committed empty state. Recreating it here adds an unsafe post-commit failure.
-    } else await storage.setItem(SAVE_KEY, transaction.bytes);
+    } else {
+      observe(observer, "write-begin");
+      try { await storage.setItem(SAVE_KEY, transaction.bytes); }
+      catch (error) { observe(observer, "write-failed"); throw error; }
+      observe(observer, "write-ack");
+    }
     pending = null;
     publish({ data: transaction.data, error: null, canRetry: false, retryReset: false, generation: view.generation + Number(transaction.reset) });
   };
-  const attempt = async (operation: () => Promise<void>): Promise<boolean> => {
-    if (view.busy) return false;
+  const attempt = async (operation: () => Promise<void>, observer?: StoreObservation): Promise<boolean> => {
+    if (view.busy) { observe(observer, "decision-busy"); return false; }
+    observe(observer, "decision-accepted");
     publish({ busy: true, error: null });
     try {
       await operation();
+      observe(observer, "settled-success");
       return true;
     } catch (error) {
+      observe(observer, "operation-failed");
       publish({ error: error instanceof Error ? error.message : "Local storage is unavailable.", canRetry: pending !== null, retryReset: pending?.reset ?? false });
+      observe(observer, "settled-failure");
       return false;
     } finally { publish({ busy: false }); }
   };
-  const update = (build: (data: LocalSave) => LocalSave) => attempt(async () => {
-    if (pending) throw new Error("Retry the pending save or reload the last saved data first.");
-    if (!view.data) throw new Error("Saved data is not available. Retry loading or choose an explicit reset.");
+  const update = (build: (data: LocalSave) => LocalSave, observer?: StoreObservation) => attempt(async () => {
+    if (pending) { if (view.canRetry) observe(observer, "decision-can-retry"); observe(observer, "decision-pending"); throw new Error("Retry the pending save or reload the last saved data first."); }
+    if (!view.data) { observe(observer, "decision-no-data"); throw new Error("Saved data is not available. Retry loading or choose an explicit reset."); }
     stage(build(clone(view.data)));
-    await writePending();
-  });
+    await writePending(observer);
+  }, observer);
   const load = () => attempt(async () => {
     // Explicit reload abandons an unacknowledged in-memory move, never the saved document.
     pending = null;
@@ -115,23 +128,23 @@ export function createLocalStore(storage: StoragePort, newId = () => `${Date.now
     load,
     getSnapshot: () => view,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    start: (options: Start) => update((data) => begin(data, options, newId())),
+    start: (options: Start, observer?: StoreObservation) => update((data) => begin(data, options, newId()), observer),
     move: (move: Move) => update((data) => nextMove(data, move)),
     retry: () => attempt(writePending),
     discard: () => update((data) => ({ ...data, active: null })),
-    preferences: (patch: Partial<Preferences>) => {
+    preferences: (patch: Partial<Preferences>, observer?: StoreObservation) => {
       // Re-selecting Solo/current dice count must not disable the next setup row
       // while an unnecessary SQLite write waits for acknowledgement.
       const current = view.data?.preferences;
       if (!view.busy && !pending && !view.error && current) {
         const next = { ...current, ...patch };
-        if (validPreferences(next) && JSON.stringify(next) === JSON.stringify(current)) return Promise.resolve(true);
+        if (validPreferences(next) && JSON.stringify(next) === JSON.stringify(current)) { observe(observer, "no-op"); return Promise.resolve(true); }
       }
       return update((data) => {
         const preferences = { ...data.preferences, ...patch };
         if (!validPreferences(preferences)) throw new Error("Invalid local preferences.");
         return { ...data, preferences };
-      });
+      }, observer);
     },
     // The UI must confirm deletion of games, results, names and preferences first.
     resetAll: () => attempt(async () => { stage(emptySave(), true); await writePending(); }),

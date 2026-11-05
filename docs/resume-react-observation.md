@@ -1,8 +1,9 @@
 # Resume press and React observation
 
 Refs [#112](https://github.com/hemsoft-dev/yahtzee/issues/112). This diagnostic
-observes qualification-only Pressable callbacks, JS handler entry and React
-committed selection. It does not fix Resume. Native delivery, paint, AX visibility,
+observes qualification-only Pressable callbacks, delivered touch end/cancel events,
+JS handler entry and React committed selection. It does not fix Resume. UIKit
+delivery, paint, AX visibility,
 one-tap acknowledgment and cause remain unproved. Both #112 and the original
 [score loss #102](https://github.com/hemsoft-dev/yahtzee/issues/102) remain open.
 
@@ -15,6 +16,9 @@ coordinate, player name, game ID, score or arbitrary error enters this channel.
 
 - `resume-press-in` allocates `resumeId` from that record's sequence number.
 - `resume-press-out` reports Pressable deactivation with the same ID.
+- `resume-touch-end` and `resume-touch-cancel` report that React Native delivered
+  that touch event to Resume's host view, with the same ID. See
+  [Native touch boundary](#native-touch-boundary).
 - `resume-handler` reports entry into NativeGameScreen's existing callback,
   using the ID passed from that activation. If no activation is available, the
   handler allocates its own ID equal to its sequence. That is an unmatched
@@ -59,6 +63,52 @@ The lifecycle boundaries follow React's
 The installed Pressability implementation permits delayed press-out. Context7
 was unavailable; official documentation and the installed implementation were
 consulted. The browser host adapter is not a native-delivery test.
+
+## Native touch boundary
+
+[Press-out means gesture deactivation](https://reactnative.dev/docs/0.86/pressable).
+It cannot tell a released touch from a cancelled one. The
+[PR #116 tablet failure](https://github.com/hemsoft-dev/yahtzee/pull/116)
+retained press-in and press-out with no handler record under unavailable capture
+health, and its source had nothing to say which ended the touch.
+Only the Resume factory offers `nativeTouch`. Action spreads its passive
+`onTouchStart`, `onTouchEnd` and `onTouchCancel` hooks onto that one Pressable.
+Start, Help, Picker, Done, non-observed and shipping Actions keep their existing
+props and receive no touch hook. `onTouchStart` writes no record.
+
+A boundary record means one thing: an event with a matching touch reached this
+host view while the activation was open or handled. It does not say why a touch
+was cancelled, that UIKit delivered anything else, that a handler ran or did not
+run, or that anything painted. Its absence proves nothing: incomplete capture,
+a removed view after unmount, or any of the rules below can hide it. Both
+orders against press-out and the handler are possible and carry no causal meaning.
+
+Correlation uses a native identifier and time, in memory only and as validated
+primitives. Neither reaches the channel, and one binding per control is held.
+Native identifiers are reused by every later gesture, so an identifier alone is
+never enough. These cases stay UNKNOWN and write nothing:
+
+- Activation event: not exactly one changed touch, a top-level identifier or time
+  that disagrees with it, or a missing or malformed identifier or time.
+- Boundary event: a malformed changed-touch list, a duplicate match, or a missing
+  or invalid time for the bound touch. This also ends the correlation, because a
+  later match could be another gesture.
+- A later touch start for the bound identifier with no press-in, or one with
+  an unknown time. A start at or before the activation's own time keeps it.
+- A closed activation: disabled, detached or superseded before its handler. A
+  handled activation can still record after Setup unmounts, like a delayed out.
+
+Another finger's event and an older gesture's late event are ignored without
+ending the correlation. Each activation records at most one boundary. Observer
+reads are isolated, so a hostile payload cannot reach the original callbacks.
+
+The hooks use only documented View touch props, and nothing here reads, wraps or
+replaces a responder handler or changes a press option. In installed React Native
+0.86.3, Pressable forwards rest props and then spreads Pressability's handlers,
+which contain no touch props, and iOS touch payloads carry per-touch `identifier`
+and `timestamp`. The Fabric plugin order runs the responder before these bubbled
+hooks. Those are static source facts: nothing here executes Pressability, and
+Android's handling of the extra view props was not examined.
 
 ## Capture and evidence limits
 
@@ -110,6 +160,17 @@ Windows validation jobs already execute the same lifecycle command after the
 existing successful Chromium install. No workflow, dependency, timeout, runner,
 assertion, native device/mode matrix, retry tap or save behavior changes here.
 
-New-source hosted native press/handler/commit correlation and UI/video/save
-proof remain pending ordinary CI. A passing matrix or React commit alone cannot
-close either diagnostic issue.
+The same command covers the native touch boundary with the real Action, Setup,
+NativeGameScreen and react-native-web Pressable. Adapter events supply React
+Native's payload shape, so they are fixtures and not native proof. A real browser
+touch tap has no such payload, so it records no boundary. The
+`resume-boundary-baseline-2453` fixture is the exact prior Action, hash-pinned and
+needing no Git history. `RESUME_BOUNDARY_BASELINE=1 bun test
+scripts/ios-native/resumeObservation.test.ts` runs the boundary regressions on it:
+they reach the original press and handler callbacks, then fail on the absent
+boundary record. No local run reproduces the hosted Resume failure, and no local
+cancel reproduces that occurrence.
+
+New-source hosted native press/handler/commit correlation, touch boundary and
+UI/video/save proof remain pending ordinary CI. A passing matrix or React commit
+alone cannot close either diagnostic issue.

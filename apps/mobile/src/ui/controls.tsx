@@ -30,8 +30,9 @@ export function Action({ label, onPress, disabled = false, primary = false, dest
   const color = destructive ? colors.error : primary ? colors.actionText : colors.tint;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} aria-disabled={disabled}
     testID={testID} disabled={disabled} onPress={onPress}
-    onPressIn={pressObservation ? (event) => pressObservation.pressIn(event.nativeEvent.timestamp) : undefined}
+    onPressIn={pressObservation ? (event) => { pressObservation.pressIn(event.nativeEvent.timestamp); pressObservation.nativeTouch?.activated(event); } : undefined}
     onPressOut={pressObservation ? (event) => pressObservation.pressOut(event.nativeEvent.timestamp) : undefined}
+    {...pressObservation?.nativeTouch?.props}
     style={({ pressed }) => [styles.action, { backgroundColor: primary ? colors.action : "transparent", opacity: disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
     <Label color={color} style={styles.actionText}>{label}</Label>
   </Pressable>;

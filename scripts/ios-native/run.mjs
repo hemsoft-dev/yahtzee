@@ -17,6 +17,7 @@ import { retainDriverLogs } from "./driverLogs.mjs";
 import { snapshotEvidence } from "./snapshot.mjs";
 import { checkedCommandOutput } from "./commandResult.mjs";
 import { startInputObservation } from "./inputObservation.mjs";
+import { startDoneObservation } from "./doneObservation.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
@@ -120,6 +121,7 @@ async function corruption(device, bundleId) {
 }
 const traceInputs = process.env.GITHUB_ACTIONS === "true" || process.env.EXPO_PUBLIC_NATIVE_INPUT_TRACE === "1";
 let stopInputLog;
+let stopDoneLog;
 async function exercise(app, bundleId) {
   const runtime = "com.apple.CoreSimulator.SimRuntime.iOS-26-5";
   const types = JSON.parse(sim("list", "devicetypes", "--json")).devicetypes;
@@ -147,6 +149,7 @@ async function exercise(app, bundleId) {
     receipt.phase = `start-${scenario.id}`; checkpoint();
     if (index === 0) recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-resume.mp4")], { env, stdio: "ignore" });
     if (traceInputs) stopInputLog = startInputObservation(device, join(directory, "input-events.jsonl"), { env });
+    if (traceInputs) stopDoneLog = startDoneObservation(device, join(directory, "done-events.jsonl"), { env });
     let resumedBytes;
     await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery,
       capture: (name) => sim("io", device, "screenshot", join(directory, `${name}.png`)),
@@ -159,6 +162,9 @@ async function exercise(app, bundleId) {
       } });
     if (stopInputLog) {
       result.inputTrace = await stopInputLog(); stopInputLog = undefined;
+    }
+    if (stopDoneLog) {
+      result.doneTrace = await stopDoneLog(); stopDoneLog = undefined;
     }
     await stopRecording();
     result.status = "passed"; result.resumeDocumentSha256 = hash(resumedBytes); checkpoint();
@@ -199,6 +205,9 @@ try {
   try { await stopRecording(); } catch (error) { receipt.recordingError = String(error); receipt.status = "failed"; process.exitCode = 1; }
   if (stopInputLog) {
     receipt.scenarios.at(-1).inputTrace = await stopInputLog();
+  }
+  if (stopDoneLog) {
+    receipt.scenarios.at(-1).doneTrace = await stopDoneLog();
   }
   for (const device of ownedDevices) {
     // Only devices created by this process are shut down or deleted.

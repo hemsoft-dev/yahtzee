@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MaestroError } from "./mcp.mjs";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import { Worker } from "node:worker_threads";
+import { MaestroError, rpcClient } from "./mcp.mjs";
 import { nativeInteraction } from "./interaction.mjs";
 import { startFlow, resumeFlow } from "./flows.mjs";
 
@@ -25,6 +28,31 @@ function harness() {
     } };
   return { options, calls, captures, state: () => ({ opened, closed, childEnv }), cleanup: () => rmSync(directory, { recursive: true }) };
 }
+
+test("owned JVM scratch is fresh and metadata is retained before close removes transient files", async () => {
+  const flow = harness(), open = flow.options.openSession;
+  flow.options.env.JAVA_OPTS = "untrusted-inherited-fragment";
+  flow.options.env.MAESTRO_OPTS = "untrusted-inherited-fragment";
+  let scratch;
+  try {
+    await nativeInteraction({ ...flow.options, exercise: async () => {}, openSession: async (options) => {
+      assert.equal(options.env.JAVA_OPTS, undefined);
+      assert(options.env.MAESTRO_OPTS?.startsWith("'-Djava.io.tmpdir="));
+      scratch = options.env.MAESTRO_OPTS.slice("'-Djava.io.tmpdir=".length, -1).replaceAll("'\\''", "'");
+      assert(existsSync(scratch));
+      writeFileSync(join(scratch, "retained.xctestrun"), "malformed private source must not be published");
+      const client = await open(options);
+      return { ...client, close: async () => {
+        const evidence = JSON.parse(readFileSync(join(flow.options.directory, "scenario-driver-evidence.json")));
+        assert.equal(evidence.attempts[0].evidence.observed[0].role, "test-plan");
+        assert.equal(evidence.attempts[0].evidence.loadedImage, "unattested");
+        rmSync(scratch, { recursive: true }); await client.close();
+      } };
+    } });
+    assert.equal(flow.state().closed, 1);
+    assert(!existsSync(scratch));
+  } finally { flow.cleanup(); }
+});
 test("integration preserves the full-scenario budget and the shorter standalone budgets", async () => {
   for (const [prefix, budget] of [["scenario", 1200000], ["hold", 600000], ["complete", 600000]]) {
     const flow = harness(), open = flow.options.openSession;
@@ -49,7 +77,9 @@ test("multiple authored flows and inspections use exactly one owned bounded sess
       io.record({ action: "fixture" });
     } });
     const { opened, closed, childEnv } = flow.state();
-    assert.equal(opened, 1); assert.equal(closed, 1); assert.deepEqual(childEnv, { PATH: "fixture-path", XDG_STATE_HOME: join(flow.options.directory, ".scenario-driver-state") });
+    assert.equal(opened, 1); assert.equal(closed, 1);
+    assert.deepEqual(Object.keys(childEnv).sort(), ["MAESTRO_OPTS", "PATH", "XDG_STATE_HOME"]);
+    assert.equal(childEnv.PATH, "fixture-path"); assert(childEnv.XDG_STATE_HOME.startsWith(join(flow.options.directory, ".scenario-driver-state", ".jvm-")));
     assert.deepEqual(flow.calls.map((item) => item.name), ["list_devices", "inspect_screen", "run", "run", "inspect_screen", "run"]);
     assert.equal(readdirSync(flow.options.directory).filter((name) => name.endsWith(".yaml")).length, 3);
     assert(!readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8").includes("fixture-secret"));
@@ -60,6 +90,57 @@ test("multiple authored flows and inspections use exactly one owned bounded sess
     assert.deepEqual(entries.map((item) => item.tool), ["list_devices", "inspect_screen", "run", "run", "inspect_screen", "run"]);
     assert(entries.every((item) => item.outcome === "returned" && item.elapsedMs >= 0));
     assert(entries.every((item) => Object.keys(item).sort().join(",") === "elapsedMs,flowSequence,outcome,started,tool"));
+  } finally { flow.cleanup(); }
+});
+
+test("failed or delayed evidence preserves success and the identical primary failure without replay", async () => {
+  for (const failed of [false, true]) for (const delayed of [false, true]) {
+    const flow = harness(), original = new Error("original flow error"); let worker;
+    class EvidenceWorker {
+      constructor(url, options) {
+        if (!delayed) throw new Error("private metadata failure");
+        worker = new Worker(`setTimeout(()=>import(${JSON.stringify(url.href)}),50)`, { eval: true, ...options }); return worker;
+      }
+    }
+    try {
+      const result = nativeInteraction({ ...flow.options, evidenceWorker: EvidenceWorker, exercise: async (io) => {
+        await io.run([{ tapOn: { id: "original-control", retryTapIfNoChange: false } }]); if (failed) throw original;
+      } });
+      if (failed) await assert.rejects(result, (error) => error === original); else await result;
+      assert.equal(flow.state().closed, 1); assert.equal(flow.state().opened, 1);
+      assert.equal(flow.calls.filter((v) => v.name === "run").length, 1);
+      if (worker) assert.equal(worker.threadId, -1);
+      const evidence = readFileSync(join(flow.options.directory, "scenario-driver-evidence.json"), "utf8");
+      assert(!evidence.includes("private metadata failure"));
+      assert(!evidence.includes(flow.options.directory.replaceAll("\\", "\\\\")));
+    } finally { flow.cleanup(); }
+  }
+});
+
+test("stalled capture preserves the shutdown reserve and retires its worker before close", async () => {
+  const flow = harness(), open = flow.options.openSession, started = Date.now(); let worker;
+  class StalledWorker { constructor() { worker = new Worker("setInterval(()=>{},1000)", { eval: true }); return worker; } }
+  try {
+    await nativeInteraction({ ...flow.options, now: () => started - 1200000 + 60300, evidenceWorker: StalledWorker,
+      exercise: async () => {}, openSession: async (options) => {
+        const client = await open(options); return { ...client, close: async () => { assert.equal(worker.threadId, -1); await client.close(); } };
+      } });
+    assert.equal(flow.state().closed, 1); assert(Date.now() - started < 3000);
+    assert.equal(JSON.parse(readFileSync(join(flow.options.directory, "scenario-driver-evidence.json"))).attempts[0].evidence.reason, "budget");
+  } finally { flow.cleanup(); }
+});
+
+test("evidence write failure stays advisory and stale prior-state logs are never published", async () => {
+  const flow = harness();
+  try {
+    const stale = join(flow.options.directory, ".scenario-driver-state/maestro/tests/old"); mkdirSync(stale, { recursive: true });
+    writeFileSync(join(stale, "xctest_runner_999.log"), "private stale session\n");
+    mkdirSync(join(flow.options.directory, "scenario-driver-evidence.json"));
+    await nativeInteraction({ ...flow.options, exercise: async () => {} });
+    assert.equal(flow.state().closed, 1);
+    const report = JSON.parse(readFileSync(join(flow.options.directory, "scenario-recovery.json"))); assert.deepEqual(report.xctestLogs, []);
+    const text = readFileSync(join(flow.options.directory, "scenario-mcp.log"), "utf8");
+    assert(text.includes("Driver identity retention unavailable.")); assert(!text.includes("private stale"));
   } finally { flow.cleanup(); }
 });
 test("failure preserves its phase screenshot and closes the same session without replay", async () => {
@@ -278,3 +359,28 @@ for (const mode of ["transient", "transient-timeout", "persistent", "flow-timeou
     } finally { flow.cleanup(); }
   });
 }
+
+test("optional evidence preserves the real transport shutdown reserve near the deadline", async () => {
+  for (const failed of [false, true]) {
+    const flow = harness(), open = flow.options.openSession, started = Date.now();
+    const original = new Error("original exercise failure");
+    let worker, killed = 0, exited = false, stopTimer;
+    class StalledWorker { constructor() { worker = new Worker("setInterval(()=>{},1000)", { eval: true }); return worker; } }
+    const child = new EventEmitter(); child.stdout = new PassThrough(); child.stdin = new PassThrough();
+    child.stdin.once("finish", () => { stopTimer = setTimeout(() => { exited = true; child.emit("close", 0, null); }, 30); });
+    child.kill = () => { killed++; clearTimeout(stopTimer); child.emit("close", null, "SIGKILL"); };
+    try {
+      const result = nativeInteraction({ ...flow.options, now: () => started - 1200000 + 300,
+        evidenceWorker: StalledWorker, exercise: async () => { if (failed) throw original; },
+        openSession: async (options) => {
+          const client = await open(options), transport = rpcClient(child, { deadline: options.deadline });
+          return { ...client, close: async () => { await transport.close(); await client.close(); } };
+        } });
+      if (failed) await assert.rejects(result, (error) => error === original); else await result;
+      assert.equal(killed, 0); assert.equal(exited, true); assert.equal(flow.state().closed, 1);
+      assert.equal(worker, undefined, "capture must be skipped when only shutdown time remains");
+      const evidence = JSON.parse(readFileSync(join(flow.options.directory, "scenario-driver-evidence.json")));
+      assert.equal(evidence.attempts[0].evidence.reason, "budget");
+    } finally { clearTimeout(stopTimer); if (worker?.threadId !== undefined && worker.threadId !== -1) await worker.terminate(); flow.cleanup(); }
+  }
+});

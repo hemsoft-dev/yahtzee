@@ -1,6 +1,8 @@
 import React from "react";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { doneTrace } from "../src/diagnostics/doneTrace";
+import { DoneBranchObserver } from "../src/diagnostics/useDoneNavigationObservation";
 import { LocalProvider, useLocalGame } from "../src/local/LocalProvider";
 
 function Navigation() {
@@ -13,6 +15,7 @@ function Navigation() {
       <Stack.Screen name="history" options={{ title: "Local history" }} />
       <Stack.Screen name="help" options={{ title: "Help", presentation: "modal" }} />
     </Stack>
+    {doneTrace.enabled ? <DoneBranchObserver /> : null}
   </ThemeProvider>;
 }
 export default function Layout() {
