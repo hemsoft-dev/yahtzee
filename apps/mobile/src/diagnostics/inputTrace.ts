@@ -18,6 +18,16 @@ export type ResumePressObservation = {
   pressIn: (eventTime?: number) => void; pressOut: (eventTime?: number) => void; request: () => number | undefined;
   nativeTouch?: ResumeNativeTouch;
 };
+/**
+ * Score rows only. The unchanged `score-press-in` record's own sequence is the
+ * activation ID (`scoreId`); every old score record keeps its schema and order.
+ * `pressIn` must follow that row's press-in emit in the same callback.
+ */
+export type ScorePressObservation = {
+  attach: () => void; unmount: () => void; disabled: (disabled: boolean) => void;
+  pressIn: (event: unknown) => void; handler: () => void;
+  props: ResumeNativeTouch["props"];
+};
 type ChangedTouch = { identifier: number; time: number | undefined };
 const touchIdentifier = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 const touchTime = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
@@ -68,7 +78,8 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
   // scoped to this trace's process epoch. No native event payload is retained.
   const requests = new Map<number, { kind: "resume" | "start" | "help" | "picker" | "reroll"; acknowledged?: boolean; storeDone?: boolean; handled: boolean; ended: boolean; out: boolean; branches: Set<ResumeBranch> }>();
   const write = (phase: InputPhase | "resume-handler" | "resume-press-in" | "resume-press-out"
-    | `resume-observation-${ResumeEnd}` | `resume-react-commit-${ResumeBranch}` | `resume-touch-${"end" | "cancel"}` | `start-${string}` | `preference-${string}` | `help-${string}` | `picker-${string}` | `reroll-${string}`, resumeId?: number, extra?: { pickerId?: number; helpId?: number; startId?: number; preferenceId?: number; rerollId?: number }) => {
+    | `resume-observation-${ResumeEnd}` | `resume-react-commit-${ResumeBranch}` | `resume-touch-${"end" | "cancel"}` | `start-${string}` | `preference-${string}` | `help-${string}` | `picker-${string}` | `reroll-${string}`
+    | `score-touch-${"end" | "cancel"}` | `score-observation-${ResumeEnd}`, resumeId?: number, extra?: { pickerId?: number; helpId?: number; startId?: number; preferenceId?: number; rerollId?: number; scoreId?: number }) => {
     if (!enabled || sequence >= 8192) return;
     const id = sequence++;
     try { sink(INPUT_TRACE_PREFIX + JSON.stringify({ phase, atMs: clock(), monotonicMs: monotonic(), sequence: id,
@@ -76,7 +87,13 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
     catch { /* Diagnostic failure must not change a game action. */ }
     return id;
   };
-  const emit = (phase: InputPhase) => { write(phase); };
+  // Memory only: the sequence of the latest score-press-in record, so the same
+  // callback's score observation can name it. The emitted record is unchanged.
+  let scorePressIn: number | undefined;
+  const emit = (phase: InputPhase) => {
+    const id = write(phase);
+    if (phase === "score-press-in") scorePressIn = id;
+  };
   const allocate = (phase: "resume-press-in" | "resume-handler" | "start-press-in" | "start-handler" | "help-press-in" | "help-handler" | "picker-press-in" | "picker-handler" | "reroll-press-in" | "reroll-handler") => {
     if (!enabled || sequence >= 8192) return;
     const id = sequence;
@@ -208,6 +225,54 @@ export function createInputTrace(enabled: boolean, sink: (line: string) => void,
             requestWrite("reroll", phase, requestId);
             if (phase === "decision-busy" || phase === "settled-success" || phase === "settled-failure") settled = true;
           };
+        },
+      };
+    },
+    scorePressObservation(): ScorePressObservation | undefined {
+      if (!enabled) return;
+      let attached = true, disabled = false;
+      // Memory only, one per row, replaced by each press-in. The native identifier
+      // and time reject another or newer gesture; neither is ever written.
+      let active: { id: number; handled: boolean; closed: boolean; touch?: { identifier: number; at: number } } | undefined;
+      const close = (reason: ResumeEnd) => {
+        if (!active || active.handled || active.closed) return;
+        active.closed = true; write(`score-observation-${reason}`, undefined, { scoreId: active.id });
+      };
+      const boundary = (kind: "end" | "cancel") => (event: unknown) => {
+        const bound = active, touch = bound?.touch;
+        if (!bound || !touch) return;
+        const time = boundTouchTime(event, touch.identifier);
+        // Another finger, or an older gesture's late delivery: this gesture's boundary can still arrive.
+        if (time === "other" || (time !== undefined && time < touch.at)) return;
+        bound.touch = undefined; // Passed, known or not. A later match would be another gesture.
+        if (time !== undefined && !bound.closed) write(`score-touch-${kind}`, undefined, { scoreId: bound.id });
+      };
+      return {
+        attach() { attached = true; },
+        unmount() { attached = false; close("detached"); },
+        disabled(value) { disabled = value; if (value) close("disabled"); },
+        pressIn(event) {
+          // Only the record written immediately before this call is this callback's press-in.
+          const id = scorePressIn !== undefined && scorePressIn === sequence - 1 ? scorePressIn : undefined;
+          scorePressIn = undefined;
+          if (attached && !disabled) close("superseded");
+          active = undefined;
+          if (id === undefined || !attached || disabled) return;
+          const touch = activationTouch(event);
+          active = { id, handled: false, closed: false, ...(touch ? { touch: { identifier: touch.identifier, at: touch.time } } : {}) };
+        },
+        // Memory only: keeps a handled activation's boundary after the row disables
+        // or unmounts. No record; the old score-handler record is unchanged.
+        handler() { if (active && !active.closed && attached && !disabled) active.handled = true; },
+        props: {
+          onTouchStart(event) {
+            const bound = active, touch = bound?.touch;
+            if (!bound || !touch) return;
+            const time = boundTouchTime(event, touch.identifier);
+            // Native identifiers are reused. A later start with no press-in means this correlation is over.
+            if (time !== "other" && (time === undefined || time > touch.at)) bound.touch = undefined;
+          },
+          onTouchEnd: boundary("end"), onTouchCancel: boundary("cancel"),
         },
       };
     },
