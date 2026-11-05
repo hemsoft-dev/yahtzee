@@ -250,7 +250,7 @@ jobs:
       - name: Install hash-verified local Maestro CLI
         shell: bash
         run: |
-          curl --fail --location --retry 2 https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
+          curl --fail --location --retry 2 --retry-all-errors https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
           printf '%s  %s\n' '29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991' "$RUNNER_TEMP/maestro.zip" | shasum -a 256 -c -
           unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-tool"
           test -x "$RUNNER_TEMP/maestro-tool/maestro/bin/maestro"
