@@ -19,6 +19,7 @@ import { checkedCommandOutput } from "./commandResult.mjs";
 import { startInputObservation } from "./inputObservation.mjs";
 import { startDoneObservation } from "./doneObservation.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
+import { retainNativeCancellation } from "./nativeCancelRetention.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
@@ -122,6 +123,13 @@ async function corruption(device, bundleId) {
 const traceInputs = process.env.GITHUB_ACTIONS === "true" || process.env.EXPO_PUBLIC_NATIVE_INPUT_TRACE === "1";
 let stopInputLog;
 let stopDoneLog;
+function retainNativeForScenario(scenario, bundleId) {
+  if (!scenario || scenario.nativeCancellation) return;
+  try {
+    const container = run("xcrun", ["simctl", "get_app_container", scenario.udid, bundleId, "data"], { capture: true, timeout: 5000, log: "native-cancel-retention.log" });
+    scenario.nativeCancellation = retainNativeCancellation(container, join(output, scenario.id), scenario.nativeObservationStartedAtMs);
+  } catch { scenario.nativeCancellation = { status: "unavailable", reason: "owned-container-unavailable", absenceProvesNothing: true }; }
+}
 async function exercise(app, bundleId) {
   const runtime = "com.apple.CoreSimulator.SimRuntime.iOS-26-5";
   const types = JSON.parse(sim("list", "devicetypes", "--json")).devicetypes;
@@ -145,7 +153,7 @@ async function exercise(app, bundleId) {
     sim("ui", device, "content_size", scenario.largeText ? "accessibility-extra-extra-extra-large" : "large");
     sim("status_bar", device, "override", "--time", "9:41", "--batteryState", "charged", "--batteryLevel", "100");
     const directory = join(output, scenario.id); mkdirSync(directory, { recursive: true });
-    const result = { ...scenario, udid: device, runtime, locale: "en-US", status: "running" }; receipt.scenarios.push(result);
+    const result = { ...scenario, udid: device, runtime, locale: "en-US", status: "running", nativeObservationStartedAtMs: Date.now() }; receipt.scenarios.push(result);
     receipt.phase = `start-${scenario.id}`; checkpoint();
     if (index === 0) recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-resume.mp4")], { env, stdio: "ignore" });
     if (traceInputs) stopInputLog = startInputObservation(device, join(directory, "input-events.jsonl"), { env });
@@ -166,6 +174,7 @@ async function exercise(app, bundleId) {
     if (stopDoneLog) {
       result.doneTrace = await stopDoneLog(); stopDoneLog = undefined;
     }
+    retainNativeForScenario(result, bundleId);
     await stopRecording();
     result.status = "passed"; result.resumeDocumentSha256 = hash(resumedBytes); checkpoint();
   }
@@ -202,6 +211,7 @@ try {
   }
   console.error(receipt.error);
 } finally {
+  if (receipt.app) retainNativeForScenario(receipt.scenarios.at(-1), receipt.app.bundleId);
   try { await stopRecording(); } catch (error) { receipt.recordingError = String(error); receipt.status = "failed"; process.exitCode = 1; }
   if (stopInputLog) {
     receipt.scenarios.at(-1).inputTrace = await stopInputLog();

@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { inspectNativePrivacy } from "./privacy.mjs";
+import { installNativeCancellation } from "./nativeCancelBuild.mjs";
 
 export function buildSimulator({ root, output, run, hash, receipt, architecture, refreshPodLock }) {
   const appRoot = join(root, "apps/mobile");
@@ -17,6 +18,7 @@ export function buildSimulator({ root, output, run, hash, receipt, architecture,
   receipt.podLockNeedsReview = receipt.bootstrapPodLock || !readFileSync(sourceLock).equals(readFileSync(join(ios, "Podfile.lock")));
   copyFileSync(join(ios, "Podfile.properties.json"), join(output, "Podfile.properties.json"));
   assert(!refreshPodLock && !receipt.podLockNeedsReview, "Dependency-only run: review reports/native/Podfile.lock, commit changes to apps/mobile/native, then run normal qualification.");
+  receipt.nativeCancellation = installNativeCancellation({ root, ios, output, run });
   const workspaces = readdirSync(ios).filter((name) => name.endsWith(".xcworkspace")); assert.equal(workspaces.length, 1);
   const scheme = workspaces[0].slice(0, -".xcworkspace".length);
   const derived = join(tmpdir(), `dice-derived-${process.pid}`);
