@@ -7,15 +7,17 @@ import { createSqliteStorage, DATABASE_NAME, removeDatabaseFiles, type SqlConnec
 import { createLocalStore, type StoragePort } from "../../../apps/mobile/src/local/store";
 import { emptySave, SAVE_KEY } from "../../../apps/mobile/src/local/save";
 import { getCategories } from "../src/scoring";
+import { sqlitePhases } from "./helpers/sqlitePhases";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => { for (const cleanup of cleanups.splice(0)) cleanup(); });
-function fixture() {
+function fixture(phases?: ReturnType<typeof sqlitePhases>) {
   const directory = mkdtempSync(join(tmpdir(), "local-dice-sqlite-"));
   const path = join(directory, DATABASE_NAME);
   const connections: Database[] = [];
   const values = new Map<string, string>([["yahtzee-theme", "dark"], ["unrelated", "keep"]]);
   const state = { openFailure: false, writeFailure: false, lostAck: false, closeFailure: false, removeFailure: false, removeAckLost: false, legacyRemoveFailure: false, deletes: 0, writes: [] as string[], integrity: undefined as string | null | undefined };
+  const measured = <T,>(kind: 1 | 2 | 3 | 4 | 5, action: () => T): T => phases ? phases.call(kind, action) : action();
   const legacy: StoragePort = {
     async getItem(key) { return values.get(key) ?? null; },
     async setItem(key, value) { values.set(key, value); },
@@ -24,21 +26,21 @@ function fixture() {
   const factory = {
     async open(): Promise<SqlConnection> {
       if (state.openFailure) throw new Error("Database unavailable");
-      const db = new Database(path); connections.push(db);
+      const db = measured(1, () => new Database(path)); connections.push(db);
       return {
-        async execAsync(sql) { db.exec(sql); },
+        async execAsync(sql) { measured(2, () => db.exec(sql)); },
         async getFirstAsync<T>(sql: string, ...parameters: string[]): Promise<T | null> {
           if (sql === "PRAGMA quick_check" && state.integrity !== undefined) return (state.integrity === null ? null : { quick_check: state.integrity }) as T | null;
-          return db.query(sql).get(...parameters) as T | null;
+          return measured(3, () => db.query(sql).get(...parameters)) as T | null;
         },
         async runAsync(sql, ...parameters) {
           state.writes.push(parameters[1]);
           if (state.writeFailure) throw new Error("Storage full");
-          const result = db.run(sql, ...parameters);
+          const result = measured(4, () => db.run(sql, ...parameters));
           if (state.lostAck) throw new Error("Write acknowledgment lost");
           return result;
         },
-        async closeAsync() { if (state.closeFailure) throw new Error("Cannot close database"); db.close(); },
+        async closeAsync() { if (state.closeFailure) throw new Error("Cannot close database"); measured(5, () => db.close()); },
       };
     },
     async remove() {
@@ -56,30 +58,34 @@ const options = { name: "Sam'; DROP TABLE local_save;--", diceCount: 6, aiOppone
 
 describe("real SQLite persistence, without an Expo/iOS-runtime claim", () => {
   test("commits a complete document, resumes held dice, and recovers one uncertain completion", async () => {
-    const f = fixture(); expect(await f.store.load()).toBe(true);
+    const phases = sqlitePhases(value => console.error("SQLITE_UNIT_PHASES_V1 " + JSON.stringify(value)));
+    cleanups.push(() => phases.finish());
+    phases.phase(1);
+    const f = fixture(phases); expect(await f.store.load()).toBe(true);
     expect(f.store.getSnapshot().data?.preferences.appearance).toBe("dark");
     expect(f.db().query("PRAGMA journal_mode").get()).toEqual({ journal_mode: "wal" });
     expect(f.db().query("PRAGMA synchronous").get()).toEqual({ synchronous: 2 });
-    expect(await f.store.start(options)).toBe(true);
-    expect(await f.store.move({ kind: "hold", index: 0 })).toBe(true);
-    expect(await f.store.move({ kind: "roll" })).toBe(true);
+    phases.phase(2); expect(await f.store.start(options)).toBe(true);
+    phases.phase(3); expect(await f.store.move({ kind: "hold", index: 0 })).toBe(true);
+    phases.phase(4); expect(await f.store.move({ kind: "roll" })).toBe(true);
     const saved = JSON.stringify(f.store.getSnapshot().data);
-    await f.port.close();
+    phases.phase(5); await f.port.close();
     const port = f.recreate(); const resumed = createLocalStore(port);
-    expect(await resumed.load()).toBe(true);
+    phases.phase(6); expect(await resumed.load()).toBe(true);
     expect(JSON.stringify(resumed.getSnapshot().data)).toBe(saved);
     const categories = getCategories(6);
+    phases.phase(7);
     for (const category of categories.slice(0, -1)) expect(await resumed.move({ kind: "score", category: category.id })).toBe(true);
     f.state.lostAck = true;
-    expect(await resumed.move({ kind: "score", category: categories.at(-1)!.id })).toBe(false);
+    phases.phase(8); expect(await resumed.move({ kind: "score", category: categories.at(-1)!.id })).toBe(false);
     expect(resumed.getSnapshot().error).toBe("Write acknowledgment lost");
     const completedBytes = f.state.writes.at(-1);
     f.state.lostAck = false;
-    expect(await resumed.retry()).toBe(true);
+    phases.phase(9); expect(await resumed.retry()).toBe(true);
     expect(f.state.writes.at(-1)).toBe(completedBytes);
-    await port.close();
+    phases.phase(10); await port.close();
     const restarted = createLocalStore(f.recreate());
-    expect(await restarted.load()).toBe(true);
+    phases.phase(11); expect(await restarted.load()).toBe(true);
     expect(restarted.getSnapshot().data?.history.entries).toHaveLength(1);
     expect(restarted.getSnapshot().data?.active?.game.status).toBe("finished");
   });
