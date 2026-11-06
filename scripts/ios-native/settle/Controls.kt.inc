@@ -9,6 +9,8 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 import okio.Buffer
 import okio.Sink
+import device.IOSDevice
+import maestro.drivers.IOSDriver
 
 private class Marker : Error()
 
@@ -72,7 +74,7 @@ fun main() {
     repeat(140) { runBlocking { maestro.waitForAppToSettle(null, "fixture-only", expectedTimeout) } }
     flushed()
     check(calls-before==140); check(events.size == if(baseline)0 else 256)
-    if (!baseline) check(events.all { it.matches(Regex("THIRDROLL_SETTLE \\{\"v\":1,\"seq\":[0-9]+,\"id\":[0-9]+,\"stage\":[12],\"phase\":[012],\"monoNs\":[0-9]+,\"pid\":[0-9]+,\"wallMs\":[0-9]+\\}")) })
+    if (!baseline) check(events.all { it.matches(Regex("THIRDROLL_SETTLE \\{\"v\":2,\"seq\":[0-9]+,\"id\":[0-9]+,\"parentId\":[0-9]+,\"stage\":[1234],\"phase\":[012],\"monoNs\":[0-9]+,\"pid\":[0-9]+,\"wallMs\":[0-9]+\\}")) })
     setup(); val ref=Any(); check(QualificationSettleObservation.observe(2) { ref } === ref)
     flushed()
     check(!events.joinToString().contains("fixture-only"))
@@ -84,6 +86,71 @@ fun main() {
     val success=result.javaClass.getDeclaredMethod("getSuccess"); success.isAccessible=true
     check(success.invoke(result)==true)
     if(!baseline) check(events.count { it.contains("\"stage\":1") }==2)
+    // The real IOSDriver, not a Driver proxy, forwards to a bounded IOSDevice fixture.
+    var deviceScreenshots=0; var deviceStatic=0; var staticValue=true
+    var deviceError: Throwable?=null; var expectedSink: Sink?=null; var expectedCompressed=true
+    val device = Proxy.newProxyInstance(IOSDevice::class.java.classLoader, arrayOf(IOSDevice::class.java)) { _, method, args ->
+        when(method.name) {
+            "getDeviceId" -> "fixture-device"
+            "takeScreenshot" -> {
+                deviceScreenshots++; check(args[1]==expectedCompressed)
+                if(expectedSink!=null) check(args[0]===expectedSink)
+                deviceError?.let { throw it }
+                (args[0] as Sink).write(Buffer().write(bytes),bytes.size.toLong()); null
+            }
+            "isScreenStatic" -> { deviceStatic++; deviceError?.let { throw it }; staticValue }
+            else -> error("Unexpected IOSDevice operation")
+        }
+    } as IOSDevice
+    val ios=IOSDriver(device); val iosMaestro=Maestro(ios)
+    fun fields(event:String,key:String)=Regex("\\\"$key\\\":([0-9]+)").find(event)!!.groupValues[1].toLong()
+    fun inner(stage:Int, count:Int) {
+        flushed()
+        if(baseline) { check(events.isEmpty()); return }
+        val rows=events.filter { fields(it,"stage")==stage.toLong() }
+        check(rows.size==count*2) { "MISSING_INNER_SETTLE_PHASES" }
+        val outer=events.first(); check(fields(outer,"parentId")==0L)
+        check(rows.all { fields(it,"parentId")==fields(outer,"id") })
+        check(rows.chunked(2).all { fields(it[0],"phase")==0L && fields(it[1],"phase") in 1L..2L })
+    }
+    setup(); check(runBlocking { iosMaestro.waitForAnimationToEnd("5000") }); check(deviceScreenshots==2); inner(3,2)
+    setup(); check(runBlocking { iosMaestro.waitForAppToSettle(null,"fixture-only",347) }==null); check(deviceStatic==1); inner(4,1)
+    setup(); val output=Buffer(); expectedSink=output; expectedCompressed=false
+    ios.takeScreenshot(output,false); check(output.readByteArray().contentEquals(bytes)); check(ios.waitUntilScreenIsStatic(100)); flushed(); check(events.isEmpty())
+    expectedSink=null; expectedCompressed=true
+    setup(); deviceError=marker
+    try { runBlocking { iosMaestro.waitForAnimationToEnd("5000") }; error("Missing IOS screenshot error") } catch(e:Throwable) { check(e===marker) }
+    inner(3,1)
+    setup(); try { runBlocking { iosMaestro.waitForAppToSettle(null,"fixture-only",347) }; error("Missing IOS static error") } catch(e:Throwable) { check(e===marker) }
+    inner(4,1); deviceError=null
+    // Scope is restored after either throw; ordinary device calls must remain unobserved.
+    setup(); ios.takeScreenshot(Buffer(),true); ios.waitUntilScreenIsStatic(100); flushed(); check(events.isEmpty())
+    setup(); staticValue=false
+    val staticMethod=IOSDriver::class.java.getDeclaredMethod("isScreenStatic"); staticMethod.isAccessible=true
+    check(QualificationSettleObservation.observe(2) { staticMethod.invoke(ios) }==false); flushed()
+    if(!baseline) inner(4,1)
+    staticValue=true
+    setup(); QualificationSettleObservation.observe(1) {
+        val other=Thread { ios.takeScreenshot(Buffer(),true) }; other.start(); other.join()
+    }; flushed(); check(events.none { fields(it,"stage")==3L })
+    setup(); QualificationSettleObservation.observe(1) {
+        ios.takeScreenshot(Buffer(),true)
+        QualificationSettleObservation.observe(2) { ios.waitUntilScreenIsStatic(100) }
+        ios.takeScreenshot(Buffer(),true)
+    }; flushed()
+    if(!baseline) {
+        check(events.count { fields(it,"stage")==3L }==4)
+        check(events.count { fields(it,"stage")==4L }==2)
+        check(events.filter { fields(it,"stage")==3L }.all { fields(it,"parentId")==1L })
+        check(events.filter { fields(it,"stage")==4L }.all { fields(it,"parentId")==3L })
+    }
+    setup(); QualificationSettleObservation.observe(2) { ios.takeScreenshot(Buffer(),true) }
+    QualificationSettleObservation.observe(1) { ios.waitUntilScreenIsStatic(100) }; flushed()
+    check(events.size==4 && events.all { fields(it,"stage")<=2L })
+    check(events.map { fields(it,"id") }==listOf(1L,1L,2L,2L))
+    setup(false); runBlocking { iosMaestro.waitForAnimationToEnd("5000") }; flushed(); check(events.isEmpty())
+    setup(clock={ throw marker }); runBlocking { iosMaestro.waitForAnimationToEnd("5000") }; flushed(); check(events.isEmpty())
+    setup(sink={ throw marker }); runBlocking { iosMaestro.waitForAppToSettle(null,"fixture-only",347) }; flushed()
     val entered=java.util.concurrent.CountDownLatch(1)
     val release=java.util.concurrent.CountDownLatch(1)
     setup(sink={ entered.countDown(); release.await() })

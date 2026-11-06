@@ -9,6 +9,8 @@ import java.util.concurrent.TimeUnit
 internal object QualificationSettleObservation {
     private val next = AtomicLong()
     private val sequence = AtomicLong()
+    private data class Span(val id: Long, val stage: Int)
+    private val scope = ThreadLocal<Span>()
     private val queue = ArrayBlockingQueue<() -> Unit>(256)
     @Volatile private var enabled = true
     @Volatile private var clock: () -> Long = { System.nanoTime() }
@@ -22,7 +24,7 @@ internal object QualificationSettleObservation {
         }, "qualification-settle-writer").apply { isDaemon = true; start() }
     } catch (_: Throwable) { null }
 
-    private fun event(id: Long, stage: Int, phase: Int) {
+    private fun event(id: Long, parentId: Long, stage: Int, phase: Int) {
         try {
             if (writer == null) return
             val seq = sequence.getAndIncrement()
@@ -30,7 +32,7 @@ internal object QualificationSettleObservation {
             val time = clock()
             val wall = System.currentTimeMillis()
             if (time < 0) return
-            val value = "THIRDROLL_SETTLE {\"v\":1,\"seq\":$seq,\"id\":$id,\"stage\":$stage,\"phase\":$phase,\"monoNs\":$time,\"pid\":$pid,\"wallMs\":$wall}"
+            val value = "THIRDROLL_SETTLE {\"v\":2,\"seq\":$seq,\"id\":$id,\"parentId\":$parentId,\"stage\":$stage,\"phase\":$phase,\"monoNs\":$time,\"pid\":$pid,\"wallMs\":$wall}"
             val write = sink
             queue.offer({ write(value) }) // Never waits for I/O or for the writer to drain.
         } catch (_: Throwable) { /* Observation cannot replace the original result/error. */ }
@@ -38,16 +40,33 @@ internal object QualificationSettleObservation {
 
     fun <T> observe(stage: Int, original: () -> T): T {
         if (!enabled || stage !in 1..2) return original()
+        return observed(stage, 0, true, original)
+    }
+
+    // No inherited/global scope: unrelated or asynchronous device calls remain unobserved.
+    fun <T> device(stage: Int, original: () -> T): T {
+        val parent = try { scope.get() } catch (_: Throwable) { null }
+        if (!enabled || parent == null || !((stage == 3 && parent.stage == 1) || (stage == 4 && parent.stage == 2))) return original()
+        return observed(stage, parent.id, false, original)
+    }
+
+    private fun <T> observed(stage: Int, parentId: Long, ownScope: Boolean, original: () -> T): T {
         val id = next.incrementAndGet()
         if (id > 128) return original()
-        event(id, stage, 0)
+        val previous = try { scope.get() } catch (_: Throwable) { null }
+        if (ownScope) try { scope.set(Span(id, stage)) } catch (_: Throwable) { /* Inner coverage unavailable. */ }
+        event(id, parentId, stage, 0)
         return try {
             val result = original()
-            event(id, stage, 1)
+            event(id, parentId, stage, 1)
             result
         } catch (error: Throwable) {
-            event(id, stage, 2)
+            event(id, parentId, stage, 2)
             throw error
+        } finally {
+            if (ownScope) try {
+                if (previous == null) scope.remove() else scope.set(previous)
+            } catch (_: Throwable) { /* Cannot replace original result/error. */ }
         }
     }
 

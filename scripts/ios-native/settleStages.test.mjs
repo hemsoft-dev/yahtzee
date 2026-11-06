@@ -53,6 +53,39 @@ test("classification admits only original fixed search operations and does not r
   assert.equal(searchCommand(header + '- waitForAnimationToEnd: {"timeout":5000}\n- waitForAnimationToEnd: {"timeout":5000}'), 0);
 });
 
+test("v2 inner completion links only to a retained same-process containing outer span", () => {
+  const outer = (seq, phase, more = {}) => row(seq, phase, { v: 2, parentId: 0, ...more });
+  const inner = (seq, phase, more = {}) => outer(seq, phase, { id: 2, stage: 3, parentId: 1, ...more });
+  const calls = [{ tool: "run", flowSequence: 4, started: 99, elapsedMs: 10, outcome: "returned" }];
+  const linked = (rows) => correlateStages(parseStages(log(...rows)), calls, { 4: 1 });
+  const [parent, child] = linked([outer(0, 0), inner(1, 0), inner(2, 1), outer(3, 1)]);
+  assert.equal(parent.parentId, 0);
+  assert.equal(child.parentCorrelation, "same-thread-source-scope");
+  assert.equal(child.flowSequence, 4);
+  assert.equal(child.durationMs, 1);
+  assert.equal(child.outcome, "returned");
+  const implicit = correlateStages(parseStages(log(outer(0, 0, { stage: 2 }), inner(1, 0, { stage: 4 }), inner(2, 2, { stage: 4 }), outer(3, 1, { stage: 2 }))),
+    calls, { 4: 2 }).at(-1);
+  assert.equal(implicit.parentCorrelation, "same-thread-source-scope");
+  assert.equal(implicit.outcome, "threw");
+  for (const change of [{ parentId: 3, id: 4 }, { stage: 4 }, { pid: 43 }, { monoNs: 8000000 }]) {
+    const rows = [outer(0, 0), inner(1, 0, change), inner(2, 2, change), outer(3, 1)];
+    assert.equal(linked(rows).at(-1).parentCorrelation, "unknown");
+    assert.equal(linked(rows).at(-1).flowSequence, null);
+  }
+  assert.equal(linked([outer(0, 0), inner(1, 0), inner(2, 1)]).at(-1).parentCorrelation, "unknown");
+  assert.equal(parseStages(log(inner(1, 0), inner(2, 1, { parentId: 0 }))).pairs.length, 0);
+  for (const extra of [{ parentId: 2 }, { parentId: -1 }, { parentId: "1" }, { v: 3 }, { stage: 5 }, { secret: "SECRET" }]) {
+    const parsed = parseStages(log(inner(1, 0, extra)));
+    assert.equal(parsed.invalid, 1);
+    assert.equal(JSON.stringify(parsed).includes("SECRET"), false);
+  }
+  assert.equal(parseStages(log(outer(0, 0, { parentId: 1 }))).invalid, 1);
+  const capped = parseStages(log(...Array.from({ length: 258 }, (_, seq) => outer(seq, seq % 2, { id: Math.floor(seq / 2) + 1 }))));
+  assert.equal(capped.events.length, 256);
+  assert.equal(capped.budgetReached, true);
+});
+
 test("cross-process or ambiguous wall correspondence stays unknown and bounded", () => {
   const parsed = parseStages(log(row(0, 0), row(1, 1, { pid: 43 })));
   assert.equal(parsed.multipleProcesses, true);

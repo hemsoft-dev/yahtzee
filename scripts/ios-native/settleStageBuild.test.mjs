@@ -20,6 +20,7 @@ def rejects(f, label='unknown'):
  except AssertionError: return
  raise AssertionError('Expected bounded rejection '+label)
 rejects(lambda: m.transform(b'not pinned source'))
+rejects(lambda: m.transform(b'not pinned driver',m.DRIVER_SHA,m.DRIVER_REPLACEMENTS))
 for i, name in enumerate(['../escape', '/absolute', 'C:/drive', 'back\\slash', 'control\nname']):
  p = r / ('bad-'+str(i)+'.zip')
  with zipfile.ZipFile(p, 'x') as z: z.writestr(name, b'fixture')
@@ -37,8 +38,9 @@ with zipfile.ZipFile(original,'x') as z:
  z.writestr('maestro/Maestro.class',b'old')
  z.writestr('maestro/Other.class',b'unchanged')
  z.writestr('resource.zip',b'unchanged-native-resource')
-classes=r/'classes'; (classes/'maestro').mkdir(parents=True)
+classes=r/'classes'; (classes/'maestro/drivers').mkdir(parents=True)
 (classes/'maestro/Maestro.class').write_bytes(b'observed')
+(classes/'maestro/drivers/IOSDriver.class').write_bytes(b'observed-driver')
 (classes/'maestro/QualificationSettleObservation.class').write_bytes(b'observer')
 (classes/'maestro/QualificationSettleControls.class').write_bytes(b'must-not-publish')
 (classes/'maestro/Marker.class').write_bytes(b'must-not-publish')
@@ -46,6 +48,7 @@ proof=m.rewrite_client(original,r/'observed.jar',classes)
 with zipfile.ZipFile(r/'observed.jar') as z:
  assert z.read('maestro/Other.class')==b'unchanged'
  assert z.read('resource.zip')==b'unchanged-native-resource'
+ assert z.read('maestro/drivers/IOSDriver.class')==b'observed-driver'
  assert not any('Controls' in n or 'Marker' in n for n in z.namelist())
  assert proof['otherEntriesByteIdentical']==2
 with zipfile.ZipFile(r/'missing-family.jar','x') as z:

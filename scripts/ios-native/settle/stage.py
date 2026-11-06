@@ -13,6 +13,8 @@ import zipfile
 SOURCE_REF = "14a408335e17a090df1e26bdbeaf80d8122a8fd8"
 SOURCE_PATH = "maestro-client/src/main/java/maestro/Maestro.kt"
 SOURCE_SHA = "910ccef099db614ee153c4f85716a15592c870f969fc4aa5b93dcf6872c17a94"
+DRIVER_PATH = "maestro-client/src/main/java/maestro/drivers/IOSDriver.kt"
+DRIVER_SHA = "bb93fd4eb42e07b6b7d4bf6921dfeebf4b89f218cd1792d16d94153cf1ef47e9"
 ARCHIVE_SHA = "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991"
 COMPILER_SHA = "1adb6f1a5845ba0aa5a59e412e44c8e405236b957de1a9683619f1dca3b16932"
 CLIENT_SHA = "acc437d88e4843f2e786c332ecbcd0a09267f9f47a155cc0460a0e98dc928104"
@@ -23,6 +25,12 @@ REPLACEMENTS = [
      "        QualificationSettleObservation.observe(2) { driver.waitForAppToSettle(initialHierarchy, appId, waitToSettleTimeoutMs) }"),
     ("        ScreenshotUtils.waitUntilScreenIsStatic(timeout, SCREENSHOT_DIFF_THRESHOLD, driver)",
      "        QualificationSettleObservation.observe(1) { ScreenshotUtils.waitUntilScreenIsStatic(timeout, SCREENSHOT_DIFF_THRESHOLD, driver) }"),
+]
+DRIVER_REPLACEMENTS = [
+    ('            runDeviceCall("takeScreenshot") { iosDevice.takeScreenshot(out, compressed) }',
+     '            maestro.QualificationSettleObservation.device(3) { runDeviceCall("takeScreenshot") { iosDevice.takeScreenshot(out, compressed) } }'),
+    ('        return runDeviceCall("isScreenStatic") { iosDevice.isScreenStatic() }',
+     '        return maestro.QualificationSettleObservation.device(4) { runDeviceCall("isScreenStatic") { iosDevice.isScreenStatic() } }'),
 ]
 
 
@@ -36,17 +44,17 @@ def regular(path, maximum):
     return path.read_bytes()
 
 
-def transform(data):
-    assert sha(data) == SOURCE_SHA, "Pinned source hash mismatch"
+def transform(data, expected=SOURCE_SHA, replacements=REPLACEMENTS):
+    assert sha(data) == expected, "Pinned source hash mismatch"
     source = data.decode("utf8")
     value = source
-    for old, new in REPLACEMENTS:
+    for old, new in replacements:
         assert value.count(old) == 1, "Pinned insertion point mismatch"
         value = value.replace(old, new)
     restored = value
-    for old, new in REPLACEMENTS:
+    for old, new in replacements:
         restored = restored.replace(new, old)
-    assert restored == source, "Only the two observation expressions may differ"
+    assert restored == source, "Only the pinned observation expressions may differ"
     return value.encode("utf8")
 
 
@@ -75,13 +83,13 @@ def extract(archive, destination, total_limit):
 
 
 def class_family(name):
-    return bool(re.match(r"^maestro/(?:Maestro(?:\$|\.class)|QualificationSettleObservation(?:\$|\.class))", name))
+    return bool(re.match(r"^maestro/(?:Maestro(?:\$|\.class)|drivers/IOSDriver(?:\$|\.class)|QualificationSettleObservation(?:\$|\.class))", name))
 
 
 def rewrite_client(original, output, classes):
     added = {p.relative_to(classes).as_posix(): p.read_bytes()
              for p in classes.rglob("*.class") if class_family(p.relative_to(classes).as_posix())}
-    assert added and "maestro/Maestro.class" in added
+    assert all(n in added for n in ["maestro/Maestro.class", "maestro/drivers/IOSDriver.class"])
     replaced = []
     with zipfile.ZipFile(original) as source, zipfile.ZipFile(output, "x", zipfile.ZIP_DEFLATED) as target:
         family = {n for n in source.namelist() if class_family(n)}
@@ -110,6 +118,8 @@ def stage(args):
     assert not output.exists() and output.parent.is_dir(), "Fresh owned output required"
     original_source = regular(source / SOURCE_PATH, 128 * 1024)
     patched = transform(original_source)
+    original_driver = regular(source / DRIVER_PATH, 128 * 1024)
+    patched_driver = transform(original_driver, DRIVER_SHA, DRIVER_REPLACEMENTS)
     assert sha(regular(archive, 400 * 1024**2)) == ARCHIVE_SHA
     assert sha(regular(compiler, 100 * 1024**2)) == COMPILER_SHA
     output.mkdir(mode=0o700)
@@ -119,8 +129,9 @@ def stage(args):
     env["JAVA_HOME"] = str(java_home)
     receipt = {"schemaVersion": 1, "kind": "qualification-source-copy-settle-stages", "status": "building",
                "upstreamSource": SOURCE_REF, "sourceSha256": SOURCE_SHA, "patchedSourceSha256": sha(patched),
+               "driverSourceSha256": DRIVER_SHA, "patchedDriverSourceSha256": sha(patched_driver),
                "archiveSha256": ARCHIVE_SHA, "compilerVersion": "2.2.0", "compilerSha256": COMPILER_SHA,
-               "scope": ["explicit-wait-original-body", "implicit-settle-original-driver-call"],
+               "scope": ["explicit-wait-original-body", "implicit-settle-original-driver-call", "scoped-original-screenshot-call", "scoped-original-static-screen-call"],
                "loadedImage": "unattested", "deadlinesChanged": False, "originalMatrixUnchanged": True}
 
     def save():
@@ -152,6 +163,7 @@ def stage(args):
         code = private / "source"
         code.mkdir()
         (code / "Maestro.kt").write_bytes(patched)
+        (code / "IOSDriver.kt").write_bytes(patched_driver)
         includes = Path(__file__).parent
         for name, target in [("Observation.kt.inc", "QualificationSettleObservation.kt"), ("Controls.kt.inc", "QualificationSettleControls.kt")]:
             (code / target).write_bytes(regular(includes / name, 32 * 1024))
@@ -162,7 +174,7 @@ def stage(args):
                          "-Xfriend-paths=" + str(lib / "maestro-client.jar"), "-module-name", "maestro-client", "-d", classes,
                          *sorted(code.glob("*.kt"))])
         assert result.returncode == 0, "Pinned source compilation failed"
-        # Only the Maestro class family and new observer enter the private CLI copy.
+        # Only the two original class families and new observer enter the private CLI copy.
         observed_jar = private / "observed-client.jar"
         receipt["client"] = rewrite_client(lib / "maestro-client.jar", observed_jar, classes)
         fixture = private / "fixture-classes"
@@ -184,8 +196,17 @@ def stage(args):
         observed_cp = str(observed_jar) + os.pathsep + cp
         positive = command("observed-controls", controls + ["-cp", str(fixture) + os.pathsep + observed_cp, main], 40)
         assert positive.returncode == 0 and b"stalledSinkDidNotHoldOriginal=true" in positive.stdout, "Observed forwarding controls failed"
-        original_abi = command("original-abi", [javap, "-classpath", cp, "-public", "-s", "maestro.Maestro"])
-        observed_abi = command("observed-abi", [javap, "-classpath", observed_cp, "-public", "-s", "maestro.Maestro"])
+        inner_baseline = private / "inner-baseline"
+        with zipfile.ZipFile(lib / "maestro-client.jar") as original:
+            for name in original.namelist():
+                if re.match(r"^maestro/drivers/IOSDriver(?:\$|\.class)", name):
+                    target = inner_baseline / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(original.read(name))
+        inner_red = command("inner-stage-red", controls + ["-cp", str(inner_baseline) + os.pathsep + str(fixture) + os.pathsep + observed_cp, main], 40)
+        assert inner_red.returncode != 0 and b"MISSING_INNER_SETTLE_PHASES" in inner_red.stderr, "Original IOSDriver missing-stage negative failed"
+        original_abi = command("original-abi", [javap, "-classpath", cp, "-public", "-s", "maestro.Maestro", "maestro.drivers.IOSDriver"])
+        observed_abi = command("observed-abi", [javap, "-classpath", observed_cp, "-public", "-s", "maestro.Maestro", "maestro.drivers.IOSDriver"])
         assert original_abi.returncode == observed_abi.returncode == 0 and original_abi.stdout == observed_abi.stdout, "Public ABI drift"
         # The executable launcher, CLI JAR and packaged Swift runner remain original bytes.
         staged_cli = output / "maestro"
@@ -193,7 +214,7 @@ def stage(args):
         target = staged_cli / "lib/maestro-client.jar"
         target.write_bytes(observed_jar.read_bytes())
         receipt.update({"status": "prepared", "controls": {"originalPackage": True, "missingStageRed": True,
-                        "observedPackage": True, "stalledSink": True, "publicABIExact": True},
+                        "observedPackage": True, "innerStageRed": True, "stalledSink": True, "publicABIExact": True},
                         "cliJarSha256": sha((staged_cli / "lib/maestro-cli-2.10.0.jar").read_bytes()),
                         "nativeJarSha256": sha((staged_cli / "lib/maestro-ios-driver.jar").read_bytes()),
                         "launcherSha256": sha((staged_cli / "bin/maestro").read_bytes())})

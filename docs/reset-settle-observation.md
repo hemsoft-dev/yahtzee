@@ -35,7 +35,10 @@ budget guard. It is not a native replay or exact original monotonic-clock proof.
 The CLI source is fixed at
 `14a408335e17a090df1e26bdbeaf80d8122a8fd8`. `stage.py` requires the SHA256
 of `maestro-client/src/main/java/maestro/Maestro.kt` and replaces exactly two
-call expressions. Reversing those expressions restores the original bytes.
+call expressions. It also verifies `maestro-client/src/main/java/maestro/drivers/IOSDriver.kt`
+against SHA256 `bb93fd4eb42e07b6b7d4bf6921dfeebf4b89f218cd1792d16d94153cf1ef47e9`
+and wraps its original `runDeviceCall` expressions for screenshot and static-screen
+completion. Reversing the two expressions in each file restores its original bytes.
 The surrounding original `runInterruptible`, arguments, return expressions,
 exceptions and deadline values remain in place.
 
@@ -44,11 +47,11 @@ before compiling. Kotlin 2.2.0 matches the pinned version catalog and its
 compiler ZIP is hash-verified before opening. Compilation targets Java 17 and
 runs on Java 17. Build tooling is private; no package or lock file changes.
 
-The compiler re-emits the whole `Maestro` class family. This is not a two-class
+The compiler re-emits the whole `Maestro` and `IOSDriver` class families. This is not a two-class
 binary patch: explicit waiting uses a synthetic method inside `Maestro.class`.
 A two-coroutine-class prototype did not observe that boundary and was rejected.
 All original class-family members must remain present. The build compares the
-public ABI and verifies every JAR member outside that family byte-for-byte.
+public ABI of both classes and verifies every JAR member outside those families byte-for-byte.
 Test fixture classes are excluded. The CLI JAR, launcher, other libraries and
 packaged Swift runner remain original bytes. Their identity does not attest
 which images the OS loaded.
@@ -60,21 +63,42 @@ object identity. The actual unmodified `RunTool.runInline` is exercised with a
 fixed wait flow and a fixture driver. The original package must fail specifically
 on missing stages. Disabled, throwing-clock, throwing-sink, negative-clock,
 bounded-output and stalled-sink controls must pass before the copy is admitted.
-These fixtures are not an Apple runtime or native proof.
+The real `IOSDriver` also runs against an `IOSDevice` fixture. Controls check
+the original screenshot bytes, sink and compressed argument, one static-screen
+call, true and false results, original thrown object identity, disabled and
+throwing observers, scope removal after throws, and an unrelated thread. A
+hybrid retaining the original `IOSDriver` must fail specifically on missing
+inner stages. These fixtures are not an Apple runtime or native proof.
 
 ## Finite stages
 
 The qualification copy emits only numeric records with keys
-`v`, `seq`, `id`, `stage`, `phase`, `monoNs`, `pid`, `wallMs`.
+`v`, `seq`, `id`, `parentId`, `stage`, `phase`, `monoNs`, `pid`, `wallMs`.
+Version 2 adds `parentId` and the two inner stages. Historical version 1 is
+parsed separately with no parent inferred.
 
 | Stage | Original observed extent |
 | --- | --- |
 | 1 | `ScreenshotUtils.waitUntilScreenIsStatic` inside the explicit wait |
 | 2 | `driver.waitForAppToSettle` inside the existing implicit-settle wrapper |
+| 3 | Original `IOSDriver` screenshot device call, only inside stage 1 |
+| 4 | Original `IOSDriver` static-screen device call, only inside stage 2 |
 
 Phase 0 is entry, 1 return and 2 throw. Throw classification is unknown; no
 error text or payload is recorded. A returned wait is not an assertion pass.
-These hooks do not expose internal screenshot, HTTP, AX or OS reason boundaries.
+Stages 3 and 4 time the existing synchronous device-call extent, including its
+existing error conversion. They do not expose Swift screenshot acquisition,
+HTTP wire timing, image decoding/comparison, AX internals or an OS reason.
+Stage 3 intentionally omits screenshots outside the explicit wait, including
+any fallback screenshot inside implicit settling.
+
+An ordinary `ThreadLocal` scopes an inner call to the active outer call on the
+same thread. Its numeric parent is restored or removed in `finally`. A device
+call on another thread or outside the matching outer stage emits nothing and
+consumes no ID. No context is propagated to asynchronous work. Parent links
+are source scopes, not cancellation-owner attribution. Collection reports a
+link only when the matching version/process parent pair contains the child's
+sequence and monotonic interval. A missing parent remains unknown.
 
 IDs are bounded to 128 and records to 256 per JVM. The original call only
 offers a bounded event to a private queue. A daemon writer performs stderr I/O;
@@ -83,6 +107,7 @@ path waits for the writer, retries a call, or adds a shutdown wait or timer.
 Its suffix may be lost at process exit, and collection always describes a
 retained prefix. Control-only drain waits belong to the JVM fixture, not the
 original CLI paths.
+Inner records share the same cap, so a longer trace can reach it sooner.
 
 Existing interaction logging captures stderr and original RPC timings. Only
 the original one-command 5000ms wait and 600ms swipe flows are classified for
@@ -123,6 +148,8 @@ incident limits remain unchanged. Issues [#41](https://github.com/hemsoft-dev/ya
 Primary references:
 
 - [Pinned Maestro source](https://github.com/mobile-dev-inc/Maestro/blob/14a408335e17a090df1e26bdbeaf80d8122a8fd8/maestro-client/src/main/java/maestro/Maestro.kt)
+- [Pinned iOS driver source](https://github.com/mobile-dev-inc/Maestro/blob/14a408335e17a090df1e26bdbeaf80d8122a8fd8/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt)
+- [Java 17 thread-local scope](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/ThreadLocal.html)
 - [Explicit animation wait](https://docs.maestro.dev/reference/commands-available/waitforanimationtoend)
 - [Swipe and best-effort settling](https://docs.maestro.dev/reference/commands-available/swipe)
 - [Kotlin compiler options](https://kotlinlang.org/docs/compiler-reference.html)
