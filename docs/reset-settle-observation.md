@@ -1,6 +1,7 @@
 # Reset search settle observation
 
-Refs #41 and #102. This qualification copy adds observation and fixes nothing.
+Refs [#41](https://github.com/hemsoft-dev/yahtzee/issues/41) and
+[#102](https://github.com/hemsoft-dev/yahtzee/issues/102). This qualification copy adds observation and fixes nothing.
 The original native matrix, owned-modal job, app, reset search, assertions,
 60-second search budget, 30-inspection bound and gestures remain unchanged.
 The separate stage job is also required by the aggregate.
@@ -114,7 +115,10 @@ before the additional diagnostic gate passes.
 No current hosted result is claimed by this document. Historical causes remain
 unknown. Health exit 143 remains unavailable; native/modal partial coverage,
 direct C++ callback, conditional clocks, loaded-image, public-404 and prior
-incident limits remain unchanged. Issues #41, #102, #112 and #115 remain open.
+incident limits remain unchanged. Issues [#41](https://github.com/hemsoft-dev/yahtzee/issues/41),
+[#102](https://github.com/hemsoft-dev/yahtzee/issues/102),
+[#112](https://github.com/hemsoft-dev/yahtzee/issues/112) and
+[#115](https://github.com/hemsoft-dev/yahtzee/issues/115) remain open.
 
 Primary references:
 
