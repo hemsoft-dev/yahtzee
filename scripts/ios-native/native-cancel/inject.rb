@@ -14,7 +14,11 @@ reference = group.new_file('NativeCancelObserver.mm')
 group.new_file('RuntimeHooks.h')
 entry = targets.first.source_build_phase.add_file_reference(reference, true)
 entry.settings = { 'COMPILER_FLAGS' => '-fobjc-arc' }
+modal = group.new_file('NativeModalObserver.mm')
+group.new_file('ModalWindowRuntime.h')
+modal_entry = targets.first.source_build_phase.add_file_reference(modal, true)
+modal_entry.settings = { 'COMPILER_FLAGS' => '-fobjc-arc' }
 framework = project.frameworks_group.new_file('System/Library/Frameworks/QuartzCore.framework', :sdk_root)
 targets.first.frameworks_build_phase.add_file_reference(framework, true)
 project.save
-puts JSON.generate({ added: true, sourceCount: 1 })
+puts JSON.generate({ added: true, sourceCount: 2 })

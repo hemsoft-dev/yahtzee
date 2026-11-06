@@ -12,6 +12,7 @@ typedef struct {
   char result; // 'b' accepts the platform BOOL encodings B/c.
   IMP replacement;
   IMP *original;
+  const char *argumentTypes; // Optional: '@' object/block, 'b' BOOL. Existing hooks default to objects.
 } HSCNativeHook;
 
 static int HSCInstallNativeHooks(HSCNativeHook *hooks, size_t count) {
@@ -28,12 +29,14 @@ static int HSCInstallNativeHooks(HSCNativeHook *hooks, size_t count) {
       if (method_getName(methods[j]) == h.selector) owned = methods[j];
     free(methods);
     if (!owned || method_getNumberOfArguments(owned) != h.arguments) return 4;
+    if (h.argumentTypes && strlen(h.argumentTypes) != h.arguments - 2) return 5;
     char *ret = method_copyReturnType(owned);
     BOOL valid = ret && (h.result == 'b' ? (strcmp(ret, "B") == 0 || strcmp(ret, "c") == 0) : (ret[0] == h.result && ret[1] == 0));
     free(ret);
     for (unsigned j = 2; valid && j < h.arguments; j++) {
       char *arg = method_copyArgumentType(owned, j);
-      valid = arg && arg[0] == '@';
+      char expected = h.argumentTypes ? h.argumentTypes[j - 2] : '@';
+      valid = arg && (expected == '@' ? arg[0] == '@' : expected == 'b' && (strcmp(arg, "B") == 0 || strcmp(arg, "c") == 0));
       free(arg);
     }
     if (!valid || method_getImplementation(owned) == h.replacement) return 5;

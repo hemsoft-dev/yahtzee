@@ -6,6 +6,8 @@ import { join } from "node:path";
 const PINNED_RN = Object.freeze({
   "React/Fabric/RCTSurfaceTouchHandler.mm": "7326c79d3cbd91762a18e0d6e21744bd7520521ded318a8f8411391e336e5dd3",
   "React/Fabric/Mounting/ComponentViews/ScrollView/RCTEnhancedScrollView.mm": "278a25071d38dd7d691adebf536f71960636d15622e9d332ca7f2436f711481c",
+  "React/CoreModules/RCTAlertController.mm": "f9277ab7a24dae313dbebb05e10ef875a8699645fa2868847281b191d599fdbc",
+  "React/CoreModules/RCTAlertManager.mm": "7cffd9837ecb1c03a67a66661160d8786ccb90574911c3325d6cf09c1cbf2aff",
 });
 const hash = (b) => createHash("sha256").update(b).digest("hex");
 
@@ -24,14 +26,18 @@ export function installNativeCancellation({ root, ios, output, run }) {
   const source = join(root, "scripts/ios-native/native-cancel"), generated = join(ios, "NativeDiagnostics");
   assert(!existsSync(generated), "Existing generated native observations were preserved.");
   const privateOutput = join(output, ".native-cancel"); assert(!existsSync(privateOutput)); mkdirSync(privateOutput);
-  const control = join(privateOutput, "forwarding-control");
-  run("xcrun", ["--sdk", "macosx", "clang++", "-fobjc-arc", "-framework", "Foundation", "-o", control, join(source, "ForwardingControl.mm")], { log: "native-cancel-control-build.log", timeout: 60000 });
-  assert.equal(run(control, [], { capture: true, log: "native-cancel-control.log", timeout: 10000 }), "native-cancel-forwarding-control:pass");
+  for (const [name, filename, signal] of [["forwarding-control", "ForwardingControl.mm", "native-cancel-forwarding-control:pass"],
+    ["modal-control", "ModalForwardingControl.mm", "native-modal-forwarding-control:pass"]]) {
+    const control = join(privateOutput, name);
+    run("xcrun", ["--sdk", "macosx", "clang++", "-fobjc-arc", "-framework", "Foundation", "-o", control, join(source, filename)], { log: `${name}-build.log`, timeout: 60000 });
+    assert.equal(run(control, [], { capture: true, log: `${name}.log`, timeout: 10000 }), signal);
+  }
   mkdirSync(generated);
-  for (const name of ["NativeCancelObserver.mm", "RuntimeHooks.h"]) copyFileSync(join(source, name), join(generated, name));
+  for (const name of ["NativeCancelObserver.mm", "RuntimeHooks.h", "NativeModalObserver.mm", "ModalWindowRuntime.h"]) copyFileSync(join(source, name), join(generated, name));
   const injected = JSON.parse(run("ruby", [join(source, "inject.rb"), join(ios, projects[0]), join(generated, "NativeCancelObserver.mm")], { capture: true, log: "native-cancel-injection.log" }));
-  assert.deepEqual(injected, { added: true, sourceCount: 1 });
+  assert.deepEqual(injected, { added: true, sourceCount: 2 });
   return { schemaVersion: 1, scope: "generated-qualification-simulator-only", reactNativeVersion: "0.86.3", rnSources,
-    sourceFiles: ["NativeCancelObserver.mm", "RuntimeHooks.h", "ForwardingControl.mm", "inject.rb"].map((path) => ({ path, sha256: hash(readFileSync(join(source, path))) })),
-    forwardingControl: "passed", generatedSourceCount: 1, runtimeInstallation: "pending-observation", loadedRNImage: "unattested" };
+    sourceFiles: ["NativeCancelObserver.mm", "RuntimeHooks.h", "ForwardingControl.mm", "inject.rb", "NativeModalObserver.mm", "ModalWindowRuntime.h", "ModalForwardingControl.mm"].map((path) => ({ path, sha256: hash(readFileSync(join(source, path))) })),
+    forwardingControl: "passed", modalForwardingControl: "passed", generatedSourceCount: 2, runtimeInstallation: "pending-observation", loadedRNImage: "unattested",
+    modalScope: "owned-reset-alert-only", directModalCallback: "unavailable-cxx-reference-abi" };
 }

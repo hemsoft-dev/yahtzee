@@ -20,6 +20,7 @@ import { startInputObservation } from "./inputObservation.mjs";
 import { startDoneObservation } from "./doneObservation.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
 import { retainNativeCancellation } from "./nativeCancelRetention.mjs";
+import { retainCorruptionMarker, retainNativeModal, withModalRetention } from "./nativeModalRetention.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
@@ -91,11 +92,18 @@ function saved(device, bundleId, directory, stage) {
 }
 async function corruption(device, bundleId) {
   const directory = join(output, "corrupt-save"); mkdirSync(directory);
-  const resetThroughUi = (name) => {
+  const resetThroughUi = async (name) => {
     const resetDirectory = join(directory, name); mkdirSync(resetDirectory);
-    return nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery,
-      capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
-      exercise: (io) => confirmReset(bundleId, io) });
+    const observation = { id: `corrupt-save/${name}`, udid: device, nativeObservationStartedAtMs: Date.now() };
+    (receipt.nativeCorruptionObservations ??= []).push(observation);
+    return withModalRetention(() => nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery,
+        capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
+        exercise: (io) => confirmReset(bundleId, io) }), () => {
+      retainNativeForScenario(observation, bundleId);
+      if (name === "reset-document") observation.corruptionMarker = retainCorruptionMarker(() => run("sqlite3", ["-readonly", current.database,
+        "SELECT CASE WHEN count(*)=1 AND min(key)='hemsoft-local-dice-v1' AND min(value)='damaged-save' THEN 1 ELSE 0 END FROM local_save"],
+      { capture: true, timeout: 5000, log: "native-modal-corruption-marker.log" }), resetDirectory);
+    });
   };
   const current = saved(device, bundleId, directory, "before-corruption"); sim("terminate", device, bundleId);
   run("sqlite3", [current.database, "UPDATE local_save SET value = 'damaged-save'"], { capture: true });
@@ -124,11 +132,15 @@ const traceInputs = process.env.GITHUB_ACTIONS === "true" || process.env.EXPO_PU
 let stopInputLog;
 let stopDoneLog;
 function retainNativeForScenario(scenario, bundleId) {
-  if (!scenario || scenario.nativeCancellation) return;
+  if (!scenario || (scenario.nativeCancellation && scenario.nativeModalObservation)) return;
   try {
     const container = run("xcrun", ["simctl", "get_app_container", scenario.udid, bundleId, "data"], { capture: true, timeout: 5000, log: "native-cancel-retention.log" });
-    scenario.nativeCancellation = retainNativeCancellation(container, join(output, scenario.id), scenario.nativeObservationStartedAtMs);
-  } catch { scenario.nativeCancellation = { status: "unavailable", reason: "owned-container-unavailable", absenceProvesNothing: true }; }
+    scenario.nativeCancellation ??= retainNativeCancellation(container, join(output, scenario.id), scenario.nativeObservationStartedAtMs);
+    scenario.nativeModalObservation ??= retainNativeModal(container, join(output, scenario.id), scenario.nativeObservationStartedAtMs);
+  } catch {
+    scenario.nativeCancellation ??= { status: "unavailable", reason: "owned-container-unavailable", absenceProvesNothing: true };
+    scenario.nativeModalObservation ??= { status: "unavailable", reason: "owned-container-unavailable", absenceProvesNothing: true };
+  }
 }
 async function exercise(app, bundleId) {
   const runtime = "com.apple.CoreSimulator.SimRuntime.iOS-26-5";
