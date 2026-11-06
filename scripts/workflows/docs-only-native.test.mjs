@@ -51,7 +51,7 @@ test("actual workflow gates only native jobs and preserves required names, matri
   assert.doesNotMatch(jobs.changes, /run: node scripts\/workflows\/docs-only-native.mjs/);
   assert.match(jobs["native-build"], /needs: changes/);
   assert.match(jobs.native, /needs: \[changes, native-build\]/);
-  for (const job of ["native-build", "native", "native-modal"]) {
+  for (const job of ["native-build", "native", "native-modal", "native-ax-request"]) {
     assert.equal(jobCondition(job, "success", "false"), false);
     assert.equal(jobCondition(job, "success", "true", "success", true), false);
     for (const [result, required] of [["success", "true"], ["success", ""], ["failure", "false"], ["skipped", undefined]]) assert.equal(jobCondition(job, result, required), true);
@@ -69,13 +69,13 @@ test("actual workflow gates only native jobs and preserves required names, matri
   assert.doesNotMatch(workflow, /paths-ignore:|paths:/);
   assert.match(workflow, /permissions:\n {2}contents: read/);
   assert.match(jobs["quality-gate"], /if: \$\{\{ always\(\) \}\}/);
-  assert.match(jobs["quality-gate"], /needs: \[changes, validate, mutation, native-build, native, native-modal\]/);
+  assert.match(jobs["quality-gate"], /needs: \[changes, validate, mutation, native-build, native, native-modal, native-ax-request\]/);
 });
 
 test("execute the actual aggregate shell with successful, failed, cancelled and skipped dependencies", () => {
   const gate = jobs["quality-gate"];
   const shell = gate.split("        run: |\n")[1].split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
-  const refs = { changes: { result: "success", outputs: { "native-required": "true" } }, validate: { result: "success" }, mutation: { result: "success" }, "native-build": { result: "success" }, native: { result: "success" }, "native-modal": { result: "success" } };
+  const refs = { changes: { result: "success", outputs: { "native-required": "true" } }, validate: { result: "success" }, mutation: { result: "success" }, "native-build": { result: "success" }, native: { result: "success" }, "native-modal": { result: "success" }, "native-ax-request": { result: "success" } };
   const declared = new Set(gate.match(/^ {4}needs: \[([^\]]+)\]/m)[1].split(", "));
   const execute = (needs) => {
     const env = { ...process.env };
@@ -89,9 +89,10 @@ test("execute the actual aggregate shell with successful, failed, cancelled and 
   };
   assert.equal(execute(refs), 0);
   assert.notEqual(execute({ ...refs, "native-modal": { result: "failure" } }), 0, "failed modal qualification cannot be bypassed by a passing matrix");
+  assert.notEqual(execute({ ...refs, "native-ax-request": { result: "failure" } }), 0, "failed AX request qualification cannot be bypassed by a passing matrix");
   const safe = structuredClone(refs);
   safe.changes.outputs["native-required"] = "false";
-  safe["native-build"].result = safe.native.result = safe["native-modal"].result = "skipped";
+  safe["native-build"].result = safe.native.result = safe["native-modal"].result = safe["native-ax-request"].result = "skipped";
   assert.equal(execute(safe), 0);
   assert.notEqual(execute({ ...refs, native: { result: "skipped" } }), 0);
   assert.notEqual(execute({ ...safe, native: { result: "success" } }), 0);
@@ -102,7 +103,7 @@ test("execute the actual aggregate shell with successful, failed, cancelled and 
   for (const baseline of [refs, safe]) {
     for (const job of Object.keys(refs)) {
       for (const result of ["failure", "cancelled", "skipped"]) {
-        if (baseline === safe && ["native", "native-build", "native-modal"].includes(job) && result === "skipped") continue;
+        if (baseline === safe && ["native", "native-build", "native-modal", "native-ax-request"].includes(job) && result === "skipped") continue;
         const needs = structuredClone(baseline);
         needs[job].result = result;
         assert.notEqual(execute(needs), 0, `${job} ${result}`);
