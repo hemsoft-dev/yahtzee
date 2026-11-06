@@ -324,7 +324,7 @@ jobs:
   quality-gate:
     name: quality-gate
     if: ${{ always() }}
-    needs: [changes, validate, mutation, native-build, native]
+    needs: [changes, validate, mutation, native-build, native, native-modal]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -336,6 +336,7 @@ jobs:
           MUTATION_RESULT: ${{ needs.mutation.result }}
           NATIVE_BUILD_RESULT: ${{ needs.native-build.result }}
           NATIVE_RESULT: ${{ needs.native.result }}
+          NATIVE_MODAL_RESULT: ${{ needs.native-modal.result }}
         run: |
           if [ "$CHANGES_RESULT" != success ] || { [ "$NATIVE_REQUIRED" != true ] && [ "$NATIVE_REQUIRED" != false ]; }; then
             echo "Native classification did not succeed: changes=$CHANGES_RESULT native-required=$NATIVE_REQUIRED"
@@ -346,7 +347,7 @@ jobs:
             EXPECTED_NATIVE=skipped
             echo "Native jobs intentionally skipped for allowlisted documentation/marketing content."
           fi
-          if [ "$VALIDATION_RESULT" != success ] || [ "$MUTATION_RESULT" != success ] || [ "$NATIVE_BUILD_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_RESULT" != "$EXPECTED_NATIVE" ]; then
-            echo "Qualification did not succeed: validation=$VALIDATION_RESULT mutation=$MUTATION_RESULT native-build=$NATIVE_BUILD_RESULT native=$NATIVE_RESULT"
+          if [ "$VALIDATION_RESULT" != success ] || [ "$MUTATION_RESULT" != success ] || [ "$NATIVE_BUILD_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_MODAL_RESULT" != "$EXPECTED_NATIVE" ]; then
+            echo "Qualification did not succeed: validation=$VALIDATION_RESULT mutation=$MUTATION_RESULT native-build=$NATIVE_BUILD_RESULT native=$NATIVE_RESULT native-modal=$NATIVE_MODAL_RESULT"
             exit 1
           fi

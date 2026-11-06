@@ -51,13 +51,14 @@ test("actual workflow gates only native jobs and preserves required names, matri
   assert.doesNotMatch(jobs.changes, /run: node scripts\/workflows\/docs-only-native.mjs/);
   assert.match(jobs["native-build"], /needs: changes/);
   assert.match(jobs.native, /needs: \[changes, native-build\]/);
-  for (const job of ["native-build", "native"]) {
+  for (const job of ["native-build", "native", "native-modal"]) {
     assert.equal(jobCondition(job, "success", "false"), false);
     assert.equal(jobCondition(job, "success", "true", "success", true), false);
     for (const [result, required] of [["success", "true"], ["success", ""], ["failure", "false"], ["skipped", undefined]]) assert.equal(jobCondition(job, result, required), true);
     assert.match(jobs[job], /runs-on: macos-26/);
   }
   assert.equal(jobCondition("native", "success", "true", "failure"), false);
+  assert.equal(jobCondition("native-modal", "success", "true", "failure"), false);
   assert.match(jobs.native, /group: \[phone-5, phone-6, tablet-8, tablet-10\]/);
   assert.match(jobs.native, /max-parallel: 4/);
   assert.match(jobs.native, /timeout-minutes: 60/);
@@ -68,33 +69,40 @@ test("actual workflow gates only native jobs and preserves required names, matri
   assert.doesNotMatch(workflow, /paths-ignore:|paths:/);
   assert.match(workflow, /permissions:\n {2}contents: read/);
   assert.match(jobs["quality-gate"], /if: \$\{\{ always\(\) \}\}/);
-  assert.match(jobs["quality-gate"], /needs: \[changes, validate, mutation, native-build, native\]/);
+  assert.match(jobs["quality-gate"], /needs: \[changes, validate, mutation, native-build, native, native-modal\]/);
 });
 
 test("execute the actual aggregate shell with successful, failed, cancelled and skipped dependencies", () => {
   const gate = jobs["quality-gate"];
   const shell = gate.split("        run: |\n")[1].split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
-  const refs = { changes: { result: "success", outputs: { "native-required": "true" } }, validate: { result: "success" }, mutation: { result: "success" }, "native-build": { result: "success" }, native: { result: "success" } };
+  const refs = { changes: { result: "success", outputs: { "native-required": "true" } }, validate: { result: "success" }, mutation: { result: "success" }, "native-build": { result: "success" }, native: { result: "success" }, "native-modal": { result: "success" } };
+  const declared = new Set(gate.match(/^ {4}needs: \[([^\]]+)\]/m)[1].split(", "));
   const execute = (needs) => {
     const env = { ...process.env };
     for (const [, key, ref] of gate.matchAll(/^ {10}([A-Z_]+): \$\{\{ needs\.([\w.-]+) \}\}$/gm)) {
-      env[key] = ref.split(".").reduce((obj, part) => obj?.[part], needs) ?? "";
+      const [job, ...keys] = ref.split(".");
+      env[key] = (declared.has(job) ? keys.reduce((obj, part) => obj?.[part], needs[job]) : undefined) ?? "";
     }
     const result = spawnSync(process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" : "bash", ["-c", shell], { env, encoding: "utf8" });
     assert.ifError(result.error);
     return result.status;
   };
   assert.equal(execute(refs), 0);
+  assert.notEqual(execute({ ...refs, "native-modal": { result: "failure" } }), 0, "failed modal qualification cannot be bypassed by a passing matrix");
   const safe = structuredClone(refs);
   safe.changes.outputs["native-required"] = "false";
-  safe["native-build"].result = safe.native.result = "skipped";
+  safe["native-build"].result = safe.native.result = safe["native-modal"].result = "skipped";
   assert.equal(execute(safe), 0);
   assert.notEqual(execute({ ...refs, native: { result: "skipped" } }), 0);
   assert.notEqual(execute({ ...safe, native: { result: "success" } }), 0);
+  assert.notEqual(execute({ ...safe, "native-modal": { result: "success" } }), 0);
+  for (const result of ["", "queued", "in_progress"]) assert.notEqual(execute({ ...refs, "native-modal": { result } }), 0);
+  const missing = structuredClone(refs); delete missing["native-modal"];
+  assert.notEqual(execute(missing), 0, "missing modal dependency");
   for (const baseline of [refs, safe]) {
     for (const job of Object.keys(refs)) {
       for (const result of ["failure", "cancelled", "skipped"]) {
-        if (baseline === safe && ["native", "native-build"].includes(job) && result === "skipped") continue;
+        if (baseline === safe && ["native", "native-build", "native-modal"].includes(job) && result === "skipped") continue;
         const needs = structuredClone(baseline);
         needs[job].result = result;
         assert.notEqual(execute(needs), 0, `${job} ${result}`);
