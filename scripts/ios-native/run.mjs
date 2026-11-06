@@ -154,12 +154,13 @@ async function exerciseModal(app, bundleId) {
   assert(type, `Missing simulator type ${name}`);
   const device = sim("create", `Dice-modal-${process.pid}`, type.identifier, runtime); ownedDevices.push(device);
   const directory = join(output, "owned-modal"); mkdirSync(directory);
-  const result = { id: "owned-modal", udid: device, runtime, locale: "en-US", status: "running", nativeObservationStartedAtMs: Date.now() };
+  const result = { id: "owned-modal", udid: device, runtime, locale: "en-US", requestedContentSize: "accessibility-extra-extra-extra-large",
+    status: "running", nativeObservationStartedAtMs: Date.now() };
   receipt.modalRoute = result; receipt.phase = "modal-prerequisite"; checkpoint();
   sim("boot", device); sim("bootstatus", device, "-b");
   sim("spawn", device, "defaults", "write", "NSGlobalDomain", "AppleLanguages", "-array", "en");
   sim("spawn", device, "defaults", "write", "NSGlobalDomain", "AppleLocale", "-string", "en_US");
-  sim("install", device, app); sim("ui", device, "appearance", "dark"); sim("ui", device, "content_size", "large");
+  sim("install", device, app); sim("ui", device, "appearance", "dark"); sim("ui", device, "content_size", result.requestedContentSize);
   sim("status_bar", device, "override", "--time", "9:41", "--batteryState", "charged", "--batteryLevel", "100");
   recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-modal.mp4")], { env, stdio: "ignore" });
   if (traceInputs) stopInputLog = startInputObservation(device, join(directory, "input-events.jsonl"), { env });
