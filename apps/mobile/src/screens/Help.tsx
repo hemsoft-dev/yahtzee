@@ -36,7 +36,7 @@ export function Help() {
   };
   const reset = () => confirm("Delete all local data", "Delete saved gameplay, completed history, high scores, names and appearance preferences on this device? This cannot be undone in the app.", () => { void store.resetAll(); });
   return <>
-    <ScrollView contentContainerStyle={[styles.scroll, { backgroundColor: colors.page, maxWidth: 720 }]}>
+    <ScrollView testID="help-viewport" contentContainerStyle={[styles.scroll, { backgroundColor: colors.page, maxWidth: 720 }]}>
       <Label kind="title" accessibilityRole="header">How to play</Label>
       <Label muted>These are house rules, not the standard 13-category scorecard. Five dice use 15 categories; larger hands use 20.</Label>
       {rules.map(([title, body]) => <Section key={title} title={title}><View style={styles.row}><Label>{body}</Label></View></Section>)}

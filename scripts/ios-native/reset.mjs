@@ -1,9 +1,63 @@
 import assert from "node:assert/strict";
-import { screenElements } from "./geometry.mjs";
+import { screenElements, uniqueElement } from "./geometry.mjs";
 import { corruptFlow } from "./flows.mjs";
 import { runAuthoredFlow } from "./batches.mjs";
 
 const title = "Delete all local data";
+
+const contains = (outer, inner, margin = 0) => inner.left >= outer.left + margin && inner.right <= outer.right - margin &&
+  inner.top >= outer.top + margin && inner.bottom <= outer.bottom - margin;
+
+/** Search inside Help, retaining full-size text and requiring an entirely reachable action. */
+export function resetActionPosition(screen) {
+  const elements = screenElements(screen), viewportNode = uniqueElement(elements, "help-viewport");
+  const viewport = { ...viewportNode.rect };
+  for (const parent of viewportNode.parents) {
+    viewport.left = Math.max(viewport.left, parent.rect.left); viewport.top = Math.max(viewport.top, parent.rect.top);
+    viewport.right = Math.min(viewport.right, parent.rect.right); viewport.bottom = Math.min(viewport.bottom, parent.rect.bottom);
+  }
+  viewport.width = viewport.right - viewport.left; viewport.height = viewport.bottom - viewport.top;
+  assert(viewport.width >= 80 && viewport.height >= 100, "Help viewport is too small to exercise.");
+  const matches = elements.filter((node) => node.a11y === title && !node.c?.length);
+  assert(matches.length <= 1, "Reset action is ambiguous.");
+  const target = matches[0];
+  if (target) {
+    assert(target.parents.includes(viewportNode), "Reset action is outside Help.");
+    assert(target.rect.width <= viewport.width - 16 && target.rect.height <= viewport.height - 16, "Reset action cannot fit in Help.");
+    assert(target.enabled === true || target.enabled === false, "Reset action has invalid enabled state.");
+    if (!target.enabled) return { action: "wait", viewport, target: target.rect };
+    if (contains(viewport, target.rect, 8)) {
+      assert(target.parents.every((parent) => contains(parent.rect, target.rect)), "Reset action is clipped by an ancestor.");
+      return { action: "tap", viewport, target: target.rect };
+    }
+  }
+  const up = target && target.rect.top < viewport.top + 8;
+  const x = Math.round((viewport.left + viewport.right) / 2);
+  // The generic whole-screen search traverses only center-to-edge. Use the
+  // measured scroll view's interior so long largest-text Help needs fewer scans.
+  const low = Math.round(viewport.top + viewport.height * 0.9), high = Math.round(viewport.top + viewport.height * 0.1);
+  return { action: "swipe", viewport, target: target?.rect ?? null,
+    start: `${x},${up ? high : low}`, end: `${x},${up ? low : high}`, duration: 600 };
+}
+
+export async function revealResetAction(io, now = () => performance.now()) {
+  const started = now();
+  const budget = () => {
+    const elapsed = now() - started;
+    assert(Number.isFinite(elapsed) && elapsed >= 0 && elapsed < 60000, "Reset action did not become reachable within 60000ms.");
+  };
+  for (let attempt = 0; attempt < 30; attempt++) {
+    budget();
+    await io.run([{ waitForAnimationToEnd: { timeout: 5000 } }]); budget();
+    const screen = await io.inspect(); budget();
+    const decision = resetActionPosition(screen); io.record({ kind: "reset-action", attempt, ...decision });
+    if (decision.action === "tap") return decision.target;
+    if (decision.action === "swipe") {
+      await io.run([{ swipe: { start: decision.start, end: decision.end, duration: decision.duration } }]); budget();
+    }
+  }
+  assert.fail("Reset action did not become reachable within 30 inspections.");
+}
 
 export function recoveryHelpPosition(screen) {
   const elements = screenElements(screen);
@@ -40,8 +94,10 @@ export async function confirmReset(bundleId, io) {
   io.record({ kind: "recovery-help", ...help });
   await io.run([{ tapOn: { point: help.point, retryTapIfNoChange: false } },
     { assertVisible: "How to play" }]);
-  await io.run([{ scrollUntilVisible: { element: { text: title }, direction: "DOWN", timeout: 60000, visibilityPercentage: 100 } },
-    { tapOn: { text: title, enabled: true } }, { assertVisible: "Cancel" }]);
+  const action = await revealResetAction(io);
+  await io.capture("reset-action-ready");
+  await io.run([{ tapOn: { point: `${Math.round((action.left + action.right) / 2)},${Math.round((action.top + action.bottom) / 2)}`, retryTapIfNoChange: false } },
+    { assertVisible: "Cancel" }]);
   await io.run([{ tapOn: { text: "Cancel", enabled: true } }, { assertNotVisible: "Cancel" }]);
   await io.run([{ tapOn: { text: title, enabled: true } }, { assertVisible: "Cancel" }]);
   await io.run([{ waitForAnimationToEnd: { timeout: 5000 } }]);
