@@ -120,7 +120,7 @@ jobs:
         run: node node_modules/playwright/cli.js install --with-deps chromium
       - name: Resume handler and React commit lifecycle regression
         if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        run: bun test scripts/ios-native/resumeObservation.test.ts scripts/ios-native/startObservation.test.ts scripts/ios-native/helpObservation.test.ts scripts/ios-native/pickerObservation.test.ts scripts/ios-native/doneObservation.test.ts scripts/ios-native/rerollObservation.test.ts scripts/ios-native/scoreObservation.test.ts
+        run: bun test --preload ./scripts/ios-native/click-protocol/install.mjs scripts/ios-native/resumeObservation.test.ts scripts/ios-native/startObservation.test.ts scripts/ios-native/helpObservation.test.ts scripts/ios-native/pickerObservation.test.ts scripts/ios-native/doneObservation.test.ts scripts/ios-native/rerollObservation.test.ts scripts/ios-native/scoreObservation.test.ts
       - name: Install pinned Electron binary outside the test timeout
         id: electron
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -139,6 +139,7 @@ jobs:
           path: |
             reports/clients/
             reports/quality/
+            reports/lifecycle-click/
           retention-days: 3
           if-no-files-found: warn
 
