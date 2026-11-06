@@ -65,7 +65,9 @@ export async function runProbeSession({ openTransport, device, journal = () => {
       record.elapsedMs = Math.round(performance.now() - started);
       record.wallEndMs = now(); record.hostMonoEnd = hostMono();
       record.boundary = boundaryOf(record);
-      if (TRANSPORT_CLASSES.includes(record.errorClass)) stoppedBy = stage.id;
+      // Preserve the primary failure classification, but any explicit transport-loss
+      // signal retires the connection even when AX/assertion wording also appears.
+      if (TRANSPORT_CLASSES.includes(record.errorClass) || record.patterns?.deviceUnreachable || record.patterns?.driverConnect) stoppedBy = stage.id;
       try { record.observation = await observe(stage, record); } catch { record.observation = { state: "unavailable" }; }
       write({ event: "stage-end", id: stage.id, outcome: record.outcome, boundary: record.boundary, elapsedMs: record.elapsedMs, hostMono: record.hostMonoEnd });
       result.stages.push(record);

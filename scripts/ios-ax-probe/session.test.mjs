@@ -146,3 +146,15 @@ test("a non-Maestro server is refused before any tool call", async () => {
   assert.equal(result.session.initialize, "unexpected-server");
   assert.deepEqual(sent, ["initialize"]);
 });
+
+
+test("unreachable transport stops after a mixed AX/assertion error without a later fixture tap", async () => {
+  for (const prefix of ["Failed to get list of active applications: kAXErrorIPCTimeout", "Assertion is false: fixed fixture text"]) {
+    const { result, calls } = await probe(scripted({ S03: { isError: true, content: [{ type: "text", text: `${prefix}; Device became unreachable during deviceInfo` }] } }));
+    assert.equal(result.status, "stopped");
+    assert.equal(calls.length, 1 + 3);
+    assert.equal(result.stages[2].patterns.deviceUnreachable, true);
+    assert(result.stages.slice(3).every((stage) => stage.outcome === "not-run" && stage.notRunReason === "stopped-after-S03"));
+    assert(!calls.some((call) => call.arguments.yaml?.includes("tapOn")));
+  }
+});
