@@ -190,7 +190,11 @@ async function main() {
     receipt.clock = correlateClock({ launch, launchEvent: final.events.find((event) => event.k === "launch"), reads });
     receipt.fixture.events = { state: final.state, count: final.events.length, invalidLines: final.invalidLines,
       launchPidMatches: final.events.find((event) => event.k === "launch")?.pid === receipt.simulator.fixturePid };
-    receipt.runnerLog = log.state === "read" ? { state: "read", files: log.files, counts: log.counts, ipcTimeoutPids: log.ipcTimeoutPids,
+    const nativeObservations = final.events.filter((event) => event.k.startsWith("touch-") || event.k === "open-geometry");
+    receipt.fixture.nativeObservations = nativeObservations.slice(0, 32);
+    receipt.fixture.nativeObservationsTruncated = nativeObservations.length > 32;
+    receipt.runnerLog = log.state === "read" ? { state: "read", files: log.files, counts: log.counts, ipcTimeoutPids: log.ipcTimeoutPids, taps: log.taps,
+      tapCoordinatesTruncated: log.tapCoordinatesTruncated,
       ipcTimeoutPidIsFixture: log.ipcTimeoutPids.length ? log.ipcTimeoutPids.includes(receipt.simulator.fixturePid) : null } : { state: log.state };
     for (const record of receipt.stages) {
       const stage = PLAN.find((item) => item.id === record.id);

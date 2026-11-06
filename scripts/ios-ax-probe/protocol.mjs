@@ -72,11 +72,24 @@ const PREDICATES = Object.freeze({
   intro: [TEXT.intro, IDS.intro], open: [TEXT.open, IDS.open], current: [TEXT.current], duo: [TEXT.duo], ack: [TEXT.ack, IDS.ack],
 });
 
+function fixtureBounds(value) {
+  if (typeof value !== "string" || value.length > 128) return null;
+  try {
+    const rows = JSON.parse("[" + value.replace("][", "],[") + "]");
+    if (!Array.isArray(rows) || rows.length !== 2 || !rows.every((r) => Array.isArray(r) && r.length === 2)) return null;
+    const values = rows.flat();
+    if (!values.every((v) => Number.isFinite(v) && Math.abs(v) <= 100000)) return null;
+    const [left, top, right, bottom] = values;
+    return right >= left && bottom >= top ? { left, top, right, bottom } : null;
+  } catch { return null; }
+}
+
 /** Exact-match counts over inspect_screen's compact tree (`txt`, `a11y`, `rid`, children `c`). */
 export function hierarchyPredicates(payload, limit = BUDGET.hierarchyNodes) {
   if (!payload || typeof payload !== "object" || !Array.isArray(payload.elements)) return { state: "unparseable" };
   const counts = Object.fromEntries(Object.keys(PREDICATES).map((key) => [key, 0]));
   const stack = payload.elements.map((node) => [node, 1]);
+  const openTargets = []; let openTargetsTruncated = false;
   let nodes = 0, depth = 0;
   while (stack.length) {
     const [node, level] = stack.pop();
@@ -86,9 +99,16 @@ export function hierarchyPredicates(payload, limit = BUDGET.hierarchyNodes) {
     depth = Math.max(depth, level);
     const values = [node.txt, node.a11y, node.rid].filter((value) => typeof value === "string");
     for (const [key, accepted] of Object.entries(PREDICATES)) if (values.some((value) => accepted.includes(value))) counts[key]++;
+    if (values.some((value) => PREDICATES.open.includes(value))) {
+      if (openTargets.length >= 8) openTargetsTruncated = true;
+      else {
+        const flag = (key) => typeof node[key] === "boolean" ? node[key] : typeof payload.ui_schema?.defaults?.[key] === "boolean" ? payload.ui_schema.defaults[key] : null;
+        openTargets.push({ matchesId: node.rid === IDS.open, bounds: fixtureBounds(node.b), enabled: flag("enabled"), clickable: flag("clickable") });
+      }
+    }
     if (Array.isArray(node.c)) for (const child of node.c) stack.push([child, level + 1]);
   }
-  return { state: "parsed", counts, nodes, depth };
+  return { state: "parsed", counts, nodes, depth, openTargets, openTargetsTruncated };
 }
 
 export const ERROR_PATTERNS = Object.freeze([
@@ -178,8 +198,9 @@ export function evaluateStage(stage, record, window) {
 }
 
 export const FIXTURE_EVENTS = Object.freeze(["launch", "appeared", "open-pressed", "stall-control-done", "sheet-presented",
-  "option-solo", "option-duo", "option-cancel", "ack-set", "hb", "stall"]);
-const EVENT_INTS = Object.freeze(["n", "g", "pid"]);
+  "option-solo", "option-duo", "option-cancel", "ack-set", "hb", "stall", "open-geometry", "touch-began", "touch-ended", "touch-cancelled"]);
+const EVENT_INTS = Object.freeze(["n", "g", "pid", "q", "v"]);
+const EVENT_COORDS = Object.freeze(["x", "y", "width", "height", "windowW", "windowH", "scale"]);
 
 /** Strict parse of the fixture's own fixed-vocabulary event log. Unknown shapes are counted, never kept. */
 export function parseFixtureEvents(text, limits = BUDGET) {
@@ -193,10 +214,11 @@ export function parseFixtureEvents(text, limits = BUDGET) {
     try { value = JSON.parse(line); } catch { invalidLines++; continue; }
     const keys = value && typeof value === "object" && !Array.isArray(value) ? Object.keys(value) : null;
     const valid = keys && FIXTURE_EVENTS.includes(value.k) && Number.isFinite(value.t) && value.t >= 0 && Number.isFinite(value.w) && value.w > 0
-      && keys.every((key) => ["k", "t", "w", ...EVENT_INTS].includes(key))
-      && EVENT_INTS.every((key) => value[key] === undefined || (Number.isSafeInteger(value[key]) && value[key] >= 0 && value[key] <= 1e9));
+      && keys.every((key) => ["k", "t", "w", ...EVENT_INTS, ...EVENT_COORDS].includes(key))
+      && EVENT_INTS.every((key) => value[key] === undefined || (Number.isSafeInteger(value[key]) && value[key] >= 0 && value[key] <= 1e9))
+      && EVENT_COORDS.every((key) => value[key] === undefined || (Number.isSafeInteger(value[key]) && Math.abs(value[key]) <= 1e9));
     if (!valid) { invalidLines++; continue; }
-    events.push(Object.fromEntries(["k", "t", "w", ...EVENT_INTS].filter((key) => value[key] !== undefined).map((key) => [key, value[key]])));
+    events.push(Object.fromEntries(["k", "t", "w", ...EVENT_INTS, ...EVENT_COORDS].filter((key) => value[key] !== undefined).map((key) => [key, value[key]])));
   }
   return { state: lines.length > limits.eventLines ? "truncated" : "parsed", events, invalidLines };
 }
@@ -235,7 +257,9 @@ export function fixtureWindow(events, clock, record, ackKinds = []) {
   const beats = events.filter((event) => event.k === "hb" && event[field] > start && event[field] <= end + 1.1);
   const stalls = events.filter((event) => event.k === "stall" && event[field] > start && event[field] - event.g / 1000 < end);
   const gaps = [...beats, ...stalls].map((event) => event.g);
-  return { state: "windowed", clock, acks, events: kinds,
+  const touches = inside.filter((event) => event.k.startsWith("touch-"));
+  return { state: "windowed", clock, acks, events: kinds, touches: touches.slice(0, 16), touchEventsTruncated: touches.length > 16,
+    openGeometry: events.findLast((event) => event.k === "open-geometry" && event[field] <= end) ?? null,
     heartbeat: { beats: beats.length, maxGapMs: gaps.length ? Math.max(...gaps) : null, stalls: stalls.length, aliveAfter: events.some((event) => event[field] > end) } };
 }
 
@@ -258,18 +282,24 @@ export const RUNNER_PATTERNS = Object.freeze([
 
 export function countRunnerPatterns(text, maxPids = BUDGET.pids) {
   const counts = Object.fromEntries(RUNNER_PATTERNS.map(([id]) => [id, 0]));
-  const ipcTimeoutPids = [];
+  const ipcTimeoutPids = [], taps = [];
   for (const line of text.split("\n")) {
     for (const [id, pattern] of RUNNER_PATTERNS) if (pattern.test(line)) counts[id]++;
+    const tap = /(?:Tapping|Long pressing) (-?[0-9]+(?:[.][0-9]+)?), (-?[0-9]+(?:[.][0-9]+)?)/.exec(line);
+    if (tap && taps.length < 8) {
+      const x = Number(tap[1]), y = Number(tap[2]);
+      if ([x, y].every((value) => Number.isFinite(value) && Math.abs(value) <= 100000)) taps.push({ x, y });
+    }
     const pid = /kAXErrorIPCTimeout from \w+ for (\d{1,9})\b/.exec(line)?.[1];
     if (pid && ipcTimeoutPids.length < maxPids && !ipcTimeoutPids.includes(Number(pid))) ipcTimeoutPids.push(Number(pid));
   }
-  return { counts, ipcTimeoutPids };
+  return { counts, ipcTimeoutPids, taps, tapCoordinatesTruncated: counts.tapStarted > taps.length };
 }
 
 export function deltaCounts(before, after) {
   if (before?.state !== "read" || after?.state !== "read") return { state: "unavailable" };
-  return { state: "read", deltas: Object.fromEntries(Object.keys(after.counts).map((key) => [key, after.counts[key] - (before.counts[key] ?? 0)])) };
+  return { state: "read", deltas: Object.fromEntries(Object.keys(after.counts).map((key) => [key, after.counts[key] - (before.counts[key] ?? 0)])),
+    taps: (after.taps ?? []).slice(before.taps?.length ?? 0), tapCoordinatesTruncated: after.tapCoordinatesTruncated === true };
 }
 
 /** Stage journal closeout: a start with no end means no response before termination, never "not called". */
@@ -299,7 +329,7 @@ const VOCABULARY = new Set([
   "parsed", "unparseable", "truncated", "unavailable", "windowed", "unwindowed", "read", "returned", "tool-error", "request-timeout",
   "transport-closed", "deadline-exhausted", "not-run", "monotonic-verified", "wall-verified", "unverified", "closed", "close-failed",
   "owned-device-connected", "owned-device-missing", "unexpected-server", "rpc-timeout", "present", "absent", "match", "mismatch",
-  "arm64", "x86_64", "ios-ax-probe", "no-response-before-termination", "rpc-error", "startup", "list_devices", "initialize",
+  "other", "arm64", "x86_64", "ios-ax-probe", "no-response-before-termination", "rpc-error", "startup", "list_devices", "initialize",
   HOST.developerDir, HOST.runtime, FIXTURE.bundleId,
 ]);
 const FORMATS = Object.freeze([

@@ -67,8 +67,27 @@ Dispatching with `fixture_main_stall_ms: 3000` makes the open handler block the 
 - The fixture is not Yahtzee and the plan is not a replay of any historical flow, save or input. A passing probe does not exonerate the historical failures, and a failing probe does not reproduce them. Issues #102, #112, #115 and #41 stay open on their own evidence.
 - It uses the packaged Maestro XCTest runner as shipped. The running runner binary is not attested beyond the archive and jar hashes.
 - One device type and one sequence per run. Repeating a run is a separate, independently identified run, not a retry.
-- The fixture build, simulator steps and every native behaviour above are unvalidated until a hosted run completes. The unit tests cover only the probe's pure logic and the session against a fake MCP server over the production `rpcClient` transport.
+- The first published fixture compiled, signed, installed and launched in hosted run 42189448441. That validates those operations only for source 1711f84. The changed passive touch/geometry fixture and its native observations still require a source-bound hosted run. Unit tests cover only pure logic and the session against a fake MCP server over the production `rpcClient` transport.
 
 Run the unit tests locally with `node --test scripts/ios-ax-probe/protocol.test.mjs scripts/ios-ax-probe/session.test.mjs`. The probe itself runs only on hosted macOS.
 
 Fixture compiler failures print at most 8192 characters of compiler diagnostics in the CI log, with source, scratch and developer-directory prefixes replaced. This is build feedback from the checked-in fixture, separate from the finite probe receipt; driver response text is never printed.
+
+## First hosted result and next boundary
+
+[Run 42189448441](https://github.com/hemsoft-dev/yahtzee/actions/runs/42189448441), attempt 1, used exact source `1711f84be5898cc7d1d93e653be8e86621364469`, Xcode 26.6 build 17F113, SDK/runtime 26.5 and runtime build 23F77. Archive and both JAR pins matched. The fixture executable hash was `b09a72846f616696441c0a04e877613e3b7b39a7029b4915a7ead15ae0b0125c`. All three artifact files were retained and hash-verified.
+
+All nine requests completed. S01/S02 returned the Intro/open predicates and S03's Intro assertion passed. S04 returned success and the runner recorded one tap start and return, but no `open-pressed` or `sheet-presented` event was retained. S05/S08 still returned the Intro/open predicates with no sheet or acknowledgment. S06/S09 assertions failed and S07 reported the missing option without a second actual tap. The receipt parsed 226 fixture events with zero invalid lines and verified the monotonic clock. Retained counters contain no active-applications failure or AX IPC timeout. This is a new fixture observation, not reproduction or exoneration of the historical Yahtzee failures.
+
+The first collector discarded the actual hit point. The correction keeps bounded numeric geometry to distinguish the next boundary without changing the nine-request plan, button layout, actions, driver or deadlines:
+
+- For known fixture open-button matches only, compact AX bounds and boolean enabled/clickable flags, up to eight targets. Missing or malformed bounds become null; unrelated labels and nodes are discarded.
+- Up to eight numeric points from the pinned driver's `Tapping`/`Long pressing` lines, with per-request deltas and an explicit truncation flag. These are driver-reported coordinates, not a delivered-touch acknowledgment.
+- A passive fixture `UIWindow.sendEvent` observation calls the original dispatch exactly once. It records began/ended/cancelled events for at most four touches per event and 128 lifetime touch IDs. The actual touch-view ancestry is reduced to 1 for the known open button, 2 for another button, or 0 for other. No object, view label or native identifier is retained.
+- Open-button bounds in window coordinates, window dimensions and screen scale are captured after layout, only when changed. UIKit values are rounded integer **millipoints**; scale is multiplied by 1000. Driver and AX values retain their original numeric units. No equality or coordinate conversion between these channels is assumed without the actual host result.
+
+Per-request touch arrays cap at 16, and the receipt's unwindowed geometry/touch summary caps at 32 with truncation flags. Missing events, a saturated bound or an unverified clock cannot prove that a touch was absent. A window event precedes the original event dispatch and does not prove the control action, presentation, paint or AX visibility. See Apple's [window event dispatch](https://developer.apple.com/documentation/uikit/uiwindow/sendevent(_:)) and [UITouch](https://developer.apple.com/documentation/UIKit/UITouch) references for the observed API boundary.
+
+The review correction also admits the fixed `other` operation enum in the publication vocabulary. An unknown unreachable operation retains the finite receipt while the original operation string remains rejected. Local regression tests fail before that correction and pass after it.
+
+Separately, the source-1711 Windows validation job failed at the existing Done lifecycle test's 5001.81 ms timeout, followed by Bun killing the shared browser and 17 Done failures, with 103 other cases passing. Product code, that harness and its workflow command were unchanged from main. Cause remains unknown. No timeout, runner, retry or test assertion was changed to conceal it.

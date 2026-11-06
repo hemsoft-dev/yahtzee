@@ -165,3 +165,60 @@ test("the fixture source carries the plan's fixed strings and ack vocabulary", (
   for (const kind of PLAN.flatMap((stage) => stage.fixtureAck ?? [])) assert(swift.includes(`event("${kind}"`), kind);
   assert(plist.includes(`<string>${FIXTURE.bundleId}</string>`) && plist.includes(`<string>${FIXTURE.executable}</string>`));
 });
+
+
+test("unknown unreachable operations keep finite diagnostic receipts publishable", () => {
+  const stage = interpret(PLAN[0], { isError: true, content: [{ type: "text", text: "Device became unreachable during futurePrivateOperation" }] });
+  const receipt = { schemaVersion: 1, kind: "ios-ax-probe", status: "stopped", stages: [{ id: "S01", ...stage }] };
+  assert.equal(stage.unreachableOperation, "other");
+  assert.deepEqual(publishableErrors(receipt), []);
+  assert(!JSON.stringify(receipt).includes("futurePrivateOperation"));
+  assert.notDeepEqual(publishableErrors({ ...receipt, leakedOperation: "futurePrivateOperation" }), []);
+});
+
+
+test("known fixture AX bounds and driver tap coordinates survive finite reduction without labels", () => {
+  const payload = tree({ rid: IDS.open, b: "[10,20][110,60]", enabled: true },
+    { txt: TEXT.open, b: "[-5,20][5,60]", clickable: false }, { txt: "private label", b: "[0,0][999,999]" });
+  const reduced = hierarchyPredicates(payload);
+  assert.equal(reduced.openTargets.length, 2);
+  assert.deepEqual(reduced.openTargets[0].bounds, { left: -5, top: 20, right: 5, bottom: 60 });
+  assert(!JSON.stringify(reduced).includes("private label"));
+  const before = { state: "read", ...countRunnerPatterns("Tapping 1.0, 2.5\n") };
+  const after = { state: "read", ...countRunnerPatterns("Tapping 1.0, 2.5\nTapping 35.25, 44.0\nTapping took 0.1\n") };
+  assert.deepEqual(deltaCounts(before, after).taps, [{ x: 35.25, y: 44 }]);
+  assert.deepEqual(publishableErrors({ predicates: reduced, taps: after.taps }), []);
+});
+
+test("passive native touch and layout events remain bounded numeric observations", () => {
+  const events = [{ k: "open-geometry", t: 1, w: 100, x: -10, y: 200, width: 300, height: 400, windowW: 1000, windowH: 2000, scale: 2000 },
+    { k: "touch-began", t: 2, w: 101, x: 50, y: 300, q: 1, v: 1 },
+    { k: "touch-ended", t: 3, w: 102, x: 50, y: 300, q: 1, v: 1 }];
+  const parsed = parseFixtureEvents(events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+  assert.equal(parsed.invalidLines, 0);
+  assert.equal(parsed.events.length, 3);
+  const window = fixtureWindow(parsed.events, "monotonic-verified", { hostMonoStart: 1.5, hostMonoEnd: 3.5 });
+  assert.equal(window.touches.length, 2);
+  assert.equal(window.touches[0].q, window.touches[1].q);
+  assert.equal(window.openGeometry.x, -10);
+  assert.deepEqual(publishableErrors(window), []);
+  const bad = parseFixtureEvents(JSON.stringify({ ...events[1], x: 1e12 }) + "\n");
+  assert.equal(bad.invalidLines, 1);
+});
+
+test("geometry and point limits reject malformed input and expose truncation", () => {
+  for (const b of ["private bounds", "[0,0][1,1] private", "[0,0][-1,1]", "[0,0][100001,1]", "[0][1]"]) {
+    assert.equal(hierarchyPredicates(tree({ rid: IDS.open, b })).openTargets[0].bounds, null);
+  }
+  const reduced = hierarchyPredicates(tree(...Array.from({ length: 10 }, () => ({ rid: IDS.open, b: "[0,0][1,1]" }))));
+  assert.equal(reduced.openTargets.length, 8);
+  assert.equal(reduced.openTargetsTruncated, true);
+  const counted = countRunnerPatterns(Array.from({ length: 10 }, (_, i) => `Tapping ${i}, ${i}`).join("\n"));
+  assert.equal(counted.taps.length, 8);
+  assert.equal(counted.tapCoordinatesTruncated, true);
+  const events = Array.from({ length: 20 }, (_, i) => ({ k: "touch-began", t: 2 + i / 100, w: 100, q: i, x: 0, y: 0, v: 0 }));
+  const window = fixtureWindow(events, "monotonic-verified", { hostMonoStart: 1, hostMonoEnd: 4 });
+  assert.equal(window.touches.length, 16);
+  assert.equal(window.touchEventsTruncated, true);
+  assert.deepEqual(publishableErrors({ reduced, counted, window }), []);
+});

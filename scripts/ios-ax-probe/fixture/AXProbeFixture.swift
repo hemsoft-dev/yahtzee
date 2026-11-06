@@ -62,12 +62,53 @@ final class Heartbeat {
     }
 }
 
+// Passive fixture-only event observation. Always preserve one original dispatch.
+final class ProbeWindow: UIWindow {
+    private var nextTouch = 0
+    private var touches: [ObjectIdentifier: Int] = [:]
+
+    override func sendEvent(_ event: UIEvent) {
+        if event.type == .touches, let all = event.allTouches {
+            for touch in all.prefix(4) {
+                let key = ObjectIdentifier(touch)
+                if touch.phase == .began && touches[key] == nil && nextTouch < 128 {
+                    nextTouch += 1
+                    touches[key] = nextTouch
+                }
+                if let id = touches[key] {
+                    let kind: String?
+                    switch touch.phase {
+                    case .began: kind = "touch-began"
+                    case .ended: kind = "touch-ended"
+                    case .cancelled: kind = "touch-cancelled"
+                    default: kind = nil
+                    }
+                    let point = touch.location(in: self)
+                    if let kind = kind, point.x.isFinite, point.y.isFinite, abs(point.x) < 1000000, abs(point.y) < 1000000 {
+                        var current = touch.view
+                        var target = 0
+                        while let view = current {
+                            if view.accessibilityIdentifier == "probe.open" { target = 1; break }
+                            if view is UIButton { target = 2 }
+                            current = view.superview
+                        }
+                        ProbeLog.shared.event(kind, ["q": id, "v": target, "x": Int((point.x * 1000).rounded()), "y": Int((point.y * 1000).rounded())])
+                    }
+                    if touch.phase == .ended || touch.phase == .cancelled { touches.removeValue(forKey: key) }
+                }
+            }
+        }
+        super.sendEvent(event)
+    }
+}
+
 final class ProbeViewController: UIViewController {
     private let stallMs: Int
     private let intro = UILabel()
     private let openButton = UIButton(type: .system)
     private let ack = UILabel()
     private var appeared = false
+    private var lastGeometry: [String: Int]?
 
     init(stallMs: Int) {
         self.stallMs = stallMs
@@ -99,6 +140,20 @@ final class ProbeViewController: UIViewController {
             stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
         ])
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        guard let window = view.window else { return }
+        let rect = openButton.convert(openButton.bounds, to: window)
+        let numbers = [rect.minX, rect.minY, rect.width, rect.height, window.bounds.width, window.bounds.height, window.screen.scale]
+        guard numbers.allSatisfy({ $0.isFinite && abs($0) < 1000000 }) else { return }
+        let keys = ["x", "y", "width", "height", "windowW", "windowH", "scale"]
+        let geometry = Dictionary(uniqueKeysWithValues: zip(keys, numbers.map { Int(($0 * 1000).rounded()) }))
+        if geometry != lastGeometry {
+            lastGeometry = geometry
+            ProbeLog.shared.event("open-geometry", geometry)
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -149,7 +204,7 @@ final class ProbeSceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
-        let window = UIWindow(windowScene: windowScene)
+        let window = ProbeWindow(windowScene: windowScene)
         let requested = UserDefaults.standard.integer(forKey: "probeStallMs")
         window.rootViewController = ProbeViewController(stallMs: requested == 3000 ? 3000 : 0)
         window.makeKeyAndVisible()
