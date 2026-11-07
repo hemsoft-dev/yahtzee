@@ -9,8 +9,11 @@ export function installMarker(line) {
   if (line === "Resolving dependencies") return { stage: 2, count: null };
   const resolution = /^Resolved, downloaded and extracted \[([0-9]{1,7})\]$/.exec(line);
   if (resolution) return { stage: 3, count: Number(resolution[1]) };
-  const store = /^(Resolved peers|Created store) \[[0-9]{1,9}(?:\.[0-9]{1,3})?(?:ns|us|Âµs|ms|s|m)?\]$/.exec(line);
-  if (store) return { stage: store[1] === "Resolved peers" ? 4 : 5, count: null };
+  const store = /^(Resolved peers|Created store) \[([^\]]{1,24})\]$/.exec(line);
+  // Pinned fmt_duration_one_decimal uses ordered coarse units then at most
+  // one fine unit. Duration text is validated and discarded, never retained.
+  const duration = /^(?=.{1,24}$)(?:[1-9][0-9]{0,2}y)?(?:[1-9][0-9]?w)?(?:[1-9][0-9]?d)?(?:[1-9][0-9]?h)?(?:[1-9][0-9]?m)?(?:(?:[1-9][0-9]{0,2})(?:\.[1-9])?(?:s|ms|us)|(?:0|[1-9][0-9]{0,2})ns)?$/;
+  if (store && duration.test(store[2])) return { stage: store[1] === "Resolved peers" ? 4 : 5, count: null };
   const pending = /^\[PackageManager\] waiting for ([0-9]{1,7}) tasks$/.exec(line);
   return pending ? { stage: 6, count: Number(pending[1]) } : null;
 }

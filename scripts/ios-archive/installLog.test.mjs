@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { constants, tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import test from "node:test";
@@ -21,8 +21,14 @@ test("only pinned finite markers survive, split chunks and ANSI are consumed bef
   const result = feed([...Buffer.from(input)].map((b) => Buffer.from([b])));
   assert.deepEqual(result.rows.map((r) => [r.stage, r.count]), [[4, null], [5, null], [6, 4], [3, 4]]);
   assert(!JSON.stringify(result).includes(secret));
-  assert.deepEqual(installMarker("\x1b[32mCreated store [0.1ms]\x1b[0m"), { stage: 5, count: null });
+  assert.deepEqual(installMarker("\x1b[32mCreated store [1.1ms]\x1b[0m"), { stage: 5, count: null });
   for (const line of [`Created store [1ms] ${secret}`, `Resolved peers [${secret}]`, "Resolved peers [1e20ms]", "[PackageManager] waiting for -1 tasks", "Created store [NaNms]"]) assert.equal(installMarker(line), null);
+});
+
+test("pinned compound duration markers retain slow peer/store completion with no duration payload", () => {
+  const durations = ["0ns", "999ns", "1us", "999.9us", "1ms", "999.9ms", "1s", "59.9s", "1m", "1m5.2s", "2m400ms", "1h2m", "1d", "1w", "1y", "584y49w1d23h34m33.7s"];
+  for (const duration of durations) for (const [prefix, stage] of [["Resolved peers", 4], ["Created store", 5]]) assert.deepEqual(installMarker(`${prefix} [${duration}]`), { stage, count: null });
+  for (const duration of ["", "1m5sSECRET", "1s2m", "1m2m", "-1ms", "1e2ms", "1.5m", "1.22s", "999999999999999999999999999m", "1\u00b5s"]) assert.equal(installMarker(`Created store [${duration}]`), null);
 });
 
 test("oversized, partial, malformed, record and byte bounds discard complete sensitive edges", () => {
@@ -56,6 +62,26 @@ test("same original error object, signal forwarding and terminal signal survive 
   const result = await pending; assert.equal(result.error, error); assert.equal(result.signal, "SIGTERM"); assert.deepEqual(kills, ["SIGTERM"]); assert.equal(result.synopsis.coverage.unavailable, true); assert(!JSON.stringify(result.synopsis).includes(secret));
   const target = { pid: 99, kill: (...args) => kills.push(args) }; installExit(result, target); assert.deepEqual(kills.at(-1), [99, "SIGTERM"]);
   const missing = Object.assign(new Error(secret), { code: "ENOENT" }); const threw = await observeInstall({ cwd: "/fixture", env: {}, host: h, writer: memoryWriter(), spawnImpl() { throw missing; } }); assert.equal(threw.error, missing); installExit(threw, target); assert.equal(target.exitCode, 127);
+});
+
+test("actual missing executable closes with errno but exits shell-compatible127", async () => {
+  const root = temporary("archive-missing-"), writer = memoryWriter();
+  const result = await observeInstall({ cwd: root, env: process.env, host: host(), writer, spawnImpl: () => spawn(join(root, "absent-executable"), [], { stdio: ["ignore", "pipe", "pipe"] }) });
+  assert.equal(result.error?.code, "ENOENT"); assert(result.code < 0); const target = {}; installExit(result, target); assert.equal(target.exitCode, 127); assert.equal(result.synopsis.code, null);
+});
+
+test("real EACCES close errno maps to126 on POSIX and preserves the error class", async () => {
+  if (process.platform === "win32") {
+    const child = fixture(), error = Object.assign(new Error(secret), { code: "EACCES" }), pending = observeInstall({ cwd: "/fixture", env: {}, writer: memoryWriter(), host: host(), spawnImpl: () => child }); child.stdout.end(); child.stderr.end(); child.emit("error", error); child.emit("close", -13, null);
+    const result = await pending, target = {}; assert.equal(result.error, error); installExit(result, target); assert.equal(target.exitCode, 126); return;
+  }
+  const root = temporary("archive-denied-"), file = join(root, "not-executable"); writeFileSync(file, "owned nonexecutable fixture"); chmodSync(file, 0o600);
+  const result = await observeInstall({ cwd: root, env: process.env, writer: memoryWriter(), host: host(), spawnImpl: () => spawn(file, [], { stdio: ["ignore", "pipe", "pipe"] }) }); assert.equal(result.error?.code, "EACCES"); assert(result.code < 0); const target = {}; installExit(result, target); assert.equal(target.exitCode, 126); assert.equal(result.synopsis.error, 2);
+});
+
+test("ignored terminal signals cannot report success or start an inspector", () => {
+  for (const signal of ["SIGPIPE", "SIGUSR1"]) { const calls = [], target = { pid: 7, kill(...args) { calls.push(args); } }; installExit({ signal }, target);
+    const n = constants.signals[signal]; assert.equal(target.exitCode, Number.isInteger(n) && n > 0 && n < 128 ? 128 + n : 1); assert.equal(calls.length, 0); }
 });
 
 test("real Node child pipes drain large/split secret output and retain exit65 before cleanup", async () => {
@@ -98,6 +124,13 @@ test("actual terminal signals retain the prefix and original process outcome on 
   const rows = readFileSync(join(root, "reports/archive-install-evidence/synopsis.jsonl"), "utf8").trim().split("\n").map(JSON.parse); assert.equal(rows.at(-1).signal, 2); assert.equal(rows.at(-1).code, null);
 });
 
+test("real Node SIGPIPE handling cannot turn a terminal signal into success on POSIX", () => {
+  if (process.platform === "win32") return;
+  const root = temporary("archive-pipe-"), script = join(root, "pipe.mjs"), moduleURL = new URL("./install.mjs", import.meta.url).href;
+  writeFileSync(script, `import {installExit} from ${JSON.stringify(moduleURL)};installExit({signal:'SIGPIPE'});`);
+  const result = spawnSync(process.execPath, [script], { encoding: "buffer", maxBuffer: 1024 }); assert.equal(result.status, 128 + constants.signals.SIGPIPE); assert.equal(result.signal, null); assert.equal(result.stderr.length, 0);
+});
+
 test("actual pinned Bun offline workspace fixtures expose post-resolution verbose categories without changing lock", () => {
   const revision = spawnSync("bun", ["--revision"], { encoding: "utf8" }); assert.equal(revision.status, 0, "Installed Bun revision command must succeed"); assert(revision.stdout.trim() === "1.4.2+744846f84", "Fixture requires pinned Bun");
   const observed = [];
@@ -105,8 +138,13 @@ test("actual pinned Bun offline workspace fixtures expose post-resolution verbos
     const root = temporary("archive-offline-"); mkdirSync(join(root, "packages")); mkdirSync(join(root, "packages/local"));
     writeFileSync(join(root, "package.json"), JSON.stringify({ name: "archive-fixture", private: true, workspaces: ["packages/*"] })); writeFileSync(join(root, "packages/local/package.json"), JSON.stringify({ name: "archive-local", version: "1.0.0" }));
     const lock = JSON.stringify({ lockfileVersion: 3, configVersion: 1, workspaces: { "": { name: "archive-fixture" }, "packages/local": { name: "archive-local", version: "1.0.0" } }, packages: {} }); writeFileSync(join(root, "bun.lock"), lock);
-    const result = spawnSync("bun", ["install", "--frozen-lockfile", "--ignore-scripts", "--offline", ...(verbose ? ["--verbose"] : [])], { cwd: root, encoding: "buffer", maxBuffer: 1024 * 1024 }); assert.equal(result.status, 0, "Offline fixture must install successfully"); assert.equal(readFileSync(join(root, "bun.lock"), "utf8"), lock);
-    const rows = [], collector = installCollector({ emit: (r) => rows.push(r) }); collector.push(1, result.stdout); collector.push(2, result.stderr); const coverage = collector.finish(); assert(!coverage.partial, "Offline source markers must fit the finite collector"); observed.push(rows.map((r) => r.stage));
+    const result = spawnSync("bun", ["install", "--frozen-lockfile", "--ignore-scripts", "--offline", ...(verbose ? ["--verbose"] : [])], { cwd: root, encoding: "buffer", maxBuffer: 1024 * 1024 });
+    const rows = [], collector = installCollector({ emit: (r) => rows.push(r) }); collector.push(1, result.stdout ?? Buffer.alloc(0)); collector.push(2, result.stderr ?? Buffer.alloc(0)); const coverage = collector.finish();
+    const failure = { fixture: verbose ? 2 : 1, exit: Number.isSafeInteger(result.status) ? result.status : null,
+      signal: ["SIGTERM", "SIGKILL", "SIGABRT", "SIGSEGV"].indexOf(result.signal) + 1,
+      error: ["ENOENT", "EACCES", "ENOMEM", "ENOBUFS"].indexOf(result.error?.code) + 1,
+      stdoutBytes: Math.min(result.stdout?.length ?? 0, 1_000_000_000), stderrBytes: Math.min(result.stderr?.length ?? 0, 1_000_000_000), stages: rows.map((r) => r.stage), coverage };
+    assert.equal(result.status, 0, JSON.stringify(failure)); assert.equal(readFileSync(join(root, "bun.lock"), "utf8"), lock); assert(!coverage.partial, "Offline source markers must fit the finite collector"); observed.push(rows.map((r) => r.stage));
   }
   assert(!observed[0].includes(4) && !observed[0].includes(5), "Ordinary fixture has no verbose store timing markers"); assert(observed[1].includes(4) && observed[1].includes(5), "Pinned verbose fixture must expose peers/store categories");
 });

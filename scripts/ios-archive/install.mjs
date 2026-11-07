@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createWriteStream, lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { constants } from "node:os";
 import { pathToFileURL } from "node:url";
 import { installCollector } from "./installLog.mjs";
 
@@ -72,8 +73,16 @@ export async function observeInstall({ spawnImpl = spawn, cwd = process.cwd(), e
   return { code: terminal?.code ?? null, signal: terminal?.signal ?? null, error: failure, synopsis: { ...outcome, retention } };
 }
 export function installExit(result, host = process) {
-  if (result.signal) { host.kill(host.pid, result.signal); return; }
-  host.exitCode = result.code ?? (result.error?.code === "ENOENT" ? 127 : result.error?.code === "EACCES" ? 126 : 1);
+  if (result.signal) {
+    const number = constants.signals[result.signal];
+    host.exitCode = Number.isInteger(number) && number > 0 && number < 128 ? 128 + number : 1;
+    // SIGPIPE is ignored by Node; SIGUSR1 starts an inspector. Preserve a
+    // failing shell status without re-raising those special signals.
+    if (result.signal !== "SIGPIPE" && result.signal !== "SIGUSR1") { try { host.kill(host.pid, result.signal); } catch { /* The failing fallback remains. */ } }
+    return;
+  }
+  if (result.error) { host.exitCode = result.error.code === "ENOENT" ? 127 : result.error.code === "EACCES" ? 126 : 1; return; }
+  host.exitCode = Number.isSafeInteger(result.code) && result.code >= 0 && result.code <= 255 ? result.code : 1;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const result = await observeInstall();
