@@ -47,6 +47,12 @@ expressions in each of the three files restores its original bytes.
 The surrounding original `runInterruptible`, arguments, return expressions,
 exceptions and deadline values remain in place.
 
+The [comparison-only qualification toolchain](image-comparison-qualification.md) now
+patches the comparator dependency after this observation build. Both ordinary
+native/modal routes and the observed route use that explicitly identified
+source-patched comparator; their original calls, actions, assertions and budgets
+remain required. Historical unmodified-package observations remain historical.
+
 The original CLI archive, client JAR, CLI JAR and native driver JAR are verified
 before compiling. Kotlin 2.2.0 matches the pinned version catalog and its
 compiler ZIP is hash-verified before opening. Compilation targets Java 17 and

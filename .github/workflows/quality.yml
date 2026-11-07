@@ -257,6 +257,20 @@ jobs:
           test -x "$RUNNER_TEMP/maestro-tool/maestro/bin/maestro"
           echo "$RUNNER_TEMP/maestro-tool/maestro/bin" >> "$GITHUB_PATH"
           echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
+      - name: Build and require exact-result comparison-only toolchain controls
+        run: >-
+          python3 scripts/ios-native/comparison/build.py
+          --cli-root "$RUNNER_TEMP/maestro-tool/maestro"
+          --java-home "$JAVA_HOME"
+          --output reports/comparison-build
+      - name: Retain finite source-patched comparator identity, including build failures
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-comparison-${{ matrix.group }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/comparison-build/proof.json
+          retention-days: 1
+          if-no-files-found: warn
       - name: Verify the app and exercise this device group
         env:
           NATIVE_TEST_GROUP: ${{ matrix.group }}
@@ -307,6 +321,20 @@ jobs:
           test -x "$RUNNER_TEMP/maestro-tool/maestro/bin/maestro"
           echo "$RUNNER_TEMP/maestro-tool/maestro/bin" >> "$GITHUB_PATH"
           echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
+      - name: Build and require exact-result comparison-only toolchain controls
+        run: >-
+          python3 scripts/ios-native/comparison/build.py
+          --cli-root "$RUNNER_TEMP/maestro-tool/maestro"
+          --java-home "$JAVA_HOME"
+          --output reports/comparison-build
+      - name: Retain finite source-patched comparator identity, including build failures
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-comparison-modal-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/comparison-build/proof.json
+          retention-days: 1
+          if-no-files-found: warn
       - name: Exercise the real corruption and owned confirmation without gameplay
         run: bun scripts/ios-native/run.mjs --modal-only
       - name: Freeze partial evidence if native execution ended early
@@ -408,6 +436,21 @@ jobs:
           --compiler "$RUNNER_TEMP/kotlin-compiler-2.2.0.zip"
           --java-home "$JAVA_HOME"
           --output reports/.settle-cli
+      - name: Build and require exact-result comparison-only toolchain controls
+        run: >-
+          python3 scripts/ios-native/comparison/build.py
+          --cli-root "reports/.settle-cli/maestro"
+          --observed-client-proof reports/.settle-cli/staging-proof.json
+          --java-home "$JAVA_HOME"
+          --output reports/comparison-build
+      - name: Retain finite source-patched comparator identity, including build failures
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-comparison-settle-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/comparison-build/proof.json
+          retention-days: 1
+          if-no-files-found: warn
       - name: Run the original isolated reset route once with scoped settle observation
         run: node scripts/ios-native/settle/execute.mjs
       - name: Freeze partial native evidence without replay
