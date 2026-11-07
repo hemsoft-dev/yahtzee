@@ -6,6 +6,7 @@
 #import <unistd.h>
 #include <math.h>
 #import "RuntimeHooks.h"
+#import "NativeScrollObserver.h"
 #if !TARGET_OS_SIMULATOR
 #error NativeCancelObserver is restricted to qualification simulators.
 #endif
@@ -139,6 +140,7 @@ static void HSCPrepare(id owner, NSSet<UITouch *> *touches, NSInteger kind) {
         if (moves >= 8) continue; // Cancellation/end still records its fresh position.
       }
       HSCObserve(kind, owner, touch, nil, -1);
+      HSSOriginalTouch(touch, [[state.touches objectForKey:touch] unsignedIntegerValue], kind);
     }
   } @catch (__unused NSException *error) {}
 }
@@ -175,6 +177,7 @@ static void Detach(id self, SEL cmd, UIView *view) {
   @finally { s.origin = prior; s.contextID = priorContext; }
 }
 static BOOL Scroll(id self, SEL cmd, UIView *view) {
+  HSSOriginalScrollPermission(self);
   BOOL result = ((BOOL (*)(id, SEL, id))HSCScroll)(self, cmd, view);
   HSCObserve(9, self, nil, view, result ? 1 : 0); return result;
 }

@@ -20,6 +20,7 @@ import { startInputObservation } from "./inputObservation.mjs";
 import { startDoneObservation } from "./doneObservation.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
 import { retainNativeCancellation } from "./nativeCancelRetention.mjs";
+import { retainNativeScroll } from "./nativeScrollRetention.mjs";
 import { retainCorruptionMarker, retainNativeModal, withModalRetention } from "./nativeModalRetention.mjs";
 import { modalRouteRequested, ownedModalCapability, qualifyOwnedModal } from "./modalRoute.mjs";
 
@@ -138,14 +139,16 @@ const traceInputs = process.env.GITHUB_ACTIONS === "true" || process.env.EXPO_PU
 let stopInputLog;
 let stopDoneLog;
 function retainNativeForScenario(scenario, bundleId) {
-  if (!scenario || (scenario.nativeCancellation && scenario.nativeModalObservation)) return;
+  if (!scenario || (scenario.nativeCancellation && scenario.nativeModalObservation && scenario.nativeScrollObservation)) return;
   try {
     const container = run("xcrun", ["simctl", "get_app_container", scenario.udid, bundleId, "data"], { capture: true, timeout: 5000, log: "native-cancel-retention.log" });
     scenario.nativeCancellation ??= retainNativeCancellation(container, join(output, scenario.id), scenario.nativeObservationStartedAtMs);
     scenario.nativeModalObservation ??= retainNativeModal(container, join(output, scenario.id), scenario.nativeObservationStartedAtMs);
+    scenario.nativeScrollObservation ??= retainNativeScroll(container, join(output, scenario.id), scenario.nativeObservationStartedAtMs);
   } catch {
     scenario.nativeCancellation ??= { status: "unavailable", reason: "owned-container-unavailable", absenceProvesNothing: true };
     scenario.nativeModalObservation ??= { status: "unavailable", reason: "owned-container-unavailable", absenceProvesNothing: true };
+    scenario.nativeScrollObservation ??= { status: "unavailable", reason: "owned-container-unavailable", absenceProvesNothing: true };
   }
 }
 async function exerciseModal(app, bundleId) {
