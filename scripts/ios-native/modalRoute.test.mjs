@@ -70,6 +70,7 @@ test("a failed original corruption sequence is never retried, relabeled or swall
 
 function observed() {
   return [{ id: "corrupt-save/reset-document", nativeModalObservation: { files: [{ status: "retained-prefix", path: "native-modal-0.jsonl",
+    scopeWindowOverlapObserved: true,
     health: { singleProcessEpoch: true, contiguous: true, invalidLines: 0, partialLastLine: false, budgetReached: false },
     summary: { installed: true, windows: [{ alert: 1, window: 1, adoption: "observed-owned-instance", hideEntered: true, hideReturned: true,
       dispatches: [{ id: 1, returned: true, threw: false }], touches: [{ q: 1, dispatch: 1, target: 1, phase: 3 }] }] } }] } }];
@@ -81,8 +82,10 @@ test("a positive owned-window prefix establishes only bounded dispatch/lifecycle
   assert(result.limits.includes("target-zero-is-unknown")); assert(result.limits.includes("direct-callback-unavailable-cxx-reference-abi"));
   assert.equal(ownedModalCapability().status, "unavailable");
 });
-test("unavailable installation, unsafe prefix, malformed health or missing lifecycle cannot qualify", () => {
+test("out-of-scope or unknown prefixes, unsafe data and missing lifecycle cannot qualify", () => {
   const changes = [s => { s.id = "other"; }, s => { s.nativeModalObservation.files[0].path = "private/path"; },
+    s => { s.nativeModalObservation.files[0].scopeWindowOverlapObserved = false; },
+    s => { delete s.nativeModalObservation.files[0].scopeWindowOverlapObserved; },
     s => { s.nativeModalObservation.files[0].summary.installed = false; },
     s => { s.nativeModalObservation.files[0].health.singleProcessEpoch = false; },
     s => { s.nativeModalObservation.files[0].health.contiguous = false; },

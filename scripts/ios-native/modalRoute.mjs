@@ -38,7 +38,8 @@ export function ownedModalCapability(observations = []) {
     if (!["corrupt-save/reset-document", "corrupt-save/reset-database"].includes(observation.id)) continue;
     for (const file of observation.nativeModalObservation?.files ?? []) {
       const health = file.health;
-      if (file.status !== "retained-prefix" || !/^native-modal-[0-7]\.jsonl$/.test(file.path ?? "") || !file.summary?.installed
+      if (file.status !== "retained-prefix" || file.scopeWindowOverlapObserved !== true
+        || !/^native-modal-[0-7]\.jsonl$/.test(file.path ?? "") || !file.summary?.installed
         || !health?.singleProcessEpoch || !health.contiguous || health.invalidLines !== 0 || health.partialLastLine || health.budgetReached) continue;
       for (const window of file.summary.windows ?? []) {
         if (window.adoption !== "observed-owned-instance" || !window.hideEntered || !window.hideReturned) continue;

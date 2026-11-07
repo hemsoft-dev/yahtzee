@@ -32,7 +32,18 @@ Limits are 2048 observations plus a budget marker, 128 alert/window/touch IDs, 1
 
 The existing gameplay retention also freezes typed modal prefixes. Every corruption reset interaction now freezes its owned modal and score observer prefixes in a `finally` boundary after the original interaction closes and before device cleanup. A tested wrapper preserves the original result or exact thrown error even if retention fails. The original reset actions, retry protocol, assertions and deadlines are unchanged.
 
-For the first authored damaged-document fixture, a bounded read-only SQL expression returns only whether the single expected key still equals the exact `damaged-save` marker. Only a positive match permits freezing those eleven known synthetic bytes, with hash and size. Other values, missing data or read failures stay unavailable; arbitrary damaged content is never copied. This proves the exact value match at that read, not a database snapshot. The existing physical-corruption preservation remains unchanged.
+The capability helper requires `scopeWindowOverlapObserved === true` before
+using a retained prefix for its enclosing corruption route. False or absent
+overlap stays unavailable. A c124 database receipt also retained a complete
+earlier document-alert prefix whose overlap was explicitly false. The previous
+helper counted that older prefix under the database scope. Current-scope
+document and database prefixes independently contained genuine positive records;
+the correction rejects the extra attribution rather than explaining the other
+failed jobs. This file-level overlap is conditional clock evidence, not proof
+that every event in a mixed-age prefix belongs to the route or that a callback
+ran. Per-window records and all other provenance limits remain necessary.
+
+For the first authored damaged-document fixture, a bounded read-only SQL expression returns only whether the single expected key still equals the exact `damaged-save` marker. Only a positive match permits freezing those twelve known synthetic bytes, with hash and size. Other values, missing data or read failures stay unavailable; arbitrary damaged content is never copied. This proves the exact value match at that read, not a database snapshot. The existing physical-corruption preservation remains unchanged.
 
 The reader accepts only fixed process/epoch filenames inside the owned app Documents directory. At most 64 matching entries are considered; the newest eight by modification time are selected, up to 4 MiB each. This keeps accumulated relaunch headers from suppressing the later corruption prefix. Omitted files are counted, and modification-time selection is not causal ordering. It rejects links/nonregular files, verifies open-file identity and filename/process agreement, freezes only validated finite records, and refuses overwrites. A failed later file preserves earlier receipts. A sequential file read is not a stopped-writer snapshot. All retention stays partial, absent events prove nothing, and a post-interaction prefix cannot establish native behavior outside its retained window.
 
