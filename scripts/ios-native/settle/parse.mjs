@@ -3,11 +3,11 @@ const keys = ["id", "monoNs", "phase", "pid", "seq", "stage", "v", "wallMs"];
 const integer = (value, min, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(value) && value >= min && value <= max;
 
 function valid(row) {
-  if (!row || typeof row !== "object" || Array.isArray(row) || ![1, 2].includes(row.v)) return false;
+  if (!row || typeof row !== "object" || Array.isArray(row) || ![1, 2, 3].includes(row.v)) return false;
   const expected = row.v === 1 ? keys : [...keys, "parentId"].sort();
   const parent = row.v === 1 || (row.stage <= 2 ? row.parentId === 0 : integer(row.parentId, 1, row.id - 1));
   return Object.keys(row).sort().join() === expected.join() && parent &&
-    integer(row.seq, 0, 255) && integer(row.id, 1, 128) && integer(row.stage, 1, row.v === 1 ? 2 : 4) &&
+    integer(row.seq, 0, 255) && integer(row.id, 1, 128) && integer(row.stage, 1, row.v === 1 ? 2 : row.v === 2 ? 4 : 6) &&
     integer(row.phase, 0, 2) && integer(row.monoNs, 0) && integer(row.pid, 1) && integer(row.wallMs, 1);
 }
 
@@ -77,8 +77,8 @@ export function correlateStages(parsed, calls, classifications) {
       requestResultIsNotAssertionAcceptance: true };
   });
   const inner = parsed.pairs.filter((pair) => pair.stage > 2).map((pair) => {
-    const parent = outer.find((candidate) => candidate.version === 2 && candidate.pid === pair.pid && candidate.id === pair.parentId &&
-      candidate.stage === pair.stage - 2 && candidate.beginSequence < pair.beginSequence && pair.endSequence < candidate.endSequence &&
+    const parent = outer.find((candidate) => candidate.version === pair.version && pair.version >= 2 && candidate.pid === pair.pid && candidate.id === pair.parentId &&
+      candidate.stage === (pair.stage === 4 ? 2 : 1) && candidate.beginSequence < pair.beginSequence && pair.endSequence < candidate.endSequence &&
       candidate.beginMonotonicNs <= pair.beginMonotonicNs && pair.endMonotonicNs <= candidate.endMonotonicNs);
     return { ...pair, parentCorrelation: parent ? "same-thread-source-scope" : "unknown",
       correspondence: parent?.correspondence ?? "unknown", flowSequence: parent?.flowSequence ?? null,

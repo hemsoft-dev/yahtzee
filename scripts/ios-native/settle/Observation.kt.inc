@@ -4,6 +4,9 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.io.InputStream
+import java.awt.image.BufferedImage
+import javax.imageio.ImageIO
 
 /** Only the isolated qualification copy loads this class. */
 internal object QualificationSettleObservation {
@@ -32,7 +35,7 @@ internal object QualificationSettleObservation {
             val time = clock()
             val wall = System.currentTimeMillis()
             if (time < 0) return
-            val value = "THIRDROLL_SETTLE {\"v\":2,\"seq\":$seq,\"id\":$id,\"parentId\":$parentId,\"stage\":$stage,\"phase\":$phase,\"monoNs\":$time,\"pid\":$pid,\"wallMs\":$wall}"
+            val value = "THIRDROLL_SETTLE {\"v\":3,\"seq\":$seq,\"id\":$id,\"parentId\":$parentId,\"stage\":$stage,\"phase\":$phase,\"monoNs\":$time,\"pid\":$pid,\"wallMs\":$wall}"
             val write = sink
             queue.offer({ write(value) }) // Never waits for I/O or for the writer to drain.
         } catch (_: Throwable) { /* Observation cannot replace the original result/error. */ }
@@ -46,9 +49,13 @@ internal object QualificationSettleObservation {
     // No inherited/global scope: unrelated or asynchronous device calls remain unobserved.
     fun <T> device(stage: Int, original: () -> T): T {
         val parent = try { scope.get() } catch (_: Throwable) { null }
-        if (!enabled || parent == null || !((stage == 3 && parent.stage == 1) || (stage == 4 && parent.stage == 2))) return original()
+        if (!enabled || parent == null || !(((stage == 3 || stage == 5 || stage == 6) && parent.stage == 1) || (stage == 4 && parent.stage == 2))) return original()
         return observed(stage, parent.id, false, original)
     }
+
+    // The caller evaluates the original capture/stream argument before this call.
+    // No payload, cache configuration, stream operation or result is added.
+    fun readImage(input: InputStream): BufferedImage? = device(5) { ImageIO.read(input) }
 
     private fun <T> observed(stage: Int, parentId: Long, ownScope: Boolean, original: () -> T): T {
         val id = next.incrementAndGet()

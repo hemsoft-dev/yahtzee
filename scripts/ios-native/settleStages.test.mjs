@@ -75,7 +75,7 @@ test("v2 inner completion links only to a retained same-process containing outer
   }
   assert.equal(linked([outer(0, 0), inner(1, 0), inner(2, 1)]).at(-1).parentCorrelation, "unknown");
   assert.equal(parseStages(log(inner(1, 0), inner(2, 1, { parentId: 0 }))).pairs.length, 0);
-  for (const extra of [{ parentId: 2 }, { parentId: -1 }, { parentId: "1" }, { v: 3 }, { stage: 5 }, { secret: "SECRET" }]) {
+  for (const extra of [{ parentId: 2 }, { parentId: -1 }, { parentId: "1" }, { v: 4 }, { stage: 5 }, { secret: "SECRET" }]) {
     const parsed = parseStages(log(inner(1, 0, extra)));
     assert.equal(parsed.invalid, 1);
     assert.equal(JSON.stringify(parsed).includes("SECRET"), false);
@@ -84,6 +84,21 @@ test("v2 inner completion links only to a retained same-process containing outer
   const capped = parseStages(log(...Array.from({ length: 258 }, (_, seq) => outer(seq, seq % 2, { id: Math.floor(seq / 2) + 1 }))));
   assert.equal(capped.events.length, 256);
   assert.equal(capped.budgetReached, true);
+});
+
+test("v3 decode and comparison pairs link only to the same version explicit-wait parent", () => {
+  const outer = (seq, phase, more = {}) => row(seq, phase, { v: 3, parentId: 0, ...more });
+  const child = (seq, phase, stage, more = {}) => outer(seq, phase, { id: 2, parentId: 1, stage, ...more });
+  const calls = [{ tool: "run", flowSequence: 4, started: 99, elapsedMs: 10, outcome: "returned" }];
+  for (const stage of [5, 6]) {
+    const linked = (extra = {}) => correlateStages(parseStages(log(outer(0, 0, extra), child(1, 0, stage), child(2, 1, stage), outer(3, 1, extra))), calls, { 4: 1 }).at(-1);
+    assert.equal(linked().parentCorrelation, "same-thread-source-scope");
+    assert.equal(linked().flowSequence, 4);
+    assert.equal(linked({ stage: 2 }).parentCorrelation, "unknown");
+    assert.equal(linked({ v: 2 }).parentCorrelation, "unknown");
+    assert.equal(parseStages(log(child(1, 0, stage, { v: 2 }))).invalid, 1);
+  }
+  assert.equal(parseStages(log(child(1, 0, 7))).invalid, 1);
 });
 
 test("cross-process or ambiguous wall correspondence stays unknown and bounded", () => {

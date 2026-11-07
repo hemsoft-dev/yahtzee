@@ -6,6 +6,7 @@ import maestro.orchestra.Orchestra
 import java.lang.reflect.Proxy
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
+import java.io.ByteArrayInputStream
 import javax.imageio.ImageIO
 import okio.Buffer
 import okio.Sink
@@ -59,7 +60,10 @@ fun main() {
     val baseline = System.getProperty("baseline") == "true"
     if (!baseline) check(events[0].contains("\"stage\":2,\"phase\":0") && events[1].contains("\"stage\":2,\"phase\":1"))
     setup(); check(runBlocking { maestro.waitForAnimationToEnd("5000") }); flushed(); check(screenshots == 2)
-    if (!baseline) check(events.size == 2 && events[0].contains("\"stage\":1,\"phase\":0") && events[1].contains("\"phase\":1"))
+    if (!baseline) {
+        check(events.first().contains("\"stage\":1,\"phase\":0") && events.last().contains("\"stage\":1,\"phase\":1"))
+        check(events.count { it.contains("\"stage\":5,") }==4 && events.count { it.contains("\"stage\":6,") }==2) { "MISSING_IMAGE_PHASES" }
+    }
     val marker = Marker(); thrown = marker
     setup(); try { runBlocking { maestro.waitForAppToSettle(null, "fixture-only", expectedTimeout) }; error("Missing error") } catch(e: Throwable) { check(e === marker) }; flushed()
     if (!baseline) check(events.size == 2 && events[1].contains("\"phase\":2"))
@@ -74,7 +78,7 @@ fun main() {
     repeat(140) { runBlocking { maestro.waitForAppToSettle(null, "fixture-only", expectedTimeout) } }
     flushed()
     check(calls-before==140); check(events.size == if(baseline)0 else 256)
-    if (!baseline) check(events.all { it.matches(Regex("THIRDROLL_SETTLE \\{\"v\":2,\"seq\":[0-9]+,\"id\":[0-9]+,\"parentId\":[0-9]+,\"stage\":[1234],\"phase\":[012],\"monoNs\":[0-9]+,\"pid\":[0-9]+,\"wallMs\":[0-9]+\\}")) })
+    if (!baseline) check(events.all { it.matches(Regex("THIRDROLL_SETTLE \\{\"v\":3,\"seq\":[0-9]+,\"id\":[0-9]+,\"parentId\":[0-9]+,\"stage\":[123456],\"phase\":[012],\"monoNs\":[0-9]+,\"pid\":[0-9]+,\"wallMs\":[0-9]+\\}")) })
     setup(); val ref=Any(); check(QualificationSettleObservation.observe(2) { ref } === ref)
     flushed()
     check(!events.joinToString().contains("fixture-only"))
@@ -104,6 +108,30 @@ fun main() {
     } as IOSDevice
     val ios=IOSDriver(device); val iosMaestro=Maestro(ios)
     fun fields(event:String,key:String)=Regex("\\\"$key\\\":([0-9]+)").find(event)!!.groupValues[1].toLong()
+    // Read counts/close/error behavior are compared with the actual JDK call.
+    class DecodeStream(val fail:Throwable?=null):ByteArrayInputStream(bytes) {
+        var reads=0; var closes=0
+        override fun read(buffer:ByteArray,offset:Int,length:Int):Int { reads++; fail?.let { throw it }; return super.read(buffer,offset,length) }
+        override fun close() { closes++; super.close() }
+    }
+    val direct=DecodeStream(); val originalImage=ImageIO.read(direct)
+    setup(); val observedInput=DecodeStream()
+    val observedImage=QualificationSettleObservation.observe(1) { QualificationSettleObservation.readImage(observedInput) }
+    flushed(); check(originalImage.width==observedImage!!.width && originalImage.height==observedImage.height)
+    check(originalImage.getRGB(0,0)==observedImage.getRGB(0,0) && direct.reads==observedInput.reads && direct.closes==observedInput.closes)
+    check(events.count { fields(it,"stage")==5L }==2)
+    setup(); check(QualificationSettleObservation.readImage(DecodeStream())!=null); flushed(); check(events.isEmpty())
+    setup(); QualificationSettleObservation.observe(2) { check(QualificationSettleObservation.readImage(DecodeStream())!=null) }; flushed()
+    check(events.size==2 && events.none { fields(it,"stage")==5L })
+    setup(); check(QualificationSettleObservation.observe(1) { QualificationSettleObservation.readImage(ByteArrayInputStream(byteArrayOf(0))) }==null); flushed()
+    check(events.count { fields(it,"stage")==5L && fields(it,"phase")==1L }==1)
+    setup(); val decodeError=Marker()
+    try { ImageIO.read(DecodeStream(decodeError)); error("Missing original decode error") } catch(e:Throwable) { check(e===decodeError) }
+    try { QualificationSettleObservation.observe(1) { QualificationSettleObservation.readImage(DecodeStream(decodeError)) }; error("Missing observed decode error") } catch(e:Throwable) { check(e===decodeError) }
+    flushed(); check(events.count { fields(it,"stage")==5L && fields(it,"phase")==2L }==1)
+    setup(); val comparisonResult=17.5
+    check(QualificationSettleObservation.observe(1) { QualificationSettleObservation.device(6) { comparisonResult } }==comparisonResult)
+    flushed(); check(events.count { fields(it,"stage")==6L }==2)
     fun inner(stage:Int, count:Int) {
         flushed()
         if(baseline) { check(events.isEmpty()); return }

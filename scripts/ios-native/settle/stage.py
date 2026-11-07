@@ -15,6 +15,8 @@ SOURCE_PATH = "maestro-client/src/main/java/maestro/Maestro.kt"
 SOURCE_SHA = "910ccef099db614ee153c4f85716a15592c870f969fc4aa5b93dcf6872c17a94"
 DRIVER_PATH = "maestro-client/src/main/java/maestro/drivers/IOSDriver.kt"
 DRIVER_SHA = "bb93fd4eb42e07b6b7d4bf6921dfeebf4b89f218cd1792d16d94153cf1ef47e9"
+IMAGE_PATH = "maestro-client/src/main/java/maestro/utils/ScreenshotUtils.kt"
+IMAGE_SHA = "5f9381fa52134a6ed08c6e45db2c58e1fcfdf936a24d7a640cd300a653a1d22e"
 ARCHIVE_SHA = "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991"
 COMPILER_SHA = "1adb6f1a5845ba0aa5a59e412e44c8e405236b957de1a9683619f1dca3b16932"
 CLIENT_SHA = "acc437d88e4843f2e786c332ecbcd0a09267f9f47a155cc0460a0e98dc928104"
@@ -31,6 +33,12 @@ DRIVER_REPLACEMENTS = [
      '            maestro.QualificationSettleObservation.device(3) { runDeviceCall("takeScreenshot") { iosDevice.takeScreenshot(out, compressed) } }'),
     ('        return runDeviceCall("isScreenStatic") { iosDevice.isScreenStatic() }',
      '        return maestro.QualificationSettleObservation.device(4) { runDeviceCall("isScreenStatic") { iosDevice.isScreenStatic() } }'),
+]
+IMAGE_REPLACEMENTS = [
+    ('            ImageIO.read(takeScreenshot(true, driver).inputStream())',
+     '            maestro.QualificationSettleObservation.readImage(takeScreenshot(true, driver).inputStream())'),
+    ('                    val imageDiff = ImageComparison(\n                        startScreenshot,\n                        endScreenshot\n                    ).compareImages().differencePercent',
+     '                    val imageDiff = maestro.QualificationSettleObservation.device(6) { ImageComparison(\n                        startScreenshot,\n                        endScreenshot\n                    ).compareImages().differencePercent }'),
 ]
 
 
@@ -83,13 +91,13 @@ def extract(archive, destination, total_limit):
 
 
 def class_family(name):
-    return bool(re.match(r"^maestro/(?:Maestro(?:\$|\.class)|drivers/IOSDriver(?:\$|\.class)|QualificationSettleObservation(?:\$|\.class))", name))
+    return bool(re.match(r"^maestro/(?:Maestro(?:\$|\.class)|drivers/IOSDriver(?:\$|\.class)|utils/ScreenshotUtils(?:\$|\.class)|QualificationSettleObservation(?:\$|\.class))", name))
 
 
 def rewrite_client(original, output, classes):
     added = {p.relative_to(classes).as_posix(): p.read_bytes()
              for p in classes.rglob("*.class") if class_family(p.relative_to(classes).as_posix())}
-    assert all(n in added for n in ["maestro/Maestro.class", "maestro/drivers/IOSDriver.class"])
+    assert all(n in added for n in ["maestro/Maestro.class", "maestro/drivers/IOSDriver.class", "maestro/utils/ScreenshotUtils.class"])
     replaced = []
     with zipfile.ZipFile(original) as source, zipfile.ZipFile(output, "x", zipfile.ZIP_DEFLATED) as target:
         family = {n for n in source.namelist() if class_family(n)}
@@ -120,6 +128,8 @@ def stage(args):
     patched = transform(original_source)
     original_driver = regular(source / DRIVER_PATH, 128 * 1024)
     patched_driver = transform(original_driver, DRIVER_SHA, DRIVER_REPLACEMENTS)
+    original_image = regular(source / IMAGE_PATH, 128 * 1024)
+    patched_image = transform(original_image, IMAGE_SHA, IMAGE_REPLACEMENTS)
     assert sha(regular(archive, 400 * 1024**2)) == ARCHIVE_SHA
     assert sha(regular(compiler, 100 * 1024**2)) == COMPILER_SHA
     output.mkdir(mode=0o700)
@@ -130,8 +140,9 @@ def stage(args):
     receipt = {"schemaVersion": 1, "kind": "qualification-source-copy-settle-stages", "status": "building",
                "upstreamSource": SOURCE_REF, "sourceSha256": SOURCE_SHA, "patchedSourceSha256": sha(patched),
                "driverSourceSha256": DRIVER_SHA, "patchedDriverSourceSha256": sha(patched_driver),
+               "imageSourceSha256": IMAGE_SHA, "patchedImageSourceSha256": sha(patched_image),
                "archiveSha256": ARCHIVE_SHA, "compilerVersion": "2.2.0", "compilerSha256": COMPILER_SHA,
-               "scope": ["explicit-wait-original-body", "implicit-settle-original-driver-call", "scoped-original-screenshot-call", "scoped-original-static-screen-call"],
+               "scope": ["explicit-wait-original-body", "implicit-settle-original-driver-call", "scoped-original-screenshot-call", "scoped-original-static-screen-call", "scoped-original-image-decode", "scoped-original-image-comparison"],
                "loadedImage": "unattested", "deadlinesChanged": False, "originalMatrixUnchanged": True}
 
     def save():
@@ -164,6 +175,7 @@ def stage(args):
         code.mkdir()
         (code / "Maestro.kt").write_bytes(patched)
         (code / "IOSDriver.kt").write_bytes(patched_driver)
+        (code / "ScreenshotUtils.kt").write_bytes(patched_image)
         includes = Path(__file__).parent
         for name, target in [("Observation.kt.inc", "QualificationSettleObservation.kt"), ("Controls.kt.inc", "QualificationSettleControls.kt")]:
             (code / target).write_bytes(regular(includes / name, 32 * 1024))
@@ -174,7 +186,7 @@ def stage(args):
                          "-Xfriend-paths=" + str(lib / "maestro-client.jar"), "-module-name", "maestro-client", "-d", classes,
                          *sorted(code.glob("*.kt"))])
         assert result.returncode == 0, "Pinned source compilation failed"
-        # Only the two original class families and new observer enter the private CLI copy.
+        # Only the three original class families and new observer enter the private CLI copy.
         observed_jar = private / "observed-client.jar"
         receipt["client"] = rewrite_client(lib / "maestro-client.jar", observed_jar, classes)
         fixture = private / "fixture-classes"
@@ -205,8 +217,18 @@ def stage(args):
                     target.write_bytes(original.read(name))
         inner_red = command("inner-stage-red", controls + ["-cp", str(inner_baseline) + os.pathsep + str(fixture) + os.pathsep + observed_cp, main], 40)
         assert inner_red.returncode != 0 and b"MISSING_INNER_SETTLE_PHASES" in inner_red.stderr, "Original IOSDriver missing-stage negative failed"
-        original_abi = command("original-abi", [javap, "-classpath", cp, "-public", "-s", "maestro.Maestro", "maestro.drivers.IOSDriver"])
-        observed_abi = command("observed-abi", [javap, "-classpath", observed_cp, "-public", "-s", "maestro.Maestro", "maestro.drivers.IOSDriver"])
+        image_baseline = private / "image-baseline"
+        with zipfile.ZipFile(lib / "maestro-client.jar") as original:
+            for name in original.namelist():
+                if re.match(r"^maestro/utils/ScreenshotUtils(?:\$|\.class)", name):
+                    target = image_baseline / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(original.read(name))
+        image_red = command("image-stage-red", controls + ["-cp", str(image_baseline) + os.pathsep + str(fixture) + os.pathsep + observed_cp, main], 40)
+        assert image_red.returncode != 0 and b"MISSING_IMAGE_PHASES" in image_red.stderr, "Original ScreenshotUtils missing-stage negative failed"
+        abi_classes = ["maestro.Maestro", "maestro.drivers.IOSDriver", "maestro.utils.ScreenshotUtils", "maestro.utils.ScreenshotUtils$Companion"]
+        original_abi = command("original-abi", [javap, "-classpath", cp, "-public", "-s", *abi_classes])
+        observed_abi = command("observed-abi", [javap, "-classpath", observed_cp, "-public", "-s", *abi_classes])
         assert original_abi.returncode == observed_abi.returncode == 0 and original_abi.stdout == observed_abi.stdout, "Public ABI drift"
         # The executable launcher, CLI JAR and packaged Swift runner remain original bytes.
         staged_cli = output / "maestro"
@@ -214,7 +236,7 @@ def stage(args):
         target = staged_cli / "lib/maestro-client.jar"
         target.write_bytes(observed_jar.read_bytes())
         receipt.update({"status": "prepared", "controls": {"originalPackage": True, "missingStageRed": True,
-                        "observedPackage": True, "innerStageRed": True, "stalledSink": True, "publicABIExact": True},
+                        "observedPackage": True, "innerStageRed": True, "imageStageRed": True, "stalledSink": True, "publicABIExact": True},
                         "cliJarSha256": sha((staged_cli / "lib/maestro-cli-2.10.0.jar").read_bytes()),
                         "nativeJarSha256": sha((staged_cli / "lib/maestro-ios-driver.jar").read_bytes()),
                         "launcherSha256": sha((staged_cli / "bin/maestro").read_bytes())})
