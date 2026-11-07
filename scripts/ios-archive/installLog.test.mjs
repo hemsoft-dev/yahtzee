@@ -159,8 +159,13 @@ test("actual pinned Bun offline workspace fixtures expose post-resolution verbos
   for (const verbose of [false, true]) {
     const root = temporary("archive-offline-"); mkdirSync(join(root, "packages")); mkdirSync(join(root, "packages/local"));
     writeFileSync(join(root, "package.json"), JSON.stringify({ name: "archive-fixture", private: true, workspaces: ["packages/*"] })); writeFileSync(join(root, "packages/local/package.json"), JSON.stringify({ name: "archive-local", version: "1.0.0" }));
-    // Pinned Bun --lockfile-only output for these exact manifests includes the workspace package entry.
-    const lock = JSON.stringify({ lockfileVersion: 2, configVersion: 1, workspaces: { "": { name: "archive-fixture" }, "packages/local": { name: "archive-local", version: "1.0.0" } }, packages: { "archive-local": ["archive-local@workspace:packages/local"] } }); writeFileSync(join(root, "bun.lock"), lock);
+    // Generate the disposable fixture with the same pinned CLI on the executing platform.
+    // This is setup before either checked install, never a retry after a frozen rejection.
+    const setup = spawnSync("bun", ["install", "--lockfile-only", "--ignore-scripts", "--offline"], { cwd: root, encoding: "buffer", maxBuffer: 1024 * 1024 });
+    assert.equal(setup.status, 0, JSON.stringify({ fixture: verbose ? 2 : 1, stage: 0, exit: Number.isSafeInteger(setup.status) ? setup.status : null, bunErrors: fixtureErrors(setup.stderr) }));
+    assert(!existsSync(join(root, "node_modules")), "Lock-only fixture setup must not materialize dependencies");
+    assert(existsSync(join(root, "bun.lock")), "Lock-only fixture setup must produce a lock");
+    const lock = readFileSync(join(root, "bun.lock"), "utf8"); assert(lock.length > 0 && lock.length <= 1024 * 1024, "Fixture lock must be present and bounded");
     const result = spawnSync("bun", ["install", "--frozen-lockfile", "--ignore-scripts", "--offline", ...(verbose ? ["--verbose"] : [])], { cwd: root, encoding: "buffer", maxBuffer: 1024 * 1024 });
     const rows = [], collector = installCollector({ emit: (r) => rows.push(r) }); collector.push(1, result.stdout ?? Buffer.alloc(0)); collector.push(2, result.stderr ?? Buffer.alloc(0)); const coverage = collector.finish();
     const failure = { fixture: verbose ? 2 : 1, exit: Number.isSafeInteger(result.status) ? result.status : null,
