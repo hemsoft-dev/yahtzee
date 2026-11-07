@@ -87,7 +87,8 @@ unchanged. The timing cannot establish cache, disk or scheduling causation.
 The qualification copy emits only numeric records with keys
 `v`, `seq`, `id`, `parentId`, `stage`, `phase`, `monoNs`, `pid`, `wallMs`.
 Version 2 adds `parentId` and the two device-call stages. Version 3 adds decode
-and comparison stages with the same finite keys. Historical versions remain
+and comparison stages with the same finite keys. Version 4 adds nullable numeric
+`cpuNs`, populated only at the existing stage 6 boundaries. Historical versions remain
 parseable, but different versions never share a parent.
 
 | Stage | Original observed extent |
@@ -108,6 +109,22 @@ decode and comparison extents separately. Remaining outer time is not assigned
 to a particular cause; gaps cannot identify retry scheduling or host pressure.
 Stage 3 intentionally omits screenshots outside the explicit wait, including
 any fallback screenshot inside implicit settling.
+
+Version 4 reads Java 17's public `ThreadMXBean.getCurrentThreadCpuTime` at the
+comparison's existing entry and completion events, on the calling thread.
+It never enables CPU accounting or changes a JVM setting. Unsupported, disabled,
+throwing, negative or unsafe-size samples become `null` without dropping the
+elapsed-time event. Only two valid nondecreasing samples yield `cpuDurationMs`;
+otherwise that value is `null`, including historical versions. A real zero is
+distinct from unavailable. Other stages always carry `null`.
+
+This measures the current thread's user and system CPU time, with nanosecond
+precision but unspecified accuracy. The samples include boundary-observation
+overhead, and continuous accounting enablement by outside code is unattested.
+They exclude work on other threads or processes. CPU and elapsed deltas are
+separate measurements: their difference is not an attributed wait, scheduling,
+GC, pressure, driver or observer cause. No ratio or new passing criterion is
+introduced. There are no additional spans, rows, threads, timers, inputs or waits.
 
 An ordinary `ThreadLocal` scopes an inner call to the active outer call on the
 same thread. Its numeric parent is restored or removed in `finally`. A device
@@ -169,6 +186,7 @@ Primary references:
 - [Pinned screenshot utility](https://github.com/mobile-dev-inc/Maestro/blob/14a408335e17a090df1e26bdbeaf80d8122a8fd8/maestro-client/src/main/java/maestro/utils/ScreenshotUtils.kt)
 - [Java 17 image decoding](https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/javax/imageio/ImageIO.html)
 - [Java 17 thread-local scope](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/ThreadLocal.html)
+- [Java 17 current-thread CPU time](https://docs.oracle.com/en/java/javase/17/docs/api/java.management/java/lang/management/ThreadMXBean.html#getCurrentThreadCpuTime())
 - [Explicit animation wait](https://docs.maestro.dev/reference/commands-available/waitforanimationtoend)
 - [Swipe and best-effort settling](https://docs.maestro.dev/reference/commands-available/swipe)
 - [Kotlin compiler options](https://kotlinlang.org/docs/compiler-reference.html)

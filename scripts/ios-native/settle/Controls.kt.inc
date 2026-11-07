@@ -78,7 +78,7 @@ fun main() {
     repeat(140) { runBlocking { maestro.waitForAppToSettle(null, "fixture-only", expectedTimeout) } }
     flushed()
     check(calls-before==140); check(events.size == if(baseline)0 else 256)
-    if (!baseline) check(events.all { it.matches(Regex("THIRDROLL_SETTLE \\{\"v\":3,\"seq\":[0-9]+,\"id\":[0-9]+,\"parentId\":[0-9]+,\"stage\":[123456],\"phase\":[012],\"monoNs\":[0-9]+,\"pid\":[0-9]+,\"wallMs\":[0-9]+\\}")) })
+    if (!baseline) check(events.all { it.matches(Regex("THIRDROLL_SETTLE \\{\"v\":4,\"seq\":[0-9]+,\"id\":[0-9]+,\"parentId\":[0-9]+,\"stage\":[123456],\"phase\":[012],\"monoNs\":[0-9]+,\"pid\":[0-9]+,\"wallMs\":[0-9]+,\"cpuNs\":null\\}")) })
     setup(); val ref=Any(); check(QualificationSettleObservation.observe(2) { ref } === ref)
     flushed()
     check(!events.joinToString().contains("fixture-only"))
@@ -176,6 +176,36 @@ fun main() {
     QualificationSettleObservation.observe(1) { ios.waitUntilScreenIsStatic(100) }; flushed()
     check(events.size==4 && events.all { fields(it,"stage")<=2L })
     check(events.map { fields(it,"id") }==listOf(1L,1L,2L,2L))
+    // The public Java17 getter is read-only. Never change measurement enablement.
+    val mx=java.lang.management.ManagementFactory.getThreadMXBean()
+    val cpuEnabled=try { mx.isThreadCpuTimeEnabled } catch (_:Throwable) { null }
+    setup(); QualificationSettleObservation.observe(1) { QualificationSettleObservation.device(6) { ref } }; flushed()
+    val actualCpu=events.filter { fields(it,"stage")==6L }
+    check(actualCpu.size==2)
+    if(mx.isCurrentThreadCpuTimeSupported && cpuEnabled==true) check(actualCpu.all { !it.contains("\"cpuNs\":null") }) { "MISSING_CPU_SAMPLES" }
+    check((try { mx.isThreadCpuTimeEnabled } catch (_:Throwable) { null })==cpuEnabled)
+    var cpuCalls=0; var cpuValue=100L
+    fun cpuSetup(on:Boolean=true, read:()->Long?={ cpuCalls++; cpuValue.also { cpuValue+=500000 } }) {
+        QualificationSettleObservation.control(on,{ ++counter },{ events.add(it); Unit },read); events.clear(); cpuCalls=0
+    }
+    cpuSetup(); var comparisonCalls=0
+    check(QualificationSettleObservation.observe(1) { QualificationSettleObservation.device(6) { comparisonCalls++; ref } }===ref)
+    flushed(); check(comparisonCalls==1 && cpuCalls==2 && events.size==4)
+    val cpuRows=events.filter { fields(it,"stage")==6L }
+    check(fields(cpuRows[0],"cpuNs")==100L && fields(cpuRows[1],"cpuNs")==500100L) { "MISSING_CPU_SAMPLES" }
+    check(events.filter { fields(it,"stage")!=6L }.all { it.contains("\"cpuNs\":null") })
+    for(read in listOf<()->Long?>({ null },{ -1L },{ 9007199254740992L },{ throw marker })) {
+        cpuSetup(read=read)
+        check(QualificationSettleObservation.observe(1) { QualificationSettleObservation.device(6) { ref } }===ref)
+        try { QualificationSettleObservation.observe(1) { QualificationSettleObservation.device(6) { throw marker } }; error("Missing comparison error") } catch(e:Throwable) { check(e===marker) }
+        flushed(); check(events.size==8 && events.all { it.contains("\"cpuNs\":null") })
+        check(events.count { fields(it,"stage")==6L && fields(it,"phase")==2L }==1)
+    }
+    cpuSetup(false); QualificationSettleObservation.observe(1) { QualificationSettleObservation.device(6) { ref } }; flushed(); check(cpuCalls==0 && events.isEmpty())
+    cpuSetup(); QualificationSettleObservation.device(6) { ref }
+    QualificationSettleObservation.observe(2) { QualificationSettleObservation.device(6) { ref } }
+    QualificationSettleObservation.observe(1) { val other=Thread { QualificationSettleObservation.device(6) { ref } }; other.start(); other.join() }
+    flushed(); check(cpuCalls==0 && events.size==4)
     setup(false); runBlocking { iosMaestro.waitForAnimationToEnd("5000") }; flushed(); check(events.isEmpty())
     setup(clock={ throw marker }); runBlocking { iosMaestro.waitForAnimationToEnd("5000") }; flushed(); check(events.isEmpty())
     setup(sink={ throw marker }); runBlocking { iosMaestro.waitForAppToSettle(null,"fixture-only",347) }; flushed()
@@ -187,5 +217,5 @@ fun main() {
     check(calls==stalledBefore+1)
     if(!baseline) check(entered.await(2,java.util.concurrent.TimeUnit.SECONDS))
     release.countDown(); flushed()
-    println("SETTLE_CONTROLS_PASS baseline=$baseline calls=$calls screenshots=$screenshots requestReturned=true stalledSinkDidNotHoldOriginal=true")
+    println("SETTLE_CONTROLS_PASS baseline=$baseline calls=$calls screenshots=$screenshots requestReturned=true stalledSinkDidNotHoldOriginal=true cpuControlsPassed=true")
 }
