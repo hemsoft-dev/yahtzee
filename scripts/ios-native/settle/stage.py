@@ -143,7 +143,8 @@ def stage(args):
                "imageSourceSha256": IMAGE_SHA, "patchedImageSourceSha256": sha(patched_image),
                "archiveSha256": ARCHIVE_SHA, "compilerVersion": "2.2.0", "compilerSha256": COMPILER_SHA,
                "scope": ["explicit-wait-original-body", "implicit-settle-original-driver-call", "scoped-original-screenshot-call", "scoped-original-static-screen-call", "scoped-original-image-decode", "scoped-original-image-comparison"],
-               "loadedImage": "unattested", "deadlinesChanged": False, "originalMatrixUnchanged": True}
+               "loadedImage": "unattested", "deadlinesChanged": False, "originalMatrixUnchanged": True,
+               "comparisonCpu": "read-only-current-thread-or-null"}
 
     def save():
         (output / "staging-proof.json").write_text(json.dumps(receipt, indent=2) + "\n")
@@ -207,7 +208,7 @@ def stage(args):
         assert negative.returncode != 0 and b"MISSING_SETTLE_PHASES" in negative.stderr, "Missing-stage negative control failed"
         observed_cp = str(observed_jar) + os.pathsep + cp
         positive = command("observed-controls", controls + ["-cp", str(fixture) + os.pathsep + observed_cp, main], 40)
-        assert positive.returncode == 0 and b"stalledSinkDidNotHoldOriginal=true" in positive.stdout, "Observed forwarding controls failed"
+        assert positive.returncode == 0 and b"stalledSinkDidNotHoldOriginal=true" in positive.stdout and b"cpuControlsPassed=true" in positive.stdout, "Observed forwarding controls failed"
         inner_baseline = private / "inner-baseline"
         with zipfile.ZipFile(lib / "maestro-client.jar") as original:
             for name in original.namelist():
@@ -236,7 +237,7 @@ def stage(args):
         target = staged_cli / "lib/maestro-client.jar"
         target.write_bytes(observed_jar.read_bytes())
         receipt.update({"status": "prepared", "controls": {"originalPackage": True, "missingStageRed": True,
-                        "observedPackage": True, "innerStageRed": True, "imageStageRed": True, "stalledSink": True, "publicABIExact": True},
+                        "observedPackage": True, "innerStageRed": True, "imageStageRed": True, "stalledSink": True, "publicABIExact": True, "comparisonCpu": True},
                         "cliJarSha256": sha((staged_cli / "lib/maestro-cli-2.10.0.jar").read_bytes()),
                         "nativeJarSha256": sha((staged_cli / "lib/maestro-ios-driver.jar").read_bytes()),
                         "launcherSha256": sha((staged_cli / "bin/maestro").read_bytes())})

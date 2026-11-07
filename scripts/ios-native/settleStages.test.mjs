@@ -112,6 +112,34 @@ test("cross-process or ambiguous wall correspondence stays unknown and bounded",
   assert.deepEqual(correlateStages(pair, Array(2049).fill({}), {}), []);
 });
 
+test("v4 comparison CPU is conditional, finite, nullable and separate from elapsed time", () => {
+  const cpu = (seq, phase, cpuNs, more = {}) => row(seq, phase, { v: 4, id: 2, parentId: 1, stage: 6, cpuNs, ...more });
+  const paired = (a, b, more = {}) => parseStages(log(cpu(0, 0, a), cpu(1, 1, b, more)));
+  assert.equal(paired(100, 500100).pairs[0]?.cpuDurationMs, 0.5);
+  assert.equal(paired(100, 100).pairs[0]?.cpuDurationMs, 0);
+  for (const [a, b] of [[null, null], [100, null], [null, 100], [200, 100]]) {
+    assert.equal(paired(a, b).pairs[0]?.cpuDurationMs, null);
+    assert.equal(paired(a, b).pairs[0]?.durationMs, 1);
+  }
+  assert.equal(paired(100, 200, { phase: 2 }).pairs[0]?.outcome, "threw");
+  for (const cpuNs of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1, "SECRET", {}, false]) {
+    const parsed = parseStages(log(cpu(0, 0, cpuNs)));
+    assert.equal(parsed.invalid, 1);
+    assert.equal(JSON.stringify(parsed).includes("SECRET"), false);
+  }
+  assert.equal(parseStages(log(cpu(0, 0, 10, { stage: 5 }))).invalid, 1);
+  assert.equal(parseStages(log(cpu(0, 0, null, { stage: 5 }))).events.length, 1);
+  assert.equal(parseStages(log(cpu(0, 0, null, { privatePayload: "SECRET" }))).invalid, 1);
+  assert.equal(parseStages(log(row(0, 0), row(1, 1))).pairs[0].cpuDurationMs, null);
+  assert.equal(parseStages(log(cpu(0, 0, 100), cpu(1, 1, 200, { pid: 43 }))).pairs.length, 0);
+  const outer = (seq, phase) => row(seq, phase, { v: 4, parentId: 0, cpuNs: null });
+  const scoped = correlateStages(parseStages(log(outer(0, 0), cpu(1, 0, 100), cpu(2, 1, 500100), outer(3, 1))),
+    [{ tool: "run", flowSequence: 4, started: 99, elapsedMs: 10, outcome: "returned" }], { 4: 1 }).at(-1);
+  assert.equal(scoped.parentCorrelation, "same-thread-source-scope");
+  assert.equal(scoped.cpuDurationMs, 0.5);
+  assert.equal(scoped.flowSequence, 4);
+});
+
 test("original interaction retains finite stages and preserves one submitted call and original error identity", async () => {
   for (const fail of [false, true]) {
     const directory = fileURLToPath(new URL(`../../reports/.settle-interaction-${randomUUID()}/`, import.meta.url));

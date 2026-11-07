@@ -3,10 +3,11 @@ const keys = ["id", "monoNs", "phase", "pid", "seq", "stage", "v", "wallMs"];
 const integer = (value, min, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(value) && value >= min && value <= max;
 
 function valid(row) {
-  if (!row || typeof row !== "object" || Array.isArray(row) || ![1, 2, 3].includes(row.v)) return false;
-  const expected = row.v === 1 ? keys : [...keys, "parentId"].sort();
+  if (!row || typeof row !== "object" || Array.isArray(row) || ![1, 2, 3, 4].includes(row.v)) return false;
+  const expected = row.v === 1 ? keys : [...keys, "parentId", ...(row.v === 4 ? ["cpuNs"] : [])].sort();
   const parent = row.v === 1 || (row.stage <= 2 ? row.parentId === 0 : integer(row.parentId, 1, row.id - 1));
-  return Object.keys(row).sort().join() === expected.join() && parent &&
+  const cpu = row.v !== 4 || row.cpuNs === null || (row.stage === 6 && integer(row.cpuNs, 0));
+  return Object.keys(row).sort().join() === expected.join() && parent && cpu &&
     integer(row.seq, 0, 255) && integer(row.id, 1, 128) && integer(row.stage, 1, row.v === 1 ? 2 : row.v === 2 ? 4 : 6) &&
     integer(row.phase, 0, 2) && integer(row.monoNs, 0) && integer(row.pid, 1) && integer(row.wallMs, 1);
 }
@@ -23,7 +24,7 @@ export function parseStages(text) {
       if (line.length > 2048) throw new Error();
       const event = JSON.parse(line.slice(prefix.length));
       if (!valid(event)) throw new Error();
-      const fields = event.v === 1 ? keys : [...keys, "parentId"];
+      const fields = event.v === 1 ? keys : [...keys, "parentId", ...(event.v === 4 ? ["cpuNs"] : [])];
       events.push(Object.fromEntries(fields.map((key) => [key, event[key]])));
     } catch { invalid++; }
   }
@@ -40,6 +41,7 @@ export function parseStages(text) {
     pairs.push({ version: begin.v, id: begin.id, parentId: begin.parentId ?? null, pid: begin.pid, stage: begin.stage, beginSequence: begin.seq, endSequence: end.seq,
       beginMonotonicNs: begin.monoNs, endMonotonicNs: end.monoNs,
       durationMs: (end.monoNs - begin.monoNs) / 1e6, beginWallMs: begin.wallMs, endWallMs: end.wallMs,
+      cpuDurationMs: begin.v === 4 && begin.stage === 6 && begin.cpuNs !== null && end.cpuNs !== null && end.cpuNs >= begin.cpuNs ? (end.cpuNs - begin.cpuNs) / 1e6 : null,
       outcome: end.phase === 1 ? "returned" : "threw", errorClass: end.phase === 2 ? "unknown" : null });
   }
   const contiguous = events.length > 0 && events[0].seq === 0 && events.every((event, index) => index === 0 || event.seq === events[index - 1].seq + 1);

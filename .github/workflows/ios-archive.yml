@@ -34,8 +34,16 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.4.2'
-      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: node scripts/ios-archive/install.mjs
         timeout-minutes: 5
+      - name: Retain finite archive install observation
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: archive-install-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/archive-install-evidence/
+          retention-days: 1
+          if-no-files-found: warn
       - name: Check archive rejection rules and original artwork
         run: node --test scripts/ios-archive/*.test.mjs scripts/ios-assets/*.test.mjs
       - name: Archive and inspect the clean source revision without signing

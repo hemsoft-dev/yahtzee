@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit
 import java.io.InputStream
 import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
+import java.lang.management.ManagementFactory
 
 /** Only the isolated qualification copy loads this class. */
 internal object QualificationSettleObservation {
@@ -18,6 +19,9 @@ internal object QualificationSettleObservation {
     @Volatile private var enabled = true
     @Volatile private var clock: () -> Long = { System.nanoTime() }
     @Volatile private var sink: (String) -> Unit = { System.err.println(it) }
+    private val threadCpu = try { ManagementFactory.getThreadMXBean() } catch (_: Throwable) { null }
+    private fun currentThreadCpu(): Long? = threadCpu?.currentThreadCpuTime
+    @Volatile private var cpuClock: () -> Long? = ::currentThreadCpu
     private val pid = try { ProcessHandle.current().pid() } catch (_: Throwable) { 0L }
     private val writer = try {
         Thread({
@@ -35,7 +39,10 @@ internal object QualificationSettleObservation {
             val time = clock()
             val wall = System.currentTimeMillis()
             if (time < 0) return
-            val value = "THIRDROLL_SETTLE {\"v\":3,\"seq\":$seq,\"id\":$id,\"parentId\":$parentId,\"stage\":$stage,\"phase\":$phase,\"monoNs\":$time,\"pid\":$pid,\"wallMs\":$wall}"
+            // The existing comparison is synchronous on this thread. Never enable CPU accounting.
+            // A failed/disabled/unsupported sample leaves the original event and call intact.
+            val cpu = if (stage == 6) try { cpuClock()?.takeIf { it in 0..9007199254740991L } } catch (_: Throwable) { null } else null
+            val value = "THIRDROLL_SETTLE {\"v\":4,\"seq\":$seq,\"id\":$id,\"parentId\":$parentId,\"stage\":$stage,\"phase\":$phase,\"monoNs\":$time,\"pid\":$pid,\"wallMs\":$wall,\"cpuNs\":$cpu}"
             val write = sink
             queue.offer({ write(value) }) // Never waits for I/O or for the writer to drain.
         } catch (_: Throwable) { /* Observation cannot replace the original result/error. */ }
@@ -82,8 +89,8 @@ internal object QualificationSettleObservation {
         val finished = CountDownLatch(1)
         return queue.offer({ finished.countDown() }) && finished.await(2, TimeUnit.SECONDS)
     }
-    fun control(on: Boolean, readClock: () -> Long, write: (String) -> Unit) {
+    fun control(on: Boolean, readClock: () -> Long, write: (String) -> Unit, readCpu: () -> Long? = ::currentThreadCpu) {
         check(drainControl())
-        enabled = on; clock = readClock; sink = write; next.set(0); sequence.set(0)
+        enabled = on; clock = readClock; sink = write; cpuClock = readCpu; next.set(0); sequence.set(0)
     }
 }
