@@ -13,8 +13,30 @@ const temporary = (prefix) => realpathSync(mkdtempSync(join(tmpdir(), prefix)));
 const secret = "DO_NOT_RETAIN_secret_header_token_URL_path";
 const host = () => new EventEmitter();
 const memoryWriter = () => { const rows = []; return { rows, emit: (r) => rows.push(r), finish: async () => ({ status: "observed", dropped: 0 }) }; };
+// Fixed pinned src/install/error.rs names plus the exact frozen-lock message.
+// This is test failure context only, never an installation acceptance oracle.
+function fixtureErrors(value) {
+  try {
+    if (!Buffer.isBuffer(value) || value.length > 1024 * 1024) return { classes: [0], unavailable: true };
+    const text = value.toString("utf8").replace(new RegExp(String.fromCharCode(27) + "\\[[0-?]*[ -/]*[@-~]", "g"), "");
+    const names = ["AccessDenied", "FileNotFound", "MissingPackageJSON", "InvalidPackageJSON", "InvalidLockfile", "LockfileResolveFailed", "IntegrityCheckFailed", "NotDir", "NameTooLong", "SymLinkLoop", "SystemFdQuotaExceeded", "SystemResources", "NotSameFileSystem", "FailedToCopyFile", "NotSupported", "WriteFailed", "CorruptLockfile", "InstallFailed"];
+    const classes = text.includes("lockfile had changes, but lockfile is frozen") ? [1] : [];
+    for (const [i, name] of names.entries()) if (new RegExp("\\b" + name + "\\b").test(text)) classes.push(i + 2);
+    return { classes: classes.length ? classes.slice(0, 8) : [0], partial: classes.length > 8 };
+  } catch { return { classes: [0], unavailable: true }; }
+}
 const fixture = () => { const child = new EventEmitter(); child.pid = 123; child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.kill = () => true; return child; };
 const feed = (parts, options = {}) => { const rows = [], collector = installCollector({ emit: (r) => rows.push(r), ...options }); for (const p of parts) collector.push(2, p); return { rows, stats: collector.finish() }; };
+
+test("offline failure context retains only fixed numeric Bun error families", () => {
+  for (const [message, code] of [["lockfile had changes, but lockfile is frozen", 1], ["AccessDenied", 2], ["InvalidPackageJSON", 5]]) {
+    const result = fixtureErrors(Buffer.from(`error: ${message}: ${secret}\n`)); assert.deepEqual(result.classes, [code]); assert(!JSON.stringify(result).includes(secret));
+  }
+  const many = fixtureErrors(Buffer.from("AccessDenied FileNotFound MissingPackageJSON InvalidPackageJSON InvalidLockfile LockfileResolveFailed IntegrityCheckFailed NotDir NameTooLong")); assert.equal(many.classes.length, 8); assert.equal(many.partial, true);
+  const broken = Buffer.alloc(0); broken.toString = () => { throw new Error(secret); }; assert.equal(fixtureErrors(broken).unavailable, true);
+  assert.deepEqual(fixtureErrors(Buffer.from(secret)).classes, [0]); assert.equal(fixtureErrors(Buffer.alloc(1024 * 1024 + 1)).unavailable, true);
+  assert.equal(fixtureErrors({ toString() { throw new Error(secret); } }).unavailable, true);
+});
 
 test("only pinned finite markers survive, split chunks and ANSI are consumed before publication", () => {
   const input = `Cache Dir: ${secret}\nResolved peers [1.2ms]\nCreated store [2.1ms]\n[PackageManager] waiting for 4 tasks\nResolved, downloaded and extracted [4]\n${secret}\n`;
@@ -143,7 +165,7 @@ test("actual pinned Bun offline workspace fixtures expose post-resolution verbos
     const failure = { fixture: verbose ? 2 : 1, exit: Number.isSafeInteger(result.status) ? result.status : null,
       signal: ["SIGTERM", "SIGKILL", "SIGABRT", "SIGSEGV"].indexOf(result.signal) + 1,
       error: ["ENOENT", "EACCES", "ENOMEM", "ENOBUFS"].indexOf(result.error?.code) + 1,
-      stdoutBytes: Math.min(result.stdout?.length ?? 0, 1_000_000_000), stderrBytes: Math.min(result.stderr?.length ?? 0, 1_000_000_000), stages: rows.map((r) => r.stage), coverage };
+      stdoutBytes: Math.min(result.stdout?.length ?? 0, 1_000_000_000), stderrBytes: Math.min(result.stderr?.length ?? 0, 1_000_000_000), bunErrors: fixtureErrors(result.stderr), stages: rows.map((r) => r.stage), coverage };
     assert.equal(result.status, 0, JSON.stringify(failure)); assert.equal(readFileSync(join(root, "bun.lock"), "utf8"), lock); assert(!coverage.partial, "Offline source markers must fit the finite collector"); observed.push(rows.map((r) => r.stage));
   }
   assert(!observed[0].includes(4) && !observed[0].includes(5), "Ordinary fixture has no verbose store timing markers"); assert(observed[1].includes(4) && observed[1].includes(5), "Pinned verbose fixture must expose peers/store categories");
