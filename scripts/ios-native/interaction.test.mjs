@@ -360,7 +360,10 @@ for (const mode of ["transient", "transient-timeout", "persistent", "flow-timeou
   });
 }
 
-test("optional evidence preserves the real transport shutdown reserve near the deadline", async () => {
+test("optional evidence preserves the real transport shutdown reserve near the deadline", async (context) => {
+  // Only the budget clock is controlled. The original RPC close and its timers
+  // remain real; filesystem/runner scheduling cannot consume the fixture's 300ms.
+  context.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   for (const failed of [false, true]) {
     const flow = harness(), open = flow.options.openSession, started = Date.now();
     const original = new Error("original exercise failure");
@@ -383,4 +386,15 @@ test("optional evidence preserves the real transport shutdown reserve near the d
       assert.equal(evidence.attempts[0].evidence.reason, "budget");
     } finally { clearTimeout(stopTimer); if (worker?.threadId !== undefined && worker.threadId !== -1) await worker.terminate(); flow.cleanup(); }
   }
+});
+
+test("an exhausted transport shutdown deadline still kills and rejects", async (context) => {
+  context.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const child = new EventEmitter(); child.stdout = new PassThrough(); child.stdin = new PassThrough();
+  let killed = 0;
+  child.kill = (signal) => { assert.equal(signal, "SIGKILL"); killed++; child.emit("close", null, signal); };
+  const transport = rpcClient(child, { deadline: Date.now() + 300 });
+  context.mock.timers.tick(400);
+  await assert.rejects(transport.close(), /did not close within its shutdown budget/);
+  assert.equal(killed, 1);
 });

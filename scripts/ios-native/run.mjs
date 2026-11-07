@@ -19,12 +19,16 @@ import { checkedCommandOutput } from "./commandResult.mjs";
 import { startInputObservation } from "./inputObservation.mjs";
 import { startDoneObservation } from "./doneObservation.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
+import { retainNativeCancellation } from "./nativeCancelRetention.mjs";
+import { retainCorruptionMarker, retainNativeModal, withModalRetention } from "./nativeModalRetention.mjs";
+import { modalRouteRequested, ownedModalCapability, qualifyOwnedModal } from "./modalRoute.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
 const architecture = process.arch === "arm64" ? "arm64" : "x86_64";
 const args = process.argv.slice(2);
-assert(args.every((arg) => ["--build-only", "--refresh-pods", ...GROUPS.map((group) => `--test-group=${group}`)].includes(arg)), "Unknown native qualification argument.");
+const modalOnly = modalRouteRequested(args);
+assert(args.every((arg) => ["--build-only", "--refresh-pods", "--modal-only", ...GROUPS.map((group) => `--test-group=${group}`)].includes(arg)), "Unknown native qualification argument.");
 const groupArgs = args.filter((arg) => arg.startsWith("--test-group=")); assert(groupArgs.length <= 1);
 const group = groupArgs[0]?.slice("--test-group=".length);
 const refreshPodLock = args.includes("--refresh-pods");
@@ -54,6 +58,10 @@ const receipt = { schemaVersion: 1, kind: buildOnly ? "unsigned-ios-simulator-bu
   startedAt: new Date().toISOString(), runId: process.env.GITHUB_RUN_ID ?? null, runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
   runnerImage: process.env.ImageVersion ?? null, architecture, group: group ?? null, scenarios: [],
   limits: ["Not a signed device archive", "Not TestFlight or physical-device evidence", "No airplane-mode or VoiceOver acceptance claim", "Public identity and release approvals remain unset", "Raw hidden debug trees are excluded; selected driver logs are sanitized and retained"] };
+if (modalOnly) {
+  receipt.kind = "unsigned-ios-owned-modal-tests";
+  receipt.qualificationScope = "isolated-modal-diagnostic-not-ordinary-matrix-acceptance";
+}
 const recordRecovery = (entry) => { (receipt.connectionRecovery ??= []).push(entry); checkpoint(); };
 const checkpoint = () => json(join(output, "manifest.json"), receipt);
 checkpoint();
@@ -90,11 +98,18 @@ function saved(device, bundleId, directory, stage) {
 }
 async function corruption(device, bundleId) {
   const directory = join(output, "corrupt-save"); mkdirSync(directory);
-  const resetThroughUi = (name) => {
+  const resetThroughUi = async (name) => {
     const resetDirectory = join(directory, name); mkdirSync(resetDirectory);
-    return nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery,
-      capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
-      exercise: (io) => confirmReset(bundleId, io) });
+    const observation = { id: `corrupt-save/${name}`, udid: device, nativeObservationStartedAtMs: Date.now() };
+    (receipt.nativeCorruptionObservations ??= []).push(observation);
+    return withModalRetention(() => nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery,
+        capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
+        exercise: (io) => confirmReset(bundleId, io) }), () => {
+      retainNativeForScenario(observation, bundleId);
+      if (name === "reset-document") observation.corruptionMarker = retainCorruptionMarker(() => run("sqlite3", ["-readonly", current.database,
+        "SELECT CASE WHEN count(*)=1 AND min(key)='hemsoft-local-dice-v1' AND min(value)='damaged-save' THEN 1 ELSE 0 END FROM local_save"],
+      { capture: true, timeout: 5000, log: "native-modal-corruption-marker.log" }), resetDirectory);
+    });
   };
   const current = saved(device, bundleId, directory, "before-corruption"); sim("terminate", device, bundleId);
   run("sqlite3", [current.database, "UPDATE local_save SET value = 'damaged-save'"], { capture: true });
@@ -122,6 +137,44 @@ async function corruption(device, bundleId) {
 const traceInputs = process.env.GITHUB_ACTIONS === "true" || process.env.EXPO_PUBLIC_NATIVE_INPUT_TRACE === "1";
 let stopInputLog;
 let stopDoneLog;
+function retainNativeForScenario(scenario, bundleId) {
+  if (!scenario || (scenario.nativeCancellation && scenario.nativeModalObservation)) return;
+  try {
+    const container = run("xcrun", ["simctl", "get_app_container", scenario.udid, bundleId, "data"], { capture: true, timeout: 5000, log: "native-cancel-retention.log" });
+    scenario.nativeCancellation ??= retainNativeCancellation(container, join(output, scenario.id), scenario.nativeObservationStartedAtMs);
+    scenario.nativeModalObservation ??= retainNativeModal(container, join(output, scenario.id), scenario.nativeObservationStartedAtMs);
+  } catch {
+    scenario.nativeCancellation ??= { status: "unavailable", reason: "owned-container-unavailable", absenceProvesNothing: true };
+    scenario.nativeModalObservation ??= { status: "unavailable", reason: "owned-container-unavailable", absenceProvesNothing: true };
+  }
+}
+async function exerciseModal(app, bundleId) {
+  const runtime = "com.apple.CoreSimulator.SimRuntime.iOS-26-5", name = "iPad Pro 13-inch (M5)";
+  const type = JSON.parse(sim("list", "devicetypes", "--json")).devicetypes.find((item) => item.name === name);
+  assert(type, `Missing simulator type ${name}`);
+  const device = sim("create", `Dice-modal-${process.pid}`, type.identifier, runtime); ownedDevices.push(device);
+  const directory = join(output, "owned-modal"); mkdirSync(directory);
+  const result = { id: "owned-modal", udid: device, runtime, locale: "en-US", requestedContentSize: "accessibility-extra-extra-extra-large",
+    status: "running", nativeObservationStartedAtMs: Date.now() };
+  receipt.modalRoute = result; receipt.phase = "modal-prerequisite"; checkpoint();
+  sim("boot", device); sim("bootstatus", device, "-b");
+  sim("spawn", device, "defaults", "write", "NSGlobalDomain", "AppleLanguages", "-array", "en");
+  sim("spawn", device, "defaults", "write", "NSGlobalDomain", "AppleLocale", "-string", "en_US");
+  sim("install", device, app); sim("ui", device, "appearance", "dark"); sim("ui", device, "content_size", result.requestedContentSize);
+  sim("status_bar", device, "override", "--time", "9:41", "--batteryState", "charged", "--batteryLevel", "100");
+  recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-modal.mp4")], { env, stdio: "ignore" });
+  if (traceInputs) stopInputLog = startInputObservation(device, join(directory, "input-events.jsonl"), { env });
+  if (traceInputs) stopDoneLog = startDoneObservation(device, join(directory, "done-events.jsonl"), { env });
+  await qualifyOwnedModal({ bundleId, bootstrap: (content) => flow(device, directory, "bootstrap", content),
+    readSave: () => saved(device, bundleId, directory, "bootstrap"),
+    report: (evidence) => { result.prerequisite = evidence; receipt.phase = "isolated-corruption-and-reset"; checkpoint(); },
+    corrupt: () => corruption(device, bundleId) });
+  result.capability = ownedModalCapability(receipt.nativeCorruptionObservations);
+  checkpoint();
+  assert.equal(result.capability.status, "observed", "Owned modal adoption/dispatch/retention capability is unavailable.");
+  result.status = "passed";
+}
+const lastObservation = () => modalOnly ? receipt.modalRoute : receipt.scenarios.at(-1);
 async function exercise(app, bundleId) {
   const runtime = "com.apple.CoreSimulator.SimRuntime.iOS-26-5";
   const types = JSON.parse(sim("list", "devicetypes", "--json")).devicetypes;
@@ -145,7 +198,7 @@ async function exercise(app, bundleId) {
     sim("ui", device, "content_size", scenario.largeText ? "accessibility-extra-extra-extra-large" : "large");
     sim("status_bar", device, "override", "--time", "9:41", "--batteryState", "charged", "--batteryLevel", "100");
     const directory = join(output, scenario.id); mkdirSync(directory, { recursive: true });
-    const result = { ...scenario, udid: device, runtime, locale: "en-US", status: "running" }; receipt.scenarios.push(result);
+    const result = { ...scenario, udid: device, runtime, locale: "en-US", status: "running", nativeObservationStartedAtMs: Date.now() }; receipt.scenarios.push(result);
     receipt.phase = `start-${scenario.id}`; checkpoint();
     if (index === 0) recording = spawn("xcrun", ["simctl", "io", device, "recordVideo", "--codec=h264", join(directory, "native-resume.mp4")], { env, stdio: "ignore" });
     if (traceInputs) stopInputLog = startInputObservation(device, join(directory, "input-events.jsonl"), { env });
@@ -166,6 +219,7 @@ async function exercise(app, bundleId) {
     if (stopDoneLog) {
       result.doneTrace = await stopDoneLog(); stopDoneLog = undefined;
     }
+    retainNativeForScenario(result, bundleId);
     await stopRecording();
     result.status = "passed"; result.resumeDocumentSha256 = hash(resumedBytes); checkpoint();
   }
@@ -186,28 +240,35 @@ try {
   assert.equal(receipt.toolchain.bun, "1.4.2"); assert.equal(receipt.toolchain.cocoapods, "1.17.0");
   if (!buildOnly) assert.match(receipt.toolchain.maestro, /2\.10\.0/);
   receipt.bunLockSha256 = hash(readFileSync(join(root, "bun.lock")));
-  receipt.phase = group ? "verify-built-app" : "build"; checkpoint();
+  receipt.phase = group || modalOnly ? "verify-built-app" : "build"; checkpoint();
   const context = { root, output, run, hash, receipt, architecture, refreshPodLock };
-  const { app, bundleId } = group ? loadBuiltSimulator(context) : buildSimulator(context);
+  const { app, bundleId } = group || modalOnly ? loadBuiltSimulator(context) : buildSimulator(context);
   checkpoint();
-  if (!buildOnly) await exercise(app, bundleId);
+  if (!buildOnly) {
+    if (modalOnly) await exerciseModal(app, bundleId);
+    else await exercise(app, bundleId);
+  }
   receipt.phase = "complete"; receipt.status = "passed";
 } catch (error) {
   receipt.status = "failed"; receipt.error = error instanceof Error ? error.message : String(error); process.exitCode = 1;
   for (const scenario of receipt.scenarios) if (scenario.status === "running") scenario.status = "failed";
-  const failed = receipt.scenarios.at(-1);
+  if (receipt.modalRoute?.status === "running") receipt.modalRoute.status = "failed";
+  const failed = lastObservation();
   if (failed && receipt.app) {
     try { saved(failed.udid, receipt.app.bundleId, join(output, failed.id), "failure"); }
     catch (snapshotError) { receipt.failureSaveError = String(snapshotError); }
   }
   console.error(receipt.error);
 } finally {
+  if (receipt.app) retainNativeForScenario(lastObservation(), receipt.app.bundleId);
   try { await stopRecording(); } catch (error) { receipt.recordingError = String(error); receipt.status = "failed"; process.exitCode = 1; }
   if (stopInputLog) {
-    receipt.scenarios.at(-1).inputTrace = await stopInputLog();
+    if (modalOnly) receipt.modalRoute.inputTrace = await stopInputLog();
+    else receipt.scenarios.at(-1).inputTrace = await stopInputLog();
   }
   if (stopDoneLog) {
-    receipt.scenarios.at(-1).doneTrace = await stopDoneLog();
+    if (modalOnly) receipt.modalRoute.doneTrace = await stopDoneLog();
+    else receipt.scenarios.at(-1).doneTrace = await stopDoneLog();
   }
   for (const device of ownedDevices) {
     // Only devices created by this process are shut down or deleted.

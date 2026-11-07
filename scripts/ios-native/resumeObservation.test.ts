@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
+import { clickObservation } from "./click-protocol/install.mjs";
 
 // Real React DOM commits of NativeGameScreen + Setup + Action. Only the store,
 // native host adapter and destination screens are substituted. No device proof.
@@ -258,7 +259,12 @@ test("actual Resume handler correlates only with a committed destination, not in
   const f = await fixture();
   try {
     expect(f.transitions()).toEqual([]);
-    await f.page.getByRole("button", { name: "Resume Game", exact: true }).click();
+    clickObservation.begin();
+    let clickReturned = false;
+    try {
+      await f.page.getByRole("button", { name: "Resume Game", exact: true }).click();
+      clickReturned = true;
+    } finally { clickObservation.complete(!clickReturned); clickObservation.close(); }
     await f.page.getByRole("button", { name: "Destination committed" }).waitFor();
     expect(f.transitions().map((event) => event.phase)).toEqual(["resume-handler", "resume-react-commit-play"]);
     const [handler, commit] = f.transitions();
