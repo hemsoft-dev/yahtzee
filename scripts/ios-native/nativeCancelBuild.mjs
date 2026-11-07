@@ -4,6 +4,8 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSy
 import { join } from "node:path";
 
 const PINNED_RN = Object.freeze({
+  "Libraries/Components/Pressable/Pressable.js": "3e6c095cd9c51cb982236bc2bf19e1bee84f709b09c3187f36c594086894457d",
+  "React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.h": "a882fba0cf16bc908580563ce938d56f0dc21d2db1612e2ceb4a279a42e678a5",
   "React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.mm": "e22e80cf435cd3ecb40f117843c91a0dbe11a5937cc38c90e55bd5e406f2b487",
   "React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.h": "c7569da192af451354236ca1899d0af4fe40eb76b2af46901bb79f85e2b5c3e4",
   "React/Fabric/Mounting/ComponentViews/ScrollView/RCTEnhancedScrollView.h": "4ffa903021b602929085285c196f9d313115074ee1aa6f0c55e1f0092468e770",
@@ -41,11 +43,11 @@ export function installNativeCancellation({ root, ios, output, run }) {
     assert.equal(run(control, [], { capture: true, log: `${name}.log`, timeout: 10000 }), signal);
   }
   mkdirSync(generated);
-  for (const name of ["NativeCancelObserver.mm", "RuntimeHooks.h", "NativeModalObserver.mm", "ModalWindowRuntime.h", "NativeScrollObserver.mm", "NativeScrollObserver.h", "ScrollReceiverRuntime.h"]) copyFileSync(join(source, name), join(generated, name));
+  for (const name of ["NativeCancelObserver.mm", "RuntimeHooks.h", "NativeModalObserver.mm", "ModalWindowRuntime.h", "NativeScrollObserver.mm", "NativeScrollObserver.h", "ScrollReceiverRuntime.h", "ResetTargetRuntime.h"]) copyFileSync(join(source, name), join(generated, name));
   const injected = JSON.parse(run("ruby", [join(source, "inject.rb"), join(ios, projects[0]), join(generated, "NativeCancelObserver.mm")], { capture: true, log: "native-cancel-injection.log" }));
   assert.deepEqual(injected, { added: true, sourceCount: 3 });
   return { schemaVersion: 1, scope: "generated-qualification-simulator-only", reactNativeVersion: "0.86.3", rnSources,
-    sourceFiles: ["NativeCancelObserver.mm", "RuntimeHooks.h", "ForwardingControl.mm", "inject.rb", "NativeModalObserver.mm", "ModalWindowRuntime.h", "ModalForwardingControl.mm", "NativeScrollObserver.mm", "NativeScrollObserver.h", "ScrollReceiverRuntime.h", "ScrollForwardingControl.mm"].map((path) => ({ path, sha256: hash(readFileSync(join(source, path))) })),
+    sourceFiles: ["NativeCancelObserver.mm", "RuntimeHooks.h", "ForwardingControl.mm", "inject.rb", "NativeModalObserver.mm", "ModalWindowRuntime.h", "ModalForwardingControl.mm", "NativeScrollObserver.mm", "NativeScrollObserver.h", "ScrollReceiverRuntime.h", "ScrollForwardingControl.mm", "ResetTargetRuntime.h"].map((path) => ({ path, sha256: hash(readFileSync(join(source, path))) })),
     forwardingControl: "passed", modalForwardingControl: "passed", scrollForwardingControl: "passed", generatedSourceCount: 3, runtimeInstallation: "pending-observation", loadedRNImage: "unattested",
     modalScope: "owned-reset-alert-only", scrollScope: "verified-help-receiver-scroll-pair-only", directModalCallback: "unavailable-cxx-reference-abi" };
 }

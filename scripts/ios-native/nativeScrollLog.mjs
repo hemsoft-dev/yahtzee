@@ -6,10 +6,21 @@ const finite = (v, lo, hi) => Number.isFinite(v) && v >= lo && v <= hi;
 const exact = (v, keys) => v && typeof v === "object" && !Array.isArray(v) && Object.keys(v).sort().join() === [...keys].sort().join();
 const metricValid = (v) => v === null || exact(v, [...COORDS, ...FLAGS, "orientation"]) && COORDS.every((k) => v[k] === null || integer(v[k], -1e9, 1e9)) && FLAGS.every((k) => typeof v[k] === "boolean") && integer(v.orientation, 0, 4);
 const touchValid = (v) => v === null || exact(v, ["tt", "phase", "x", "y", "sx", "sy"]) && finite(v.tt, 0, 1e12) && integer(v.phase, 0, 7) && ["x", "y", "sx", "sy"].every((k) => v[k] === null || integer(v[k], -1e9, 1e9));
+const rectValid = (v) => exact(v, ["x", "y", "w", "h"]) && ["x", "y"].every(k => integer(v[k], -1e9, 1e9)) && ["w", "h"].every(k => integer(v[k], 0, 1e9));
+function resetValid(v) {
+  if (v === null) return true;
+  if (!exact(v, ["code", "visited", "matches", "depth", "t0", "t1", "id", "rect", "contentRect", "clip", "ancestors", "hidden", "complete"]) ||
+    !integer(v.code, 0, 10) || !integer(v.visited, 0, 256) || !integer(v.matches, 0, 2) || !integer(v.depth, 0, 16) ||
+    !finite(v.t0, 0, 1e12) || !finite(v.t1, v.t0, 1e12) || !Array.isArray(v.ancestors) || v.ancestors.length > 24) return false;
+  if (v.code !== 0) return v.id === 0 && v.rect === null && v.contentRect === null && v.clip === null && v.ancestors.length === 0 && v.hidden === null && v.complete === false;
+  return integer(v.id, 1, 16) && v.matches === 1 && v.visited > 0 && rectValid(v.rect) && rectValid(v.contentRect) && rectValid(v.clip) &&
+    v.ancestors.length > 0 && v.ancestors.every(a => exact(a, ["x", "y", "w", "h", "clips"]) && rectValid({ x: a.x, y: a.y, w: a.w, h: a.h }) && typeof a.clips === "boolean") &&
+    typeof v.hidden === "boolean" && v.complete === true;
+}
 const BOUNDS = { seq: [0, 2048], pid: [1, 1e9], epoch: [1, 1e15], k: [0, 14], phase: [0, 3], call: [0, 2048], instance: [0, 8], window: [0, 16], gesture: [0, 2048], q: [0, 2048], code: [0, 8], willDecelerate: [-1, 1] };
 
 function headerValid(e) {
-  return exact(e, BASE) && e.v === 1 && Object.entries(BOUNDS).every(([k, limits]) => integer(e[k], ...limits)) &&
+  return [1, 2].includes(e.v) && exact(e, e.v === 2 ? [...BASE, "reset"] : BASE) && (e.v === 1 || resetValid(e.reset)) && Object.entries(BOUNDS).every(([k, limits]) => integer(e[k], ...limits)) &&
     [e.u0, e.u1, e.w].every((v) => finite(v, 0, 1e12)) && metricValid(e.metrics) && touchValid(e.touch);
 }
 function callbackShape(e) {
@@ -18,6 +29,7 @@ function callbackShape(e) {
 
 function valid(e) {
   if (!headerValid(e)) return false;
+  if (e.v === 2 && e.reset !== null && (!(e.k >= 7 && e.k <= 12) || e.code !== 0 || e.window === 0 || e.metrics === null)) return false;
   if (e.k >= 6 && e.k <= 12) return callbackShape(e);
   if (e.phase !== 3 || e.call !== 0 || e.willDecelerate !== -1) return false;
   if (e.k >= 1 && e.k <= 5) return e.instance > 0 && (e.k === 1 ? e.q === 0 && e.touch === null : true);
@@ -60,7 +72,7 @@ function callbackCompletions(events) {
   }
   for (const rows of groups.values()) {
     const [begin, end] = rows;
-    if (rows.length !== 2 || begin.phase !== 0 || ![1, 2].includes(end.phase) || begin.k !== end.k || begin.instance !== end.instance || begin.seq >= end.seq || begin.u0 > end.u0) continue;
+    if (rows.length !== 2 || begin.v !== end.v || begin.phase !== 0 || ![1, 2].includes(end.phase) || begin.k !== end.k || begin.instance !== end.instance || begin.seq >= end.seq || begin.u0 > end.u0) continue;
     completions.push({ pid: end.pid, epoch: end.epoch, instance: end.instance, kind: end.k, call: end.call,
       beginSequence: begin.seq, endSequence: end.seq, beginWindow: begin.window, endWindow: end.window,
       ownership: begin.code === 0 && end.code === 0 ? "verified-help-pair" : "unknown",
@@ -82,7 +94,11 @@ export function nativeScrollSummary(parsed) {
     previous.set(key, e);
   }
   const allCompletions = callbackCompletions(events), completions = allCompletions.slice(0, 64);
+  const resetSamples = events.filter(e => e.v === 2 && e.reset !== null);
   return { installationPrepared: events.some((e) => e.k === 0 && e.code === 0), ownedInstancesObserved: [...new Set(events.filter((e) => e.k === 1 && e.code === 0).map((e) => e.instance))],
+    resetGeometry: resetSamples.slice(0, 64).map(e => ({ sequence: e.seq, pid: e.pid, epoch: e.epoch, instance: e.instance, window: e.window,
+      kind: e.k, phase: e.phase, call: e.call, sample: e.reset, range: scrollRange(e.metrics), AXAcceptance: "unknown" })),
+    resetGeometryTruncated: resetSamples.length > 64,
     completions, completionsTruncated: allCompletions.length > 64, movement, movementTruncated: movementCount > 64,
     coverage: "retained-prefix", absenceProvesNothing: true, limits: ["returned-callback-not-paint-AX-or-future-stability", "offset-change-not-input-cause", "nominal-range-allows-elastic-overscroll", "conditional-clocks", "owner-and-cancellation-reason-not-inferred"] };
 }

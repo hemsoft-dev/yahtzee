@@ -80,3 +80,38 @@ test("writer-prefix, budget and summary bounds retain partialness without absenc
   assert.equal(summary.movement.length, 64); assert.equal(summary.movementTruncated, true);
   assert.equal(nativeScrollSummary(parseNativeScroll("")).ownedInstancesObserved.length, 0);
 });
+
+
+test("reset target v2 callback geometry is retained independently of AX acceptance", () => {
+  const rect = { x: 176000, y: 967500, w: 680000, h: 81000 };
+  const reset = { code: 0, visited: 40, matches: 1, depth: 8, t0: 10, t1: 10.001, id: 1,
+    rect, contentRect: { ...rect, y: 8502000 }, clip: rect,
+    ancestors: [{ ...rect, clips: true }], hidden: false, complete: true };
+  const row = callback(0, 1, { v: 2, k: 10, reset });
+  const parsed = parseNativeScroll(lines(row)); assert.equal(parsed.events.length, 1);
+  assert.deepEqual(parsed.events[0].reset, reset); assert.equal(parsed.absenceProvesNothing, true);
+});
+
+
+test("native reset samples keep unknown reasons finite and reject unsafe or unrelated geometry", () => {
+  const rect = { x: 176000, y: 967500, w: 680000, h: 81000 };
+  const reset = { code: 0, visited: 40, matches: 1, depth: 8, t0: 10, t1: 10.001, id: 1,
+    rect, contentRect: rect, clip: rect, ancestors: [{ ...rect, clips: true }], hidden: false, complete: true };
+  const row = (value) => callback(0, 1, { v: 2, k: 10, reset: value });
+  for (let code = 1; code <= 10; code++) {
+    const unavailable = { ...reset, code, id: 0, rect: null, contentRect: null, clip: null, ancestors: [], hidden: null, complete: false };
+    assert.equal(parseNativeScroll(lines(row(unavailable))).events.length, 1);
+  }
+  for (const extra of [{ secret: "PRIVATE" }, { code: 11 }, { visited: 257 }, { matches: 2 }, { depth: 17 }, { id: 17 },
+    { t0: 11 }, { t1: Infinity }, { rect: { ...rect, x: "PRIVATE" } }, { clip: { ...rect, w: -1 } },
+    { contentRect: { ...rect, h: 1e10 } }, { ancestors: Array(25).fill({ ...rect, clips: true }) },
+    { ancestors: [{ ...rect, clips: true, text: "PRIVATE" }] }, { hidden: 1 }, { complete: false }, { code: 2 }]) {
+    const parsed = parseNativeScroll(lines(row({ ...reset, ...extra }))); assert.equal(parsed.invalidLines, 1); assert(!JSON.stringify(parsed).includes("PRIVATE"));
+  }
+  for (const extra of [{ k: 6 }, { window: 0 }, { code: 7 }, { metrics: null }]) assert.equal(parseNativeScroll(lines({ ...row(reset), ...extra })).invalidLines, 1);
+  assert.equal(parseNativeScroll(lines(callback(0, 1, { v: 2, k: 12, window: 0, metrics: null, reset: null }))).events.length, 1);
+  const entries = Array.from({ length: 70 }, (_, i) => callback(i, 0, { v: 2, k: 10, call: i + 1, reset }));
+  const summary = nativeScrollSummary(parseNativeScroll(lines(...entries))); assert.equal(summary.resetGeometry.length, 64); assert.equal(summary.resetGeometryTruncated, true);
+  assert.equal(summary.completions.length, 0); assert.equal(summary.resetGeometry[0].AXAcceptance, "unknown");
+  assert.equal(nativeScrollSummary(parseNativeScroll(lines(callback(0, 0, { k: 10 }), callback(1, 1, { v: 2, k: 10, reset })))).completions.length, 0);
+});

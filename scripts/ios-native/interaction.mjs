@@ -1,16 +1,30 @@
 import assert from "node:assert/strict";
-import { appendFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, writeFileSync, mkdirSync, openSync, closeSync, writeSync, constants } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { localMaestro, MaestroError } from "./mcp.mjs";
 import { redactDriverLog, retainXCTestLogs } from "./driverLogs.mjs";
 import { captureDriverEvidence, prepareDriverScratch, unavailableDriverEvidence } from "./driverEvidence.mjs";
+import { resetAXGeometry } from "./resetAXGeometry.mjs";
 
 /** One bounded local driver session for the owned simulator. */
 export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay, evidenceWorker }) {
   assert(["complete", "hold", "scenario", "reset"].includes(prefix), "Unknown native interaction phase.");
   let diagnostics = "", sequence = 0, timingUnavailable = false;
   const timings = [];
+  let resetAXFile, resetAXRows = 0, resetAXUnavailable = false;
+  function retainResetAX(screen) {
+    if (prefix !== "reset" || resetAXUnavailable || resetAXRows > 64) return;
+    try {
+      const afterWallMs = Date.now();
+      if (!Number.isSafeInteger(afterWallMs) || afterWallMs < 0) throw new Error();
+      const row = { v: 1, pid: process.pid, kind: resetAXRows === 64 ? 2 : 1, inspection: resetAXRows + 1, flowSequence: sequence, afterWallMs,
+        geometry: resetAXRows === 64 ? null : resetAXGeometry(screen) };
+      const line = JSON.stringify(row) + "\n"; if (Buffer.byteLength(line) > 8192) throw new Error();
+      if (resetAXFile === undefined) resetAXFile = openSync(join(directory, "reset-ax-geometry.jsonl"), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0), 0o600);
+      const bytes = Buffer.from(line); if (writeSync(resetAXFile, bytes) !== bytes.length) throw new Error(); resetAXRows++;
+    } catch { resetAXUnavailable = true; diagnostics += "\nReset AX geometry retention unavailable.\n"; }
+  }
   function timingNotice() {
     if (!timingUnavailable) diagnostics += "\nNative timing telemetry unavailable.\n";
     timingUnavailable = true;
@@ -68,6 +82,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   async function inspect() {
     const screen = await call("inspect_screen", { device_id: device });
     writeFileSync(join(directory, `${prefix}-screen-latest.json`), JSON.stringify(screen, null, 2) + "\n");
+    retainResetAX(screen);
     return screen;
   }
   async function runFlow(yaml) {
@@ -131,6 +146,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     try { await capture(`${prefix}-failure`); } catch { /* Preserve the original error; the runner also reads the saved document. */ }
     throw error;
   } finally {
+    if (resetAXFile !== undefined) { try { closeSync(resetAXFile); } catch { /* Advisory retention cannot replace the original outcome. */ } }
     // The driver deletes registered temporary files at close. Read metadata first,
     // within the existing interaction deadline, shutdown reserve and shared five-second cap.
     await retainIdentity();

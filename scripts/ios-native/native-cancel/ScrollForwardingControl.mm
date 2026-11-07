@@ -1,4 +1,5 @@
 #import "ScrollReceiverRuntime.h"
+#import "ResetTargetRuntime.h"
 #include <assert.h>
 
 struct HSSCppMarker {};
@@ -43,11 +44,65 @@ struct HSSControlLifetime { ~HSSControlLifetime() { Destructions++; } };
 @implementation HSSInheritedReceiver @end
 @interface HSSWrongSize : HSSControlReceiver { int extra; } @end
 @implementation HSSWrongSize @end
+
+@interface HSRControlNode : NSObject <HSRNode>
+@property(nonatomic, weak) id superview;
+@property(nonatomic, strong) NSArray *subviews;
+@property BOOL target;
+@property BOOL readThrows;
+- (NSString *)accessibilityLabelForCoopting;
+@end
+@implementation HSRControlNode
+@synthesize subviews = _subviews;
+- (NSArray *)subviews { if (_readThrows) @throw [NSException exceptionWithName:@"private" reason:nil userInfo:nil]; return _subviews ?: @[]; }
+- (NSString *)accessibilityLabelForCoopting { return self.target ? @"Delete all local data" : @"unrelated"; }
+@end
+@interface HSRWrongGetter : NSObject
+- (NSUInteger)accessibilityLabelForCoopting;
+@end
+@implementation HSRWrongGetter
+- (NSUInteger)accessibilityLabelForCoopting { return 7; }
+@end
+
+static HSRControlNode *HSRChild(HSRControlNode *parent, BOOL target) {
+  HSRControlNode *node = [HSRControlNode new]; node.superview = parent; node.target = target;
+  parent.subviews = [parent.subviews arrayByAddingObject:node]; return node;
+}
+static void HSRControls(void) {
+  BOOL (^match)(id) = ^BOOL(id node) { return HSRFixedTarget(node, HSRControlNode.class, YES, YES); };
+  HSRControlNode *root = [HSRControlNode new], *outside = [HSRControlNode new];
+  HSRControlNode *target = HSRChild(root, YES); HSRChild(outside, YES);
+  assert(HSSObjectGetter(HSRControlNode.class, @selector(accessibilityLabelForCoopting)));
+  assert(!HSSObjectGetter(HSRWrongGetter.class, @selector(accessibilityLabelForCoopting)));
+  assert(!HSRFixedTarget(target, HSRControlNode.class, NO, YES) && !HSRFixedTarget(target, HSRControlNode.class, YES, NO));
+  assert(!HSRFixedTarget(target, NSObject.class, YES, YES));
+  HSRSearch *one = HSRFind(root, match); assert(one.code == 0 && one.target == target && one.visited == 2 && one.matches == 1);
+  HSRChild(root, YES); HSRSearch *ambiguous = HSRFind(root, match); assert(ambiguous.code == 3 && !ambiguous.target);
+  root = [HSRControlNode new]; assert(HSRFind(root, match).code == 2);
+  for (int i = 0; i < 255; i++) HSRChild(root, i == 0);
+  HSRSearch *boundary = HSRFind(root, match); assert(boundary.code == 0 && boundary.visited == 256);
+  root = [HSRControlNode new];
+  for (int i = 0; i < 256; i++) HSRChild(root, i == 0); assert(HSRFind(root, match).code == 4);
+  root = [HSRControlNode new]; HSRControlNode *cursor = root;
+  for (int i = 0; i < 17; i++) cursor = HSRChild(cursor, NO); assert(HSRFind(root, match).code == 5);
+  root = [HSRControlNode new]; target = HSRChild(root, YES); target.superview = outside; assert(HSRFind(root, match).code == 6);
+  root = [HSRControlNode new]; root.readThrows = YES; assert(HSRFind(root, match).code == 8);
+  root = [HSRControlNode new]; HSRChild(root, NO);
+  HSRSearch *fault = HSRFind(root, ^BOOL(id node) { (void)node; throw &CppMarker; }); assert(fault.code == 8 && !fault.target);
+}
 static IMP Original[7];
 static NSMutableArray *Phases;
 static BOOL ObserverThrows;
+static BOOL TargetObserverFault;
 static NSException *ObserverError;
-static void Observe(int phase) { [Phases addObject:@(phase)]; if (ObserverThrows) @throw ObserverError; }
+static void Observe(int phase) {
+  [Phases addObject:@(phase)];
+  if (TargetObserverFault) {
+    HSRControlNode *root = [HSRControlNode new]; HSRChild(root, NO);
+    HSRSearch *fault = HSRFind(root, ^BOOL(id node) { (void)node; throw &CppMarker; }); assert(fault.code == 8);
+  }
+  if (ObserverThrows) @throw ObserverError;
+}
 static void S(id self, SEL cmd, id arg) { HSSForwardObject(Original[0],self,cmd,arg,^(int p){ Observe(p); }); }
 static void B(id self, SEL cmd, id arg) { HSSForwardObject(Original[1],self,cmd,arg,^(int p){ Observe(p); }); }
 static void E(id self, SEL cmd, id arg, BOOL value) { HSSForwardBool(Original[2],self,cmd,arg,value,^(int p){ Observe(p); }); }
@@ -58,6 +113,7 @@ static void M(id self, SEL cmd) { HSSForwardVoid(Original[6],self,cmd,^(int p){ 
 
 int main(void) {
  @autoreleasepool {
+  HSRControls();
   HSCNativeHook hooks[] = {
    {HSSControlReceiver.class,@selector(scrollViewDidScroll:),3,'v',(IMP)S,&Original[0],"@"},
    {HSSControlReceiver.class,@selector(scrollViewWillBeginDragging:),3,'v',(IMP)B,&Original[1],"@"},
@@ -87,7 +143,9 @@ int main(void) {
   assert(HSSAdoptOwnedPair((id)owner,(id)scroll,HSSControlReceiver.class,observed,HSSControlScroll.class)==0 && object_getClass(unrelated)==HSSControlReceiver.class);
   assert(HSSAdoptOwnedPair((id)owner,(id)scroll,HSSControlReceiver.class,observed,HSSControlScroll.class)!=0);
   Phases=[NSMutableArray new]; ObserverError=[NSException exceptionWithName:@"observer" reason:nil userInfo:nil];
+  TargetObserverFault=YES;
   [owner scrollViewDidScroll:scroll]; assert((owner.calls==1 && owner.last==scroll && [Phases isEqual:@[@0,@1]]));
+  TargetObserverFault=NO;
   [owner scrollViewWillBeginDragging:scroll]; [owner scrollViewDidEndDragging:scroll willDecelerate:YES]; assert(owner.calls==3 && owner.decelerate && owner.last==scroll);
   [owner scrollViewDidEndDragging:scroll willDecelerate:NO]; assert(owner.calls==4 && !owner.decelerate);
   [owner scrollViewWillBeginDecelerating:scroll]; [owner scrollViewDidEndDecelerating:scroll]; [owner scrollViewDidEndScrollingAnimation:scroll]; [owner didMoveToWindow]; assert(owner.calls==8 && owner.last==nil);

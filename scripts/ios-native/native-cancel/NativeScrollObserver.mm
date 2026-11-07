@@ -1,6 +1,7 @@
 // Simulator qualification only. No production target or RN binary is rewritten.
 #import "NativeScrollObserver.h"
 #import "ScrollReceiverRuntime.h"
+#import "ResetTargetRuntime.h"
 #import <QuartzCore/QuartzCore.h>
 #import <TargetConditionals.h>
 #import <fcntl.h>
@@ -22,6 +23,11 @@ static char HSSStateKey;
 static NSUInteger HSSSequence, HSSNextInstance, HSSNextWindow, HSSNextCall;
 static long long HSSEpoch;
 static NSMapTable<UIWindow *, NSNumber *> *HSSWindows;
+static NSMapTable<UIView *, NSNumber *> *HSRTargets;
+static Class HSRViewClass;
+static NSUInteger HSRNextTarget;
+static BOOL HSRLabelGetterReady;
+
 
 static NSNumber *HSSMilli(double value) { return isfinite(value) && fabs(value) <= 1000000 ? @(llround(value * 1000)) : nil; }
 static id HSSNumber(double value) { return HSSMilli(value) ?: NSNull.null; }
@@ -32,6 +38,74 @@ static BOOL HSSOwned(id receiver, UIScrollView *scroll) {
     if (!NSThread.isMainThread || !HSSObserved || !receiver || !scroll) return NO;
     return HSSOwnedPair((id<HSSPairContract>)receiver, (id<HSSPairContract>)scroll, HSSBase, HSSObserved, HSSScrollClass);
   } @catch (__unused NSException *e) { return NO; }
+}
+
+static NSDictionary *HSRRect(CGRect rect) {
+  if (CGRectIsNull(rect) || CGRectIsInfinite(rect) || rect.size.width < 0 || rect.size.height < 0) return nil;
+  NSNumber *x = HSSMilli(rect.origin.x), *y = HSSMilli(rect.origin.y), *w = HSSMilli(rect.size.width), *h = HSSMilli(rect.size.height);
+  return x && y && w && h ? @{@"x": x, @"y": y, @"w": w, @"h": h} : nil;
+}
+
+// These are layout/deceleration event snapshots, not an AX call or a sampler.
+static NSDictionary *HSRTarget(id receiver, UIScrollView *scroll) {
+  double t0 = CACurrentMediaTime();
+  NSMutableDictionary *row = [@{@"code": @1, @"visited": @0, @"matches": @0, @"depth": @0,
+    @"t0": @(t0), @"t1": @(t0), @"id": @0, @"rect": NSNull.null, @"contentRect": NSNull.null,
+    @"clip": NSNull.null, @"ancestors": @[], @"hidden": NSNull.null, @"complete": @NO} mutableCopy];
+  try {
+    @try {
+      if (!HSSOwned(receiver, scroll) || !scroll.window) { row[@"code"] = @10; return row; }
+      if (!HSRViewClass || !HSRLabelGetterReady) { row[@"code"] = @7; return row; }
+      HSRSearch *found = HSRFind((id<HSRNode>)scroll, ^BOOL(id view) {
+        if (object_getClass(view) != HSRViewClass) return NO;
+        UIView *candidate = view;
+        // Pinned RN header declares this read-only getter; its implementation
+        // returns super.accessibilityLabel without recursive label collection.
+        return HSRFixedTarget(candidate, HSRViewClass, candidate.isAccessibilityElement, (candidate.accessibilityTraits & UIAccessibilityTraitButton) != 0);
+      });
+      row[@"visited"] = @(found.visited); row[@"matches"] = @(found.matches); row[@"depth"] = @(found.depth); row[@"code"] = @(found.code);
+      if (found.code != 0) return row;
+      UIView *target = found.target; UIWindow *window = scroll.window;
+      if (!window || !target || target.window != window) { row[@"code"] = @10; return row; }
+      CGRect rect = [target convertRect:target.bounds toView:window];
+      NSDictionary *windowRect = HSRRect(rect), *contentRect = HSRRect([target convertRect:target.bounds toView:scroll]);
+      if (!windowRect || !contentRect) { row[@"code"] = @9; return row; }
+      CGRect clip = rect; NSMutableArray *ancestors = [NSMutableArray new];
+      BOOL complete = NO, sawScroll = NO, hidden = target.hidden;
+      for (UIView *parent = target.superview; parent && ancestors.count < 24; parent = parent.superview) {
+        if (parent != window && parent.window != window) break;
+        NSDictionary *frame = HSRRect([parent convertRect:parent.bounds toView:window]);
+        if (!frame) break;
+        NSMutableDictionary *sample = [frame mutableCopy]; sample[@"clips"] = @(parent.clipsToBounds || parent == window); [ancestors addObject:sample];
+        if (parent.clipsToBounds || parent == window) clip = CGRectIntersection(clip, [parent convertRect:parent.bounds toView:window]);
+        hidden = hidden || parent.hidden; sawScroll = sawScroll || parent == scroll;
+        if (parent == window) { complete = YES; break; }
+      }
+      if (!complete || !sawScroll || !HSSOwned(receiver, scroll) || target.window != scroll.window) { row[@"code"] = @10; return row; }
+      NSDictionary *clipped = HSRRect(CGRectIsNull(clip) ? CGRectZero : clip);
+      if (!clipped) { row[@"code"] = @9; return row; }
+      NSNumber *identity = [HSRTargets objectForKey:target];
+      if (!identity && HSRNextTarget < 16) { identity = @(++HSRNextTarget); [HSRTargets setObject:identity forKey:target]; }
+      if (!identity) { row[@"code"] = @4; return row; }
+      row[@"id"] = identity; row[@"rect"] = windowRect; row[@"contentRect"] = contentRect; row[@"clip"] = clipped;
+      row[@"ancestors"] = ancestors; row[@"hidden"] = @(hidden); row[@"complete"] = @YES;
+    } @catch (__unused NSException *e) { row[@"code"] = @8; }
+  } catch (...) { row[@"code"] = @8; }
+  if ([row[@"code"] integerValue] != 0) {
+    row[@"id"] = @0; row[@"rect"] = NSNull.null; row[@"contentRect"] = NSNull.null;
+    row[@"clip"] = NSNull.null; row[@"ancestors"] = @[]; row[@"hidden"] = NSNull.null; row[@"complete"] = @NO;
+  }
+  return row;
+}
+
+static NSDictionary *HSRSample(id receiver, UIScrollView *scroll) {
+  try {
+    @try {
+      NSDictionary *reset = HSRTarget(receiver, scroll);
+      if (!reset) return nil;
+      NSMutableDictionary *sample = [reset mutableCopy]; sample[@"t1"] = @(CACurrentMediaTime()); return sample;
+    } @catch (__unused NSException *e) { return nil; }
+  } catch (...) { return nil; }
 }
 
 static NSDictionary *HSSMetrics(UIScrollView *scroll) {
@@ -76,8 +150,9 @@ static void HSSWrite(NSMutableDictionary *row) {
       row = [row mutableCopy]; row[@"k"] = @14; row[@"phase"] = @3; row[@"instance"] = @0; row[@"window"] = @0;
       row[@"gesture"] = @0; row[@"q"] = @0; row[@"call"] = @0; row[@"metrics"] = NSNull.null; row[@"touch"] = NSNull.null;
       row[@"willDecelerate"] = @-1; row[@"code"] = @0;
+      row[@"reset"] = NSNull.null;
     }
-    row[@"v"] = @1; row[@"seq"] = @(HSSSequence++); row[@"pid"] = @(getpid()); row[@"epoch"] = @(HSSEpoch);
+    row[@"v"] = @2; row[@"seq"] = @(HSSSequence++); row[@"pid"] = @(getpid()); row[@"epoch"] = @(HSSEpoch);
     NSDictionary *snapshot = [row copy]; static dispatch_queue_t queue; static dispatch_once_t once;
     dispatch_once(&once, ^{ queue = dispatch_queue_create("dev.hemsoft.native-scroll-write", DISPATCH_QUEUE_SERIAL); });
     dispatch_async(queue, ^{
@@ -105,6 +180,7 @@ static void HSSObserve(NSInteger kind, NSInteger phase, NSUInteger call, id rece
     UIWindow *window = owned ? scroll.window : nil; NSNumber *windowID = window ? [HSSWindows objectForKey:window] : nil;
     if (window && !windowID && HSSNextWindow < 16) { windowID = @(++HSSNextWindow); [HSSWindows setObject:windowID forKey:window]; }
     NSDictionary *metrics = owned ? HSSMetrics(scroll) : nil;
+    NSDictionary *reset = owned && window && metrics && kind >= 7 && kind <= 12 ? HSRSample(receiver, scroll) : nil;
     NSDictionary *point = nil;
     if (touch && window && touch.window == window) {
       CGPoint value = [touch locationInView:window]; CGPoint screen = [window convertPoint:value toCoordinateSpace:window.screen.coordinateSpace];
@@ -112,7 +188,8 @@ static void HSSObserve(NSInteger kind, NSInteger phase, NSUInteger call, id rece
     }
     HSSWrite([@{@"k": @(kind), @"phase": @(phase), @"call": @(call), @"instance": @(state.instanceID), @"window": windowID ?: @0,
       @"gesture": @(state.gestureID), @"q": @(touch ? nativeTouch : 0), @"code": @(code ? code : state && !owned ? 7 : owned && !metrics ? 8 : 0),
-      @"u0": @(u0), @"u1": @(u1), @"w": @(wall), @"willDecelerate": @(decelerate), @"metrics": metrics ?: NSNull.null, @"touch": point ?: NSNull.null} mutableCopy]);
+      @"u0": @(u0), @"u1": @(u1), @"w": @(wall), @"willDecelerate": @(decelerate), @"metrics": metrics ?: NSNull.null, @"touch": point ?: NSNull.null,
+      @"reset": reset ?: NSNull.null} mutableCopy]);
   } @catch (__unused NSException *e) {}
 }
 
@@ -179,6 +256,8 @@ static void MoveWindow(id self, SEL cmd) {
 + (void)load {
   @autoreleasepool {
     HSSEpoch = llround(CACurrentMediaTime() * 1000000); HSSWindows = [NSMapTable weakToStrongObjectsMapTable];
+    HSRTargets = [NSMapTable weakToStrongObjectsMapTable]; HSRViewClass = NSClassFromString(@"RCTViewComponentView");
+    HSRLabelGetterReady = HSSObjectGetter(HSRViewClass, @selector(accessibilityLabelForCoopting));
     HSSBase = NSClassFromString(@"RCTScrollViewComponentView"); HSSScrollClass = NSClassFromString(@"RCTEnhancedScrollView");
     HSCNativeHook hooks[] = {
       {HSSBase, @selector(scrollViewDidScroll:), 3, 'v', (IMP)DidScroll, &HSSDidScroll, "@"},

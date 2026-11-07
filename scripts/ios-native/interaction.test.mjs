@@ -398,3 +398,70 @@ test("an exhausted transport shutdown deadline still kills and rejects", async (
   await assert.rejects(transport.close(), /did not close within its shutdown budget/);
   assert.equal(killed, 1);
 });
+
+
+test("existing reset AX reads retain finite target geometry without another request", async () => {
+  const f = harness(), open = f.options.openSession; f.options.prefix = "reset";
+  const screen = { ui_schema: { platform: "ios", defaults: { enabled: true } }, elements: [
+    { b: "[0,0][1032,1376]", c: [{ rid: "help-viewport", b: "[0,106][1032,1356]", c: [
+      { a11y: "Delete all local data", b: "[176,1349][856,1430]" },
+      { a11y: "PRIVATE_UNRELATED_LABEL", b: "[0,0][1,1]" },
+    ] }] },
+  ] };
+  f.options.openSession = async (options) => {
+    const client = await open(options); return { ...client, call: async (name, args) => {
+      const result = await client.call(name, args); return name === "inspect_screen" ? screen : result;
+    } };
+  };
+  try {
+    await nativeInteraction({ ...f.options, exercise: async (io) => { assert.equal(await io.inspect(), screen); } });
+    assert.deepEqual(f.calls.map(x => x.name), ["list_devices", "inspect_screen", "inspect_screen"]);
+    const file = join(f.options.directory, "reset-ax-geometry.jsonl"); assert(existsSync(file), "Existing reads must retain finite geometry");
+    const text = readFileSync(file, "utf8"), rows = text.trim().split("\n").map(JSON.parse);
+    assert.equal(rows.length, 2); assert.equal(rows[1].geometry.target.bottom, 1430);
+    assert.equal(rows[1].geometry.ancestorContained, false); assert(!text.includes("PRIVATE_UNRELATED_LABEL"));
+    assert.equal(f.state().closed, 1);
+  } finally { f.cleanup(); }
+});
+
+
+test("reset AX retention failures preserve original return and identical thrown error before cleanup", async () => {
+  for (const fails of [false, true]) {
+    const f = harness(), original = new Error("PRIVATE_ORIGINAL"), file = join(f.options.directory, "reset-ax-geometry.jsonl"); f.options.prefix = "reset";
+    writeFileSync(file, "preserved");
+    try {
+      const run = nativeInteraction({ ...f.options, exercise: async () => { if (fails) throw original; } });
+      if (fails) await assert.rejects(run, e => e === original); else await run;
+      assert.equal(readFileSync(file, "utf8"), "preserved"); assert.equal(f.state().closed, 1);
+      assert.deepEqual(f.calls.map(x => x.name), ["list_devices", "inspect_screen"]);
+      assert(!readFileSync(join(f.options.directory, "reset-mcp.log"), "utf8").includes("PRIVATE_ORIGINAL"));
+    } finally { f.cleanup(); }
+  }
+});
+
+test("reset AX snapshots are capped and written before the original close, with no extra inspect", async () => {
+  const f = harness(), open = f.options.openSession; f.options.prefix = "reset"; let rowsAtClose;
+  f.options.openSession = async (options) => {
+    const client = await open(options); return { ...client, close: async () => {
+      rowsAtClose = readFileSync(join(f.options.directory, "reset-ax-geometry.jsonl"), "utf8").trim().split("\n").map(JSON.parse); await client.close();
+    } };
+  };
+  try {
+    await nativeInteraction({ ...f.options, exercise: async (io) => { for (let i = 0; i < 70; i++) await io.inspect(); } });
+    assert.equal(f.calls.filter(x => x.name === "inspect_screen").length, 71);
+    assert.equal(rowsAtClose.length, 65); assert.equal(rowsAtClose.at(-1).kind, 2); assert.equal(rowsAtClose.at(-1).geometry, null);
+    assert.equal(rowsAtClose[0].geometry.code, 5); assert.equal(rowsAtClose[0].pid, process.pid); assert.equal(f.state().closed, 1);
+  } finally { f.cleanup(); }
+});
+
+
+test("reset target AX retention stays inert in unrelated interaction phases", async () => {
+  for (const prefix of ["scenario", "hold", "complete"]) {
+    const f = harness();
+    try {
+      await nativeInteraction({ ...f.options, prefix, exercise: async (io) => { await io.inspect(); } });
+      assert(!existsSync(join(f.options.directory, "reset-ax-geometry.jsonl")));
+      assert.deepEqual(f.calls.map(x => x.name), ["list_devices", "inspect_screen", "inspect_screen"]);
+    } finally { f.cleanup(); }
+  }
+});

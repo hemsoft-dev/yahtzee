@@ -8,13 +8,13 @@ const sourceRoot = resolve(import.meta.dirname, "../..");
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), "native-cancel-build-"));
   t.after(() => { assert.equal(dirname(resolve(root)), resolve(tmpdir())); assert(root.includes("native-cancel-build-")); rmSync(root, { recursive: true }); });
-  for (const path of ["apps/mobile/ios/App.xcodeproj", "apps/mobile/node_modules/react-native/React/Fabric/Mounting/ComponentViews/ScrollView", "apps/mobile/node_modules/react-native/React/CoreModules", "apps/mobile/node_modules/react-native/React/Fabric/Utils", "apps/mobile/node_modules/react-native/React/Fabric/Mounting/ComponentViews/View", "scripts/ios-native/native-cancel", "output"])
+  for (const path of ["apps/mobile/ios/App.xcodeproj", "apps/mobile/node_modules/react-native/React/Fabric/Mounting/ComponentViews/ScrollView", "apps/mobile/node_modules/react-native/React/CoreModules", "apps/mobile/node_modules/react-native/React/Fabric/Utils", "apps/mobile/node_modules/react-native/React/Fabric/Mounting/ComponentViews/View", "apps/mobile/node_modules/react-native/Libraries/Components/Pressable", "scripts/ios-native/native-cancel", "output"])
     mkdirSync(join(root, path), { recursive: true });
   const rn = join(root, "apps/mobile/node_modules/react-native");
   writeFileSync(join(rn, "package.json"), JSON.stringify({ version: "0.86.3" }));
-  for (const path of ["React/Fabric/RCTSurfaceTouchHandler.mm", "React/Fabric/Mounting/ComponentViews/ScrollView/RCTEnhancedScrollView.mm", "React/CoreModules/RCTAlertController.mm", "React/CoreModules/RCTAlertManager.mm", "React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.mm", "React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.h", "React/Fabric/Mounting/ComponentViews/ScrollView/RCTEnhancedScrollView.h", "React/Fabric/Utils/RCTGenericDelegateSplitter.mm", "React/Fabric/Utils/RCTGenericDelegateSplitter.h", "React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm"])
+  for (const path of ["Libraries/Components/Pressable/Pressable.js", "React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.h", "React/Fabric/RCTSurfaceTouchHandler.mm", "React/Fabric/Mounting/ComponentViews/ScrollView/RCTEnhancedScrollView.mm", "React/CoreModules/RCTAlertController.mm", "React/CoreModules/RCTAlertManager.mm", "React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.mm", "React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.h", "React/Fabric/Mounting/ComponentViews/ScrollView/RCTEnhancedScrollView.h", "React/Fabric/Utils/RCTGenericDelegateSplitter.mm", "React/Fabric/Utils/RCTGenericDelegateSplitter.h", "React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm"])
     copyFileSync(join(sourceRoot, "apps/mobile/node_modules/react-native", path), join(rn, path));
-  for (const name of ["NativeCancelObserver.mm", "RuntimeHooks.h", "ForwardingControl.mm", "inject.rb", "NativeModalObserver.mm", "ModalWindowRuntime.h", "ModalForwardingControl.mm", "NativeScrollObserver.mm", "NativeScrollObserver.h", "ScrollReceiverRuntime.h", "ScrollForwardingControl.mm"])
+  for (const name of ["NativeCancelObserver.mm", "RuntimeHooks.h", "ForwardingControl.mm", "inject.rb", "NativeModalObserver.mm", "ModalWindowRuntime.h", "ModalForwardingControl.mm", "NativeScrollObserver.mm", "NativeScrollObserver.h", "ScrollReceiverRuntime.h", "ScrollForwardingControl.mm", "ResetTargetRuntime.h"])
     copyFileSync(join(sourceRoot, "scripts/ios-native/native-cancel", name), join(root, "scripts/ios-native/native-cancel", name));
   const ios = join(root, "apps/mobile/ios"), output = join(root, "output"); writeFileSync(join(ios, "App.xcodeproj/project.pbxproj"), "fixture project");
   const calls = [];
@@ -58,6 +58,14 @@ test("source drift fails before generated writes or compiler invocation", (t) =>
   const f = fixture(t); writeFileSync(join(f.rn, "React/Fabric/RCTSurfaceTouchHandler.mm"), "changed native source");
   assert.throws(() => installNativeCancellation(f), /source contract moved/);
   assert.equal(f.calls.length, 0); assert.equal(existsSync(join(f.ios, "NativeDiagnostics")), false);
+});
+
+test("declared target getter or Pressable representation drift cannot install an observer", (t) => {
+  for (const path of ["React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.h", "Libraries/Components/Pressable/Pressable.js"]) {
+    const f = fixture(t); writeFileSync(join(f.rn, path), "changed target representation");
+    assert.throws(() => installNativeCancellation(f), /source contract moved/);
+    assert.equal(f.calls.length, 0); assert.equal(existsSync(join(f.ios, "NativeDiagnostics")), false);
+  }
 });
 test("failed forwarding control cannot install a native observer", (t) => {
   const f = fixture(t);
