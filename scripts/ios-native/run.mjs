@@ -23,6 +23,7 @@ import { retainNativeCancellation } from "./nativeCancelRetention.mjs";
 import { retainNativeScroll } from "./nativeScrollRetention.mjs";
 import { retainCorruptionMarker, retainNativeModal, withModalRetention } from "./nativeModalRetention.mjs";
 import { modalRouteRequested, ownedModalCapability, qualifyOwnedModal } from "./modalRoute.mjs";
+import { captureEnvironment, retainState } from "./comparison/state.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
@@ -103,9 +104,13 @@ async function corruption(device, bundleId) {
     const resetDirectory = join(directory, name); mkdirSync(resetDirectory);
     const observation = { id: `corrupt-save/${name}`, udid: device, nativeObservationStartedAtMs: Date.now() };
     (receipt.nativeCorruptionObservations ??= []).push(observation);
-    return withModalRetention(() => nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery,
+    return withModalRetention(() => nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset",
+        env: captureEnvironment(env, name, resetDirectory, modalOnly, receipt.source), report: recordRecovery,
         capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
         exercise: (io) => confirmReset(bundleId, io) }), () => {
+      if (modalOnly && env.THIRDROLL_COMPARISON_CAPTURE === "1") observation.comparisonInput = retainState(resetDirectory,
+        join(output, ".comparison-retained"), { source: receipt.source, runId: receipt.runId, attempt: receipt.runAttempt,
+          route: name === "reset-document" ? 1 : 2 }, []);
       retainNativeForScenario(observation, bundleId);
       if (name === "reset-document") observation.corruptionMarker = retainCorruptionMarker(() => run("sqlite3", ["-readonly", current.database,
         "SELECT CASE WHEN count(*)=1 AND min(key)='hemsoft-local-dice-v1' AND min(value)='damaged-save' THEN 1 ELSE 0 END FROM local_save"],

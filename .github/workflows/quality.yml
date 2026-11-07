@@ -441,6 +441,7 @@ jobs:
           python3 scripts/ios-native/comparison/build.py
           --cli-root "reports/.settle-cli/maestro"
           --observed-client-proof reports/.settle-cli/staging-proof.json
+          --capture-inputs
           --java-home "$JAVA_HOME"
           --output reports/comparison-build
       - name: Retain finite source-patched comparator identity, including build failures

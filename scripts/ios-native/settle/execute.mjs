@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { parseStages, correlateStages, searchCommand } from "./parse.mjs";
+import { retainState } from "../comparison/state.mjs";
 
 function read(path, limit) {
   const info = lstatSync(path);
@@ -50,8 +51,17 @@ export function execute() {
   assert.equal(hash(join(staging, "maestro/lib/maestro-cli-2.10.0.jar"), 128 * 1024 ** 2), proof.cliJarSha256);
   assert.equal(hash(join(staging, "maestro/lib/maestro-ios-driver.jar"), 180 * 1024 ** 2), proof.nativeJarSha256);
   assert.equal(hash(join(staging, "maestro/bin/maestro"), 65536), proof.launcherSha256);
+  const comparison = JSON.parse(read(join(root, "reports/comparison-build/proof.json"), 65536));
+  assert.equal(comparison.status, "prepared");
+  assert.equal(comparison.captureControls?.originalMissingCaptureRed, true);
+  assert.equal(comparison.captureSourceSha256, proof.comparisonCaptureSourceSha256);
+  const comparator = join(staging, "maestro/lib/image-comparison-4.4.0.jar");
+  assert.equal(hash(comparator, 1_000_000), comparison.jar.sha256);
   mkdirSync(output, { recursive: true });
   writeFileSync(join(output, "staging-proof.json"), JSON.stringify(proof, null, 2) + "\n");
+  writeFileSync(join(output, "comparison-proof.json"), JSON.stringify(comparison, null, 2) + "\n");
+  // Exact small toolchain bytes support offline replay without silently rebuilding a different candidate.
+  writeFileSync(join(output, "comparator.jar"), readFileSync(comparator), { flag: "wx", mode: 0o600 });
   const receipt = { schemaVersion: 1, kind: "original-reset-search-settle-observation", status: "running",
     source: null, runId: process.env.GITHUB_RUN_ID ?? null, runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
     nativeRunExit: null, routes: [], limits: ["qualification-copy-not-original-package-acceptance", "original-matrix-still-required",
@@ -62,16 +72,19 @@ export function execute() {
   try {
     // Same original route, actions, assertions and deadlines, once. No wrapper timeout or retry.
     const result = spawnSync("bun", [join(root, "scripts/ios-native/run.mjs"), "--modal-only"], {
-      cwd: root, env: { ...process.env, PATH: join(staging, "maestro/bin") + ":" + process.env.PATH }, stdio: "inherit" });
+      cwd: root, env: { ...process.env, THIRDROLL_COMPARISON_CAPTURE: "1", PATH: join(staging, "maestro/bin") + ":" + process.env.PATH }, stdio: "inherit" });
     receipt.nativeRunExit = result.status;
     const manifest = JSON.parse(read(join(native, "manifest.json"), 4 * 1024 * 1024));
     assert(/^[a-f0-9]{40}$/.test(manifest.source));
     assert.equal(manifest.runId, receipt.runId); assert.equal(manifest.runAttempt, receipt.runAttempt);
+    assert.equal(comparison.source, manifest.source); assert.equal(comparison.runId, receipt.runId); assert.equal(comparison.attempt, receipt.runAttempt);
     receipt.source = manifest.source; receipt.build = manifest.build; receipt.originalRouteStatus = manifest.status;
     for (const [index, name] of ["document", "database"].entries()) {
       const observed = collectRoute(join(native, `corrupt-save/reset-${name}`));
       writeFileSync(join(output, `route-${index + 1}-events.jsonl`), observed.events.map((event) => JSON.stringify(event)).join("\n") + "\n");
       receipt.routes.push({ id: index + 1, ...observed, events: undefined });
+      receipt.routes.at(-1).comparisonInput = retainState(join(root, "reports/native/.comparison-retained"), output,
+        { source: manifest.source, runId: receipt.runId, attempt: receipt.runAttempt, route: index + 1 }, observed.pairs, true);
     }
     const positive = receipt.routes.every((route) => [1, 2].every((stage) => route.pairs.some((pair) =>
       pair.stage === stage && pair.outcome === "returned" && pair.correspondence === "conditional-local-wall")));

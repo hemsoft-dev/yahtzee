@@ -15,6 +15,7 @@ internal object QualificationSettleObservation {
     private val sequence = AtomicLong()
     private data class Span(val id: Long, val stage: Int)
     private val scope = ThreadLocal<Span>()
+    private val comparisonScope = ThreadLocal<LongArray>()
     private val queue = ArrayBlockingQueue<() -> Unit>(256)
     @Volatile private var enabled = true
     @Volatile private var clock: () -> Long = { System.nanoTime() }
@@ -68,6 +69,8 @@ internal object QualificationSettleObservation {
         val id = next.incrementAndGet()
         if (id > 128) return original()
         val previous = try { scope.get() } catch (_: Throwable) { null }
+        val previousComparison = try { comparisonScope.get() } catch (_: Throwable) { null }
+        if (stage == 6) try { comparisonScope.set(longArrayOf(id, parentId)) } catch (_: Throwable) { /* Capture remains unavailable. */ }
         if (ownScope) try { scope.set(Span(id, stage)) } catch (_: Throwable) { /* Inner coverage unavailable. */ }
         event(id, parentId, stage, 0)
         return try {
@@ -78,11 +81,17 @@ internal object QualificationSettleObservation {
             event(id, parentId, stage, 2)
             throw error
         } finally {
+            if (stage == 6) try {
+                if (previousComparison == null) comparisonScope.remove() else comparisonScope.set(previousComparison)
+            } catch (_: Throwable) { /* Cannot replace original result/error. */ }
             if (ownScope) try {
                 if (previous == null) scope.remove() else scope.set(previous)
             } catch (_: Throwable) { /* Cannot replace original result/error. */ }
         }
     }
+
+    fun comparisonContext(): LongArray? = try { comparisonScope.get()?.clone() } catch (_: Throwable) { null }
+    fun offerComparisonWrite(write: () -> Unit): Boolean = try { writer != null && queue.offer(write) } catch (_: Throwable) { false }
 
     // No original CLI path calls these control-only functions or waits for the writer.
     fun drainControl(): Boolean {

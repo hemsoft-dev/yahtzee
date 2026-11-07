@@ -39,6 +39,14 @@ NEW = """        Rectangle[] regionRectangles = new Rectangle[Math.max(0, region
         int regionIndex = 0;
         while (counter <= regionCount) {
             Rectangle rectangle = regionRectangles[regionIndex++];"""
+CAPTURE_POINT = "        long countOfDifferentPixels = populateTheMatrixOfTheDifferences();"
+CAPTURE_CALL = CAPTURE_POINT + """
+        if ("1".equals(System.getenv("THIRDROLL_COMPARISON_CAPTURE"))) {
+            try {
+                maestro.QualificationComparisonCapture.snapshot(matrix, countOfDifferentPixels,
+                        counter, regionCount, threshold, minimalRectangleSize, allowingPercentOfDifferentPixels);
+            } catch (Throwable unavailable) { /* Observation cannot replace the original operation. */ }
+        }"""
 
 
 def sha(data):
@@ -67,12 +75,15 @@ def regular(path, limit):
     return path.read_bytes()
 
 
-def transform(source):
+def transform(source, capture=False):
     assert sha(source) == SOURCE_SHA, "pinned comparison source required"
     text = source.decode("utf8")
     assert text.count(OLD) == 1
     patched = text.replace(OLD, NEW)
-    assert patched.replace(NEW, OLD) == text
+    if capture:
+        assert patched.count(CAPTURE_POINT) == 1
+        patched = patched.replace(CAPTURE_POINT, CAPTURE_CALL)
+    assert patched.replace(CAPTURE_CALL, CAPTURE_POINT).replace(NEW, OLD) == text
     return patched.encode("utf8")
 
 
@@ -125,12 +136,12 @@ def build(args):
             pass  # Unavailable identity is null, never a payload or a guessed PR head.
     def save():
         (output / "proof.json").write_text(json.dumps(receipt, indent=2) + "\n")
-    def command(name, argv):
-        r = subprocess.run(list(map(str, argv)), capture_output=True, timeout=90)
+    def command(name, argv, env=None, expected=0):
+        r = subprocess.run(list(map(str, argv)), capture_output=True, timeout=90, env=env)
         for extension, data in [("out", r.stdout), ("err", r.stderr), ("exit", str(r.returncode).encode())]:
             with (private / (name + "." + extension)).open("xb") as stream:
                 stream.write(data)
-        assert r.returncode == 0, "comparison build/control failed"
+        assert r.returncode == expected, "comparison build/control failed"
         return r.stdout
     save()
     try:
@@ -146,6 +157,10 @@ def build(args):
             assert observed["archiveSha256"] == "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991"
             client_sha = observed["client"]["sha256"]
             assert isinstance(client_sha, str) and re.fullmatch(r"[0-9a-f]{64}", client_sha)
+        if args.capture_inputs:
+            assert args.observed_client_proof and observed["controls"]["comparisonCapture"] is True
+            assert re.fullmatch(r"[0-9a-f]{64}", observed["comparisonCaptureSourceSha256"])
+            receipt["captureSourceSha256"] = observed["comparisonCaptureSourceSha256"]
         for path, expected, limit in [("lib/maestro-client.jar", client_sha, 32 * 1024**2),
                                       ("lib/maestro-cli-2.10.0.jar", CLI_SHA, 128 * 1024**2),
                                       ("lib/maestro-ios-driver.jar", NATIVE_SHA, 180 * 1024**2),
@@ -166,7 +181,7 @@ def build(args):
         with zipfile.ZipFile(private / "sources.jar") as z:
             assert z.namelist().count(SOURCE) == 1
             source = z.read(SOURCE)
-        patched = transform(source)
+        patched = transform(source, args.capture_inputs)
         receipt["patchedSourceSha256"] = sha(patched)
         original_jar = private / "original.jar"
         original_jar.write_bytes(original)
@@ -175,7 +190,7 @@ def build(args):
             d = private / name
             d.mkdir()
             (d / "ImageComparison.java").write_bytes(code)
-            command("compile-" + name, [javac, "--release", "8", "-g", "-cp", original_jar, "-d", d, d / "ImageComparison.java"])
+            command("compile-" + name, [javac, "--release", "8", "-g", "-cp", str(original_jar) + os.pathsep + str(cli / "lib/maestro-client.jar"), "-d", d, d / "ImageComparison.java"])
             dirs[name] = d
         candidate_jar = private / "candidate.jar"
         receipt["jar"] = rewrite(original_jar, candidate_jar, dirs["candidate"])
@@ -205,6 +220,26 @@ def build(args):
         packaged = command("control-packaged", [java, "-Xmx1g", "-XX:-OmitStackTraceInFastThrow", "-Djava.awt.headless=true",
                             "-cp", fixtures, "Equivalent", original_jar, dirs["original"], candidate_jar, "controls-only"])
         assert b"EQUIVALENCE_PASS cases=569" in packaged
+        if args.capture_inputs:
+            capture_source = fixtures / "CaptureForwarding.java"
+            capture_source.write_bytes(regular(Path(__file__).parent / "CaptureForwarding.java.inc", 16384))
+            libraries = os.pathsep.join(str(p) for p in sorted((cli / "lib").glob("*.jar")))
+            command("compile-capture-forwarding", [javac, "--release", "17", "-cp", str(candidate_jar) + os.pathsep + libraries,
+                    "-d", fixtures, capture_source])
+            capture_root = private / ".comparison-input"
+            capture_root.mkdir(mode=0o700)
+            env = {**os.environ, "THIRDROLL_COMPARISON_CAPTURE": "1", "THIRDROLL_CAPTURE_SOURCE": "a" * 40,
+                   "GITHUB_RUN_ID": "1", "GITHUB_RUN_ATTEMPT": "1", "THIRDROLL_CAPTURE_ROUTE": "1",
+                   "THIRDROLL_CAPTURE_DIRECTORY": str(capture_root)}
+            command("original-capture-red", [java, "-Djava.awt.headless=true", "-cp", str(fixtures) + os.pathsep + libraries,
+                    "CaptureForwarding", capture_root], env=env, expected=1)
+            assert b"ORIGINAL_MASK_RETURNED" in (private / "original-capture-red.out").read_bytes()
+            assert b"MISSING_COMPARISON_CAPTURE" in (private / "original-capture-red.err").read_bytes()
+            capture_control = command("capture-forwarding", [java, "-Djava.awt.headless=true", "-cp",
+                    str(fixtures) + os.pathsep + str(candidate_jar) + os.pathsep + libraries, "CaptureForwarding", capture_root], env=env)
+            assert b"CAPTURE_FORWARDING_PASS" in capture_control
+            receipt["captureControls"] = {"originalMissingCaptureRed": True, "originalGetterOrder": True,
+                                          "resultErrorIdentity": True, "immutableMatrix": True}
         # All original CLI files except this one library remain byte-identical.
         before = {p.relative_to(cli).as_posix(): sha(p.read_bytes()) for p in cli.rglob("*") if p.is_file()}
         receipt["cliJarSha256"] = before["lib/maestro-cli-2.10.0.jar"]
@@ -234,6 +269,7 @@ if __name__ == "__main__":
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--source-archive")
     parser.add_argument("--observed-client-proof")
+    parser.add_argument("--capture-inputs", action="store_true")
     try:
         build(parser.parse_args())
     except Exception:

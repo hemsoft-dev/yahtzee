@@ -91,7 +91,7 @@ def extract(archive, destination, total_limit):
 
 
 def class_family(name):
-    return bool(re.match(r"^maestro/(?:Maestro(?:\$|\.class)|drivers/IOSDriver(?:\$|\.class)|utils/ScreenshotUtils(?:\$|\.class)|QualificationSettleObservation(?:\$|\.class))", name))
+    return bool(re.match(r"^maestro/(?:Maestro(?:\$|\.class)|drivers/IOSDriver(?:\$|\.class)|utils/ScreenshotUtils(?:\$|\.class)|QualificationSettleObservation(?:\$|\.class)|QualificationComparisonCapture(?:\$|\.class))", name))
 
 
 def rewrite_client(original, output, classes):
@@ -145,6 +145,7 @@ def stage(args):
                "scope": ["explicit-wait-original-body", "implicit-settle-original-driver-call", "scoped-original-screenshot-call", "scoped-original-static-screen-call", "scoped-original-image-decode", "scoped-original-image-comparison"],
                "loadedImage": "unattested", "deadlinesChanged": False, "originalMatrixUnchanged": True,
                "comparisonCpu": "read-only-current-thread-or-null"}
+    receipt["comparisonCaptureSourceSha256"] = sha(regular(Path(__file__).parent / "ComparisonCapture.kt.inc", 32 * 1024))
 
     def save():
         (output / "staging-proof.json").write_text(json.dumps(receipt, indent=2) + "\n")
@@ -178,7 +179,8 @@ def stage(args):
         (code / "IOSDriver.kt").write_bytes(patched_driver)
         (code / "ScreenshotUtils.kt").write_bytes(patched_image)
         includes = Path(__file__).parent
-        for name, target in [("Observation.kt.inc", "QualificationSettleObservation.kt"), ("Controls.kt.inc", "QualificationSettleControls.kt")]:
+        for name, target in [("Observation.kt.inc", "QualificationSettleObservation.kt"), ("Controls.kt.inc", "QualificationSettleControls.kt"),
+                             ("ComparisonCapture.kt.inc", "QualificationComparisonCapture.kt"), ("ComparisonCaptureControls.kt.inc", "QualificationComparisonControls.kt")]:
             (code / target).write_bytes(regular(includes / name, 32 * 1024))
         classes = private / "classes"
         classes.mkdir()
@@ -194,7 +196,7 @@ def stage(args):
         fixture.mkdir()
         for file in classes.rglob("*.class"):
             relative = file.relative_to(classes)
-            if relative.as_posix() == "maestro/Marker.class" or relative.as_posix().startswith(("maestro/QualificationSettleControls", "maestro/QualificationSettleObservation")):
+            if relative.as_posix() == "maestro/Marker.class" or relative.as_posix().startswith(("maestro/QualificationSettleControls", "maestro/QualificationSettleObservation", "maestro/QualificationComparisonControls")):
                 target = fixture / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(file.read_bytes())
@@ -209,6 +211,12 @@ def stage(args):
         observed_cp = str(observed_jar) + os.pathsep + cp
         positive = command("observed-controls", controls + ["-cp", str(fixture) + os.pathsep + observed_cp, main], 40)
         assert positive.returncode == 0 and b"stalledSinkDidNotHoldOriginal=true" in positive.stdout and b"cpuControlsPassed=true" in positive.stdout, "Observed forwarding controls failed"
+        capture_controls = command("capture-controls", controls + ["-cp", str(fixture) + os.pathsep + observed_cp,
+                                   "maestro.QualificationComparisonControlsKt", private / "capture-controls"], 40)
+        assert capture_controls.returncode == 0 and b"COMPARISON_CAPTURE_CONTROLS_PASS" in capture_controls.stdout, "Comparison capture controls failed"
+        capture_shutdown = command("capture-shutdown", controls + ["-cp", str(fixture) + os.pathsep + observed_cp,
+                                   "maestro.QualificationComparisonControlsKt", private / "capture-shutdown", "shutdown"], 15)
+        assert capture_shutdown.returncode == 0 and b"CAPTURE_BLOCKED_DAEMON_NORMAL_EXIT" in capture_shutdown.stdout, "Blocked capture writer held normal JVM exit"
         inner_baseline = private / "inner-baseline"
         with zipfile.ZipFile(lib / "maestro-client.jar") as original:
             for name in original.namelist():
@@ -237,7 +245,8 @@ def stage(args):
         target = staged_cli / "lib/maestro-client.jar"
         target.write_bytes(observed_jar.read_bytes())
         receipt.update({"status": "prepared", "controls": {"originalPackage": True, "missingStageRed": True,
-                        "observedPackage": True, "innerStageRed": True, "imageStageRed": True, "stalledSink": True, "publicABIExact": True, "comparisonCpu": True},
+                        "observedPackage": True, "innerStageRed": True, "imageStageRed": True, "stalledSink": True, "publicABIExact": True, "comparisonCpu": True,
+                        "comparisonCapture": True, "comparisonCaptureShutdown": True},
                         "cliJarSha256": sha((staged_cli / "lib/maestro-cli-2.10.0.jar").read_bytes()),
                         "nativeJarSha256": sha((staged_cli / "lib/maestro-ios-driver.jar").read_bytes()),
                         "launcherSha256": sha((staged_cli / "bin/maestro").read_bytes())})
