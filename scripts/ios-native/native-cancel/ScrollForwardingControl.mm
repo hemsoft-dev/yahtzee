@@ -87,14 +87,14 @@ int main(void) {
   assert(HSSAdoptOwnedPair((id)owner,(id)scroll,HSSControlReceiver.class,observed,HSSControlScroll.class)==0 && object_getClass(unrelated)==HSSControlReceiver.class);
   assert(HSSAdoptOwnedPair((id)owner,(id)scroll,HSSControlReceiver.class,observed,HSSControlScroll.class)!=0);
   Phases=[NSMutableArray new]; ObserverError=[NSException exceptionWithName:@"observer" reason:nil userInfo:nil];
-  [owner scrollViewDidScroll:scroll]; assert(owner.calls==1 && owner.last==scroll && [Phases isEqual:@[@0,@1]]);
+  [owner scrollViewDidScroll:scroll]; assert((owner.calls==1 && owner.last==scroll && [Phases isEqual:@[@0,@1]]));
   [owner scrollViewWillBeginDragging:scroll]; [owner scrollViewDidEndDragging:scroll willDecelerate:YES]; assert(owner.calls==3 && owner.decelerate && owner.last==scroll);
   [owner scrollViewDidEndDragging:scroll willDecelerate:NO]; assert(owner.calls==4 && !owner.decelerate);
   [owner scrollViewWillBeginDecelerating:scroll]; [owner scrollViewDidEndDecelerating:scroll]; [owner scrollViewDidEndScrollingAnimation:scroll]; [owner didMoveToWindow]; assert(owner.calls==8 && owner.last==nil);
   ObserverThrows=YES; [owner scrollViewDidScroll:scroll]; assert(owner.calls==9 && owner.last==scroll); ObserverThrows=NO;
   NSException *failure=[NSException exceptionWithName:@"original" reason:nil userInfo:nil]; owner.failure=failure; BOOL caught=NO;
   [Phases removeAllObjects]; @try { [owner scrollViewDidScroll:scroll]; } @catch(NSException *actual) { caught=actual==failure; }
-  assert(caught && owner.calls==10 && [Phases isEqual:@[@0,@2]]);
+  assert((caught && owner.calls==10 && [Phases isEqual:@[@0,@2]]));
   ObserverThrows=YES; caught=NO; @try { [owner scrollViewDidEndDragging:scroll willDecelerate:YES]; } @catch(NSException *actual) { caught=actual==failure; }
   assert(caught && owner.calls==11 && owner.decelerate); ObserverThrows=NO; owner.readThrows=YES;
   assert(!HSSOwnedPair((id)owner,(id)scroll,HSSControlReceiver.class,observed,HSSControlScroll.class)); owner.readThrows=NO; owner.failure=nil;
