@@ -8,6 +8,17 @@ const title = "Delete all local data";
 const contains = (outer, inner, margin = 0) => inner.left >= outer.left + margin && inner.right <= outer.right - margin &&
   inner.top >= outer.top + margin && inner.bottom <= outer.bottom - margin;
 
+function resetSwipeDistance(viewport, target, maximum) {
+  const rect = target?.rect;
+  if (!rect || rect.left < viewport.left + 8 || rect.right > viewport.right - 8) return maximum;
+  const clippedAbove = rect.top < viewport.top && rect.bottom > viewport.top;
+  const clippedBelow = rect.bottom > viewport.bottom && rect.top < viewport.bottom;
+  if ((!clippedAbove && !clippedBelow) || !target.parents.every(parent => contains(parent.rect, rect) || contains(parent.rect, viewport))) return maximum;
+  // A measured coordinate displacement is a candidate, never native motion or visibility proof.
+  const clipping = clippedAbove ? viewport.top - rect.top : rect.bottom - viewport.bottom;
+  return Math.min(maximum, Math.ceil(clipping + 8));
+}
+
 /** Search inside Help, retaining full-size text and requiring an entirely reachable action. */
 export function resetActionPosition(screen) {
   const elements = screenElements(screen), viewportNode = uniqueElement(elements, "help-viewport");
@@ -36,8 +47,9 @@ export function resetActionPosition(screen) {
   // The generic whole-screen search traverses only center-to-edge. Use the
   // measured scroll view's interior so long largest-text Help needs fewer scans.
   const low = Math.round(viewport.top + viewport.height * 0.9), high = Math.round(viewport.top + viewport.height * 0.1);
+  const distance = resetSwipeDistance(viewport, target, low - high);
   return { action: "swipe", viewport, target: target?.rect ?? null,
-    start: `${x},${up ? high : low}`, end: `${x},${up ? low : high}`, duration: 600 };
+    start: `${x},${up ? high : low}`, end: `${x},${up ? high + distance : low - distance}`, duration: 600 };
 }
 
 export async function revealResetAction(io, now = () => performance.now()) {
