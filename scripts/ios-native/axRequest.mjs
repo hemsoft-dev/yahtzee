@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { loadBuiltSimulator } from "./artifact.mjs";
 import { DRIVER_REF, patchDriver, sha } from "./ax-request/patch.mjs";
 import { compilerSummary, parseStages, requestCapability } from "./ax-request/parse.mjs";
+import { observedSpawn, resultErrorClass, retainPhase7 } from "./ax-request/result.mjs";
 
 assert.equal(process.platform, "darwin", "AX request qualification requires the pinned hosted macOS toolchain.");
 assert.equal(process.arch, "arm64");
@@ -19,12 +20,13 @@ const receipt = { schemaVersion: 1, kind: "qualification-copy-deviceInfo-AX-requ
   requestMode: "actual-handler-direct-invocation-not-HTTP-wire", limits: ["standalone-capability-not-ordinary-matrix-acceptance",
     "private-query-internals-unobserved", "unknown-process-role-remains-unknown", "no-historical-cause-or-cure-claim"] };
 let device;
+let phase7Command, phase7Extraction = 0, phase7Failure = 0;
 const json = (name, value) => writeFileSync(join(output, name), JSON.stringify(value, null, 2) + "\n");
 const phase = (value) => { receipt.phase = value; json("receipt.json", receipt); };
-function command(executable, args, { cwd = root, capture = false, timeout = 180000, log = "commands.private" } = {}) {
+function command(executable, args, { cwd = root, capture = false, timeout = 180000, log = "commands.private", observe } = {}) {
   const fd = openSync(join(privateRoot, log), "a"); let result;
-  try { result = spawnSync(executable, args, { cwd, env, encoding: "utf8", timeout, maxBuffer: 16 * 1024 * 1024,
-    stdio: ["ignore", capture ? "pipe" : fd, fd] }); } finally { closeSync(fd); }
+  try { result = observedSpawn(spawnSync, executable, args, { cwd, env, encoding: "utf8", timeout, maxBuffer: 16 * 1024 * 1024,
+    stdio: ["ignore", capture ? "pipe" : fd, fd] }, observe); } finally { closeSync(fd); }
   assert.equal(result.error, undefined, `Owned command did not complete: ${executable}`);
   assert.equal(result.status, 0, `Owned command failed: ${executable}; private log retained locally, no payload dump.`);
   return capture ? result.stdout.trim() : "";
@@ -62,19 +64,25 @@ try {
     phase(7);
     command("xcodebuild", ["test-without-building", "-xctestrun", join(products, plans[0]), "-destination", `platform=iOS Simulator,id=${device}`,
       "-only-testing:maestro-driver-iosUITests/HSAXRequestQualificationTests", "-resultBundlePath", join(privateRoot, "result.xcresult")],
-    { timeout: 1800000, log: "test.private" });
+    { timeout: 1800000, log: "test.private", observe: (value) => { phase7Command = value; } });
     receipt.testExecution = "passed";
   } finally {
+    phase7Extraction = 1;
     const log = readFileSync(join(privateRoot, "test.private"), "utf8"); assert(Buffer.byteLength(log) <= 16 * 1024 * 1024);
+    phase7Extraction = 2;
     const parsed = parseStages(log); receipt.observation = { ...parsed, events: undefined }; receipt.capability = requestCapability(parsed);
+    phase7Extraction = 3;
     receipt.controls = /HSAXRequestQualificationTests test00ForwardOnceControls[^\n]*passed/.test(log);
     receipt.actualRequestTest = /HSAXRequestQualificationTests test10ActualDeviceInfoRequest[^\n]*passed/.test(log);
+    phase7Extraction = 4;
     writeFileSync(join(output, "request-stages.jsonl"), parsed.events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+    phase7Extraction = 5;
   }
   phase(8); assert(receipt.controls && receipt.actualRequestTest, "Both actual XCTest controls must pass; zero tests cannot qualify.");
   assert.equal(receipt.capability.status, "observed", "Positive actual-app AX query/response stages are required.");
   receipt.status = "passed"; phase(9);
-} catch {
+} catch (error) {
+  if (receipt.phase >= 7) phase7Failure = resultErrorClass(error);
   const buildLog = join(privateRoot, "build.private");
   if (receipt.phase === 5 && existsSync(buildLog)) {
     const bytes = readFileSync(buildLog);
@@ -82,6 +90,10 @@ try {
   }
   receipt.status = "failed"; receipt.failure = "owned-build-test-or-positive-stage-gate-failed"; process.exitCode = 1;
 } finally {
+  if (receipt.phase >= 7) {
+    try { receipt.testResultSynopsis = await retainPhase7({ privateRoot, output, receipt, command: phase7Command, extraction: phase7Extraction, failure: phase7Failure }); }
+    catch { receipt.testResultSynopsis = { status: "unavailable", reason: "synopsis-unavailable" }; }
+  }
   json("receipt.json", receipt);
   if (device) {
     // Only this fresh owned device. Cleanup cannot replace the diagnostic result.
