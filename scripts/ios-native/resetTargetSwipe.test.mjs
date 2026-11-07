@@ -4,6 +4,7 @@ import test from "node:test";
 import { resetActionPosition, revealResetAction } from "./reset.mjs";
 
 const captured = () => JSON.parse(readFileSync(new URL("./fixtures/reset-partial-target-f88.json", import.meta.url)));
+const stalled = () => JSON.parse(readFileSync(new URL("./fixtures/reset-stalled-target-9a89.json", import.meta.url)));
 const screen = (target, root = "[0,0][1032,1376]") => ({ ui_schema: { platform: "ios", defaults: { enabled: true } },
   elements: [{ b: root, c: [{ rid: "help-viewport", b: "[0,106][1032,1356]",
     c: target ? [{ a11y: "Delete all local data", b: target }] : [] }] }] });
@@ -122,4 +123,72 @@ test("an uncertain shortened gesture keeps its original error identity and is ne
   await assert.rejects(revealResetAction({ run: async commands => { if (commands[0].swipe) { swipes++; throw error; } },
     inspect: async () => captured(), record: () => {} }, () => 0), e => e === error);
   assert.equal(swipes, 1);
+});
+
+test("retained repeated AX geometry restores the original span within the next existing iteration", async () => {
+  const layouts = [stalled(), stalled(), stalled(), screen("[176,1200][856,1281]")];
+  const calls = []; let inspections = 0;
+  const target = await revealResetAction({ run: async commands => calls.push(...commands), inspect: async () => layouts[inspections++], record: () => {} }, () => 0);
+  assert.equal(target.top, 1200); assert.equal(inspections, 4);
+  assert.deepEqual(calls.filter(e => e.swipe).map(e => displacement(e.swipe)), [10, 1000, 1000]);
+  assert.deepEqual(calls.map(e => Object.keys(e)[0]), ["waitForAnimationToEnd", "swipe", "waitForAnimationToEnd", "swipe", "waitForAnimationToEnd", "swipe", "waitForAnimationToEnd"]);
+  assert(calls.filter(e => e.swipe).every(e => e.swipe.start === "516,1231" && e.swipe.duration === 600));
+  assert(!calls.some(e => e.tapOn));
+});
+
+test("fresh AX progress retains measured motion instead of forcing a full span", async () => {
+  const layouts = [stalled(), screen("[176,1276][856,1357]"), screen("[176,1200][856,1281]")];
+  const swipes = []; let inspections = 0;
+  await revealResetAction({ run: async commands => { if (commands[0].swipe) swipes.push(commands[0].swipe); },
+    inspect: async () => layouts[inspections++], record: () => {} }, () => 0);
+  assert.deepEqual(swipes.map(displacement), [10, 9]);
+});
+
+test("the no-progress comparison also preserves the original opposite direction", () => {
+  const layout = screen("[176,70][856,151]"), first = resetActionPosition(layout);
+  const next = resetActionPosition(layout, first);
+  assert.equal(displacement(first), 44); assert.equal(next.start, "516,231");
+  assert.equal(next.end, "516,1231"); assert.equal(next.duration, 600);
+});
+
+test("a changed effective viewport cannot reuse the prior no-progress comparison", async () => {
+  const layouts = [stalled(), screen("[176,1277][856,1358]", "[0,0][1032,1355]"), screen("[176,1200][856,1281]")];
+  const swipes = []; let inspections = 0;
+  await revealResetAction({ run: async commands => { if (commands[0].swipe) swipes.push(commands[0].swipe); },
+    inspect: async () => layouts[inspections++], record: () => {} }, () => 0);
+  assert.deepEqual(swipes.map(displacement), [10, 11]);
+});
+
+test("an intervening disabled observation breaks consecutive-geometry history", async () => {
+  const disabled = screen("[176,1277][856,1358]"); disabled.elements[0].c[0].c[0].enabled = false;
+  const layouts = [stalled(), disabled, stalled(), screen("[176,1200][856,1281]")], swipes = []; let inspections = 0;
+  await revealResetAction({ run: async commands => { if (commands[0].swipe) swipes.push(commands[0].swipe); },
+    inspect: async () => layouts[inspections++], record: () => {} }, () => 0);
+  assert.deepEqual(swipes.map(displacement), [10, 10]); assert.equal(inspections, 4);
+});
+
+test("no-progress history belongs only to the current reset search", async () => {
+  for (let route = 0; route < 2; route++) {
+    let inspections = 0; const swipes = [];
+    await revealResetAction({ run: async commands => { if (commands[0].swipe) swipes.push(commands[0].swipe); },
+      inspect: async () => inspections++ ? screen("[176,1200][856,1281]") : stalled(), record: () => {} }, () => 0);
+    assert.deepEqual(swipes.map(displacement), [10]);
+  }
+});
+
+test("the original budget still stops immediately after the restored span returns late", async () => {
+  let clock = 0, inspections = 0; const calls = [];
+  await assert.rejects(revealResetAction({ run: async commands => {
+    calls.push(...commands); if (commands[0].swipe && calls.filter(e => e.swipe).length === 2) clock = 60000;
+  }, inspect: async () => { inspections++; return stalled(); }, record: () => {} }, () => clock), /60000ms/);
+  assert.equal(inspections, 2); assert.deepEqual(calls.filter(e => e.swipe).map(e => displacement(e.swipe)), [10, 1000]);
+  assert.equal(calls.length, 4);
+});
+
+test("the restored span forwards a thrown gesture error once with original identity", async () => {
+  const error = new Error("fixture restored gesture failure"); let count = 0; const swipes = [];
+  await assert.rejects(revealResetAction({ run: async commands => {
+    if (commands[0].swipe) { swipes.push(commands[0].swipe); if (++count === 2) throw error; }
+  }, inspect: async () => stalled(), record: () => {} }, () => 0), e => e === error);
+  assert.deepEqual(swipes.map(displacement), [10, 1000]); assert.equal(count, 2);
 });

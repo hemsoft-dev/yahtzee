@@ -8,19 +8,22 @@ const title = "Delete all local data";
 const contains = (outer, inner, margin = 0) => inner.left >= outer.left + margin && inner.right <= outer.right - margin &&
   inner.top >= outer.top + margin && inner.bottom <= outer.bottom - margin;
 
-function resetSwipeDistance(viewport, target, maximum) {
+function resetSwipeDistance(viewport, target, maximum, previous) {
   const rect = target?.rect;
   if (!rect || rect.left < viewport.left + 8 || rect.right > viewport.right - 8) return maximum;
   const clippedAbove = rect.top < viewport.top && rect.bottom > viewport.top;
   const clippedBelow = rect.bottom > viewport.bottom && rect.top < viewport.bottom;
   if ((!clippedAbove && !clippedBelow) || !target.parents.every(parent => contains(parent.rect, rect) || contains(parent.rect, viewport))) return maximum;
+  // Identical fresh AX geometry restores the old span within this existing iteration.
+  if (previous?.action === "swipe" && ["left", "top", "right", "bottom"].every(key =>
+    previous.viewport[key] === viewport[key] && previous.target?.[key] === rect[key])) return maximum;
   // A measured coordinate displacement is a candidate, never native motion or visibility proof.
   const clipping = clippedAbove ? viewport.top - rect.top : rect.bottom - viewport.bottom;
   return Math.min(maximum, Math.ceil(clipping + 8));
 }
 
 /** Search inside Help, retaining full-size text and requiring an entirely reachable action. */
-export function resetActionPosition(screen) {
+export function resetActionPosition(screen, previous = null) {
   const elements = screenElements(screen), viewportNode = uniqueElement(elements, "help-viewport");
   const viewport = { ...viewportNode.rect };
   for (const parent of viewportNode.parents) {
@@ -47,13 +50,14 @@ export function resetActionPosition(screen) {
   // The generic whole-screen search traverses only center-to-edge. Use the
   // measured scroll view's interior so long largest-text Help needs fewer scans.
   const low = Math.round(viewport.top + viewport.height * 0.9), high = Math.round(viewport.top + viewport.height * 0.1);
-  const distance = resetSwipeDistance(viewport, target, low - high);
+  const distance = resetSwipeDistance(viewport, target, low - high, previous);
   return { action: "swipe", viewport, target: target?.rect ?? null,
     start: `${x},${up ? high : low}`, end: `${x},${up ? high + distance : low - distance}`, duration: 600 };
 }
 
 export async function revealResetAction(io, now = () => performance.now()) {
   const started = now();
+  let previous = null;
   const budget = () => {
     const elapsed = now() - started;
     assert(Number.isFinite(elapsed) && elapsed >= 0 && elapsed < 60000, "Reset action did not become reachable within 60000ms.");
@@ -62,11 +66,12 @@ export async function revealResetAction(io, now = () => performance.now()) {
     budget();
     await io.run([{ waitForAnimationToEnd: { timeout: 5000 } }]); budget();
     const screen = await io.inspect(); budget();
-    const decision = resetActionPosition(screen); io.record({ kind: "reset-action", attempt, ...decision });
+    const decision = resetActionPosition(screen, previous); io.record({ kind: "reset-action", attempt, ...decision });
     if (decision.action === "tap") return decision.target;
     if (decision.action === "swipe") {
       await io.run([{ swipe: { start: decision.start, end: decision.end, duration: decision.duration } }]); budget();
     }
+    previous = decision;
   }
   assert.fail("Reset action did not become reachable within 30 inspections.");
 }

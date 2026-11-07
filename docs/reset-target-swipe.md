@@ -24,6 +24,31 @@ unsupported or margin-only target keeps the original full swipe. Ambiguous,
 unowned, oversized and malformed targets retain their original rejection;
 disabled targets retain the original wait behavior.
 
+If consecutive original AX inspections have the same target and effective
+viewport rectangles after a swipe, the next existing iteration restores the
+original full interior span. There is no additional gesture or retry loop.
+Geometry progress or a viewport change permits the measured candidate again;
+an intervening wait breaks the comparison. The single previous decision is
+local to that reset search. Fresh ownership, enabled, ancestor and containment
+checks still run before choosing input or accepting a target.
+
+This handles the [9a89 owned-modal occurrence](https://github.com/hemsoft-dev/yahtzee/actions/runs/42386833297/job/128448624767).
+Its original driver sent 22-, 12- and then repeated 10-point strokes. Actual
+AX reads at flows18/20/22 retained target y1277..1358 in viewport y106..1356;
+the corresponding native callbacks recorded no offset change for the
+10-point strokes. The search then exhausted its unchanged60-second guard.
+This establishes ineffective repeated short motion in that occurrence, not
+UIKit hysteresis, driver/cancellation ownership or a historical root cause.
+The retained latest AX target path is
+`fixtures/reset-stalled-target-9a89.json`, artifact13580259157 SHA256
+`ca79468479c740aafe5a6e3a231b0e6ddb07c21b0971415dd164a0aed651048e`,
+member SHA256
+`3ad960dc9e5eca9014a08c1cbab9cf22cd33244658aad0a3a59eb8e31f2ea1c7`.
+Tests of the repeated retained geometry fail on9a89's repeated10-point
+selection and pass when the next original iteration uses the old span. The
+test's eventual contained layout is a control, not another captured AX read
+or native acceptance proof.
+
 The calculation uses only that original AX result. Native callbacks, later
 screenshots and constructed positions never supply input coordinates. One
 swipe remains one swipe. Every original explicit and implicit wait, the
