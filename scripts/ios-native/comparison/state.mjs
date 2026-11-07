@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 
 const integer = (n, min = 0, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(n) && n >= min && n <= max;
 const fields = ["v", "source", "runId", "attempt", "route", "pid", "stage", "id", "parentId", "code", "seenAtCopy", "omissionsAfterCopy",
@@ -59,6 +59,27 @@ export function captureEnvironment(env, name, directory, modalOnly, source) {
     return { ...env, THIRDROLL_CAPTURE_SOURCE: source, THIRDROLL_CAPTURE_ROUTE: name === "reset-document" ? "1" : "2",
       THIRDROLL_CAPTURE_DIRECTORY: root };
   } catch { return { ...env, THIRDROLL_COMPARISON_CAPTURE: "0" }; }
+}
+
+/** Preserve only this authored capture identity across the existing launcher filter. */
+export function captureChildEnvironment(env, prefix, directory) {
+  if (prefix !== "reset" || env.THIRDROLL_COMPARISON_CAPTURE !== "1") return {};
+  try {
+    assert(isAbsolute(directory));
+    const route = { "reset-document": "1", "reset-database": "2" }[basename(directory)];
+    assert(route && env.THIRDROLL_CAPTURE_ROUTE === route);
+    assert(typeof env.THIRDROLL_CAPTURE_SOURCE === "string" && /^[a-f0-9]{40}$/.test(env.THIRDROLL_CAPTURE_SOURCE));
+    for (const key of ["GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"]) {
+      assert(typeof env[key] === "string" && /^[1-9][0-9]{0,19}$/.test(env[key]));
+    }
+    const input = join(directory, ".comparison-input");
+    assert(input.length <= 4096 && ![...input].some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127) && env.THIRDROLL_CAPTURE_DIRECTORY === input);
+    for (const path of [directory, input]) {
+      const info = lstatSync(path); assert(info.isDirectory() && !info.isSymbolicLink());
+    }
+    return Object.fromEntries(["THIRDROLL_COMPARISON_CAPTURE", "THIRDROLL_CAPTURE_SOURCE", "THIRDROLL_CAPTURE_ROUTE",
+      "THIRDROLL_CAPTURE_DIRECTORY", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"].map(key => [key, env[key]]));
+  } catch { return {}; }
 }
 
 export function retainState(directory, output, identity, pairs, prepared = false) {

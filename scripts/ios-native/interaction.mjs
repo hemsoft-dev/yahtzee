@@ -6,6 +6,7 @@ import { localMaestro, MaestroError } from "./mcp.mjs";
 import { redactDriverLog, retainXCTestLogs } from "./driverLogs.mjs";
 import { captureDriverEvidence, prepareDriverScratch, unavailableDriverEvidence } from "./driverEvidence.mjs";
 import { resetAXGeometry } from "./resetAXGeometry.mjs";
+import { captureChildEnvironment } from "./comparison/state.mjs";
 
 /** One bounded local driver session for the owned simulator. */
 export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay, evidenceWorker }) {
@@ -34,6 +35,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   const deadline = now() + (prefix === "scenario" ? 1200000 : 600000);
   const childEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
     /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|JAVA_HOME|DEVELOPER_DIR|LANG|LC_ALL|MAESTRO_CLI_NO_ANALYTICS|MAESTRO_DISABLE_UPDATE_CHECK|MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED|MAESTRO_DRIVER_STARTUP_TIMEOUT)$/.test(key)));
+  Object.assign(childEnv, captureChildEnvironment(env, prefix, directory));
   // An isolated hidden state directory keeps raw driver output out of published evidence.
   const state = join(directory, `.${prefix}-driver-state`);
   mkdirSync(state, { recursive: true });

@@ -112,3 +112,24 @@ prior historical limitations remain.
 
 References: [Java17 FileChannel blocking semantics](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/nio/channels/FileChannel.html),
 [BufferedImage color/raster semantics](https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/java/awt/image/BufferedImage.html).
+
+## Capture launch-boundary correction
+
+The first source-bound run on31dad993 retained one completed stage6 comparison
+but no matrix. The original launcher environment filter removed every capture
+identity key before the JVM started. This is a capture-wiring defect, not an
+explanation for the original reset or screenshot failures.
+
+The correction forwards only six validated capture/CI identity keys, and only
+for the reset session whose document/database directory and existing private
+input directory match the requested route. Malformed, missing, unrelated or
+ordinary-session identities remain filtered. Credentials and unrelated keys
+remain filtered. No app action, algorithm, deadline or original call changes.
+
+The regression exercises the actual nativeInteraction launch boundary. A
+separate CPU-only JVM control reaches the real comparator through that same
+boundary:31dad993 returns its original mask and then fails only missing capture;
+the correction retains immutable bits with the original result/getter/error
+controls. This is a local fixture control, not a hosted capture or full-image
+oracle. Normal source-bound hosted state and matched real-input profiling
+remain required. The first run and its missing-state result stay historical.
