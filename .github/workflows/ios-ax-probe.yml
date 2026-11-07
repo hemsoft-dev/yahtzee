@@ -1,0 +1,78 @@
+name: iOS AX query/tap probe
+
+# Hosted diagnostic only (docs/ios-ax-probe.md). One owned UIKit fixture, one owned
+# simulator, one fixed request sequence. It never runs Yahtzee, replays historical
+# input, retries a request or reruns itself, and it is not a quality-gate input.
+on:
+  pull_request:
+    paths:
+      - 'scripts/ios-ax-probe/**'
+      - '.github/workflows/ios-ax-probe.yml'
+      - 'docs/ios-ax-probe.md'
+  workflow_dispatch:
+    inputs:
+      device:
+        description: Owned simulator device type
+        type: choice
+        default: 'iPad Pro 13-inch (M5)'
+        options:
+          - 'iPad Pro 13-inch (M5)'
+          - 'iPhone 17'
+      fixture_main_stall_ms:
+        description: Sensitivity control only; blocks the fixture main thread after the open tap
+        type: choice
+        default: '0'
+        options:
+          - '0'
+          - '3000'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ax-probe-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: AX query/tap probe (hosted macOS)
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.12.0'
+      - name: Probe schema, budget and privacy tests
+        run: node --test scripts/ios-ax-probe/protocol.test.mjs scripts/ios-ax-probe/session.test.mjs
+      - name: Install hash-verified local Maestro CLI (same pin as quality.yml)
+        shell: bash
+        run: |
+          curl --fail --location --retry 2 --retry-all-errors https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
+          printf '%s  %s\n' '29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991' "$RUNNER_TEMP/maestro.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-tool"
+          test -x "$RUNNER_TEMP/maestro-tool/maestro/bin/maestro"
+          echo "$RUNNER_TEMP/maestro-tool/maestro/bin" >> "$GITHUB_PATH"
+          echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
+          echo "AX_PROBE_MAESTRO_ZIP=$RUNNER_TEMP/maestro.zip" >> "$GITHUB_ENV"
+          echo "AX_PROBE_MAESTRO_HOME=$RUNNER_TEMP/maestro-tool/maestro" >> "$GITHUB_ENV"
+      - name: Build the owned fixture and run one bounded probe sequence
+        timeout-minutes: 35
+        env:
+          AX_PROBE_DEVICE: ${{ inputs.device || 'iPad Pro 13-inch (M5)' }}
+          AX_PROBE_STALL_MS: ${{ inputs.fixture_main_stall_ms || '0' }}
+        run: node scripts/ios-ax-probe/run.mjs
+      - name: Close out partial stage events
+        if: ${{ always() }}
+        run: node scripts/ios-ax-probe/finalize.mjs
+      - name: Retain finite probe evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-ax-probe-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: reports/ios-ax-probe/
+          retention-days: 7
+          if-no-files-found: warn
