@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { spawnSync } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -37,6 +38,27 @@ test("only the authored reset scope forwards exact current source/run identity",
   assert.deepEqual(compactRequest(identity, 1, 4), { v: 1, invoke: 1, flow: 4, route: 1 });
   for (const id of [0, 37, 1.5]) assert.equal(compactRequest(identity, id, 4), undefined);
   assert.equal(compactRequest({}, 1, 4), undefined);
+});
+
+test("build proof rejects private source/run identities before either proof is persisted", () => {
+  const root = mkdtempSync(join(tmpdir(), "compact-proof-privacy-"));
+  try {
+    const code = `import argparse,importlib.util,json,pathlib,sys
+spec=importlib.util.spec_from_file_location('compact_prepare_control',sys.argv[1]);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+root=pathlib.Path(sys.argv[2]);args=argparse.Namespace(output=str(root/'.compact-build'),public_proof=str(root/'compact-build.json'),source_sha='private-source-value',launcher_control=False,cli_root=None,java_home=None,compiler=None,upstream=None)
+try: module.prepare(args)
+except AssertionError: pass
+for path in [root/'.compact-build/proof.json',root/'compact-build.json']:
+ text=path.read_text();assert 'private-' not in text,'PRIVATE_IDENTITY_PERSISTED'
+ value=json.loads(text);assert value['source'] is None and value['run'] is None and value['attempt'] is None
+ assert value['status']=='failed' and 'lastCommand' not in value
+print('ACTUAL_PREPARATION_IDENTITY_PRIVACY_PASS')`;
+    const result = spawnSync(process.platform === "win32" ? "python" : "python3", ["-B", "-c", code,
+      join(import.meta.dirname, "compact/prepare.py"), root], { encoding: "utf8", env: { ...process.env,
+      GITHUB_RUN_ID: "private-run-value", GITHUB_RUN_ATTEMPT: "private-attempt-value", PYTHONDONTWRITEBYTECODE: "1" } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /ACTUAL_PREPARATION_IDENTITY_PRIVACY_PASS/);
+  } finally { rmSync(root, { recursive: true }); }
 });
 
 test("metadata binds to the same original RPC id, with identical original arguments and unobserved objects", async () => {

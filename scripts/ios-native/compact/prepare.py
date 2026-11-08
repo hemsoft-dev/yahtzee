@@ -26,6 +26,10 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def identity(value, pattern):
+    return value if isinstance(value, str) and re.fullmatch(pattern, value) else None
+
+
 def regular(path, limit):
     assert path.is_file() and not path.is_symlink() and path.stat().st_size <= limit
     return path.read_bytes()
@@ -72,7 +76,9 @@ def prepare(args):
     private = root / ".private"
     private.mkdir(mode=0o700)
     proof = {"v": 1, "kind": "qualification-original-inspect-compact", "status": "building",
-             "source": args.source_sha, "run": os.environ.get("GITHUB_RUN_ID"), "attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+             "source": identity(args.source_sha, r"[a-f0-9]{40}"),
+             "run": identity(os.environ.get("GITHUB_RUN_ID"), r"[1-9][0-9]{0,19}"),
+             "attempt": identity(os.environ.get("GITHUB_RUN_ATTEMPT"), r"[1-9][0-9]{0,19}"),
              "upstream": REF, "loadedImage": "unattested", "timingPerturbed": True, "nativeAcceptance": False}
 
     def save():
@@ -102,7 +108,8 @@ def prepare(args):
     save()
     try:
         assert not args.launcher_control or os.environ.get("GITHUB_ACTIONS") != "true", "CPU-only launcher control is not a hosted route"
-        assert re.fullmatch(r"[a-f0-9]{40}", args.source_sha)
+        assert proof["source"] is not None
+        assert os.environ.get("GITHUB_ACTIONS") != "true" or (proof["run"] is not None and proof["attempt"] is not None)
         executable = shutil.which("maestro")
         cli = Path(args.cli_root).resolve() if args.cli_root else Path(executable).resolve().parent.parent
         assert executable or args.cli_root
