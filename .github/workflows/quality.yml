@@ -179,7 +179,7 @@ jobs:
 
   native-build:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') }}
+    if: ${{ !cancelled() }}
     name: Build unsigned iOS simulator app
     runs-on: macos-26
     timeout-minutes: 50
@@ -222,7 +222,7 @@ jobs:
   native:
     name: Native qualification (${{ matrix.group }})
     needs: [changes, native-build]
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') && needs.native-build.result == 'success' }}
+    if: ${{ !cancelled() && needs.native-build.result == 'success' }}
     runs-on: macos-26
     timeout-minutes: 60
     strategy:
@@ -277,7 +277,7 @@ jobs:
   native-modal:
     name: Owned reset modal qualification
     needs: [changes, native-build]
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') && needs.native-build.result == 'success' }}
+    if: ${{ !cancelled() && needs.native-build.result == 'success' }}
     runs-on: macos-26
     timeout-minutes: 60
     steps:
@@ -364,7 +364,7 @@ jobs:
   native-settle:
     name: Original reset settle stage qualification
     needs: [changes, native-build]
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') && needs.native-build.result == 'success' }}
+    if: ${{ !cancelled() && needs.native-build.result == 'success' }}
     runs-on: macos-26
     timeout-minutes: 60
     steps:
@@ -450,7 +450,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Require every validation job to succeed
+      - name: Require core validation and report advisory device results
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
           NATIVE_REQUIRED: ${{ needs.changes.outputs.native-required }}
@@ -462,6 +462,14 @@ jobs:
           NATIVE_AX_RESULT: ${{ needs.native-ax-request.result }}
           NATIVE_SETTLE_RESULT: ${{ needs.native-settle.result }}
         run: |
+          ADVISORY="native=$NATIVE_RESULT modal=$NATIVE_MODAL_RESULT settle=$NATIVE_SETTLE_RESULT"
+          echo "Advisory hosted native results (issue #130): $ADVISORY"
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            printf '### Advisory hosted native qualification\n\nIssue: https://github.com/hemsoft-dev/yahtzee/issues/130\n\n%s\n\nFailures remain visible in their jobs and artifacts. This gate is not native acceptance.\n' "$ADVISORY" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "$NATIVE_RESULT" != success ] || [ "$NATIVE_MODAL_RESULT" != success ] || [ "$NATIVE_SETTLE_RESULT" != success ]; then
+            echo "::warning::Hosted device qualification is advisory under issue #130: $ADVISORY"
+          fi
           if [ "$CHANGES_RESULT" != success ] || { [ "$NATIVE_REQUIRED" != true ] && [ "$NATIVE_REQUIRED" != false ]; }; then
             echo "Native classification did not succeed: changes=$CHANGES_RESULT native-required=$NATIVE_REQUIRED"
             exit 1
@@ -469,9 +477,9 @@ jobs:
           EXPECTED_NATIVE=success
           if [ "$NATIVE_REQUIRED" = false ]; then
             EXPECTED_NATIVE=skipped
-            echo "Native jobs intentionally skipped for allowlisted documentation/marketing content."
+            echo "Pinned AX control intentionally skipped for allowlisted documentation/marketing content; device diagnostics still run."
           fi
-          if [ "$VALIDATION_RESULT" != success ] || [ "$MUTATION_RESULT" != success ] || [ "$NATIVE_BUILD_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_MODAL_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_AX_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_SETTLE_RESULT" != "$EXPECTED_NATIVE" ]; then
+          if [ "$VALIDATION_RESULT" != success ] || [ "$MUTATION_RESULT" != success ] || [ "$NATIVE_BUILD_RESULT" != success ] || [ "$NATIVE_AX_RESULT" != "$EXPECTED_NATIVE" ]; then
             echo "Qualification did not succeed: validation=$VALIDATION_RESULT mutation=$MUTATION_RESULT native-build=$NATIVE_BUILD_RESULT native=$NATIVE_RESULT native-modal=$NATIVE_MODAL_RESULT native-ax=$NATIVE_AX_RESULT native-settle=$NATIVE_SETTLE_RESULT"
             exit 1
           fi

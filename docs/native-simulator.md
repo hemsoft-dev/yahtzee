@@ -37,7 +37,7 @@ The runner inspects the actual app's privacy manifests, purpose strings, update 
 
 ## Native interaction matrix
 
-CI compiles once with `--build-only`, then downloads that same run's artifact into four test jobs: `phone-5`, `phone-6`, `tablet-8` and `tablet-10`. Each runs `--test-group=<group>` after verifying the build's source, workflow run, architecture, Bun lock, app identity and every retained file hash. Archive extraction rejects traversal, links and special files. A stale or refresh-only build cannot feed qualification. Every group remains required by the quality gate.
+CI compiles once with `--build-only`, then downloads that same run's artifact into four test jobs: `phone-5`, `phone-6`, `tablet-8` and `tablet-10`. Each runs `--test-group=<group>` after verifying the build's source, workflow run, architecture, Bun lock, app identity and every retained file hash. Archive extraction rejects traversal, links and special files. A stale or refresh-only build cannot feed qualification. Every group still runs. Its outcome is temporarily advisory to the quality gate under [issue #130](https://github.com/hemsoft-dev/yahtzee/issues/130); failures and artifacts remain visible. The native build and AX control remain required.
 
 Each group completes solo and three-AI games for its mode. Phone 6 and tablet 10 also cover largest text; tablet 10 covers corrupt-document/database recovery. Group tests prove the ten scenarios are assigned exactly once. This avoids repeating compilation and prevents the measured serial workload from exceeding a one-hour job.
 

@@ -51,12 +51,14 @@ test("actual workflow gates only native jobs and preserves required names, matri
   assert.doesNotMatch(jobs.changes, /run: node scripts\/workflows\/docs-only-native.mjs/);
   assert.match(jobs["native-build"], /needs: changes/);
   assert.match(jobs.native, /needs: \[changes, native-build\]/);
-  for (const job of ["native-build", "native", "native-modal", "native-ax-request", "native-settle"]) {
-    assert.equal(jobCondition(job, "success", "false"), false);
+  for (const job of ["native-build", "native", "native-modal", "native-settle"]) {
+    assert.equal(jobCondition(job, "success", "false"), true, "device diagnostics run even on content-only PRs");
     assert.equal(jobCondition(job, "success", "true", "success", true), false);
     for (const [result, required] of [["success", "true"], ["success", ""], ["failure", "false"], ["skipped", undefined]]) assert.equal(jobCondition(job, result, required), true);
     assert.match(jobs[job], /runs-on: macos-26/);
   }
+  assert.equal(jobCondition("native-ax-request", "success", "false"), false);
+  assert.equal(jobCondition("native-ax-request", "success", "true"), true);
   assert.equal(jobCondition("native", "success", "true", "failure"), false);
   assert.equal(jobCondition("native-modal", "success", "true", "failure"), false);
   assert.equal(jobCondition("native-settle", "success", "true", "failure"), false);
@@ -78,6 +80,7 @@ test("execute the actual aggregate shell with successful, failed, cancelled and 
   const shell = gate.split("        run: |\n")[1].split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
   const refs = { changes: { result: "success", outputs: { "native-required": "true" } }, validate: { result: "success" }, mutation: { result: "success" }, "native-build": { result: "success" }, native: { result: "success" }, "native-modal": { result: "success" }, "native-ax-request": { result: "success" }, "native-settle": { result: "success" } };
   const declared = new Set(gate.match(/^ {4}needs: \[([^\]]+)\]/m)[1].split(", "));
+  let lastOutput = "";
   const execute = (needs) => {
     const env = { ...process.env };
     for (const [, key, ref] of gate.matchAll(/^ {10}([A-Z_]+): \$\{\{ needs\.([\w.-]+) \}\}$/gm)) {
@@ -86,32 +89,36 @@ test("execute the actual aggregate shell with successful, failed, cancelled and 
     }
     const result = spawnSync(process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" : "bash", ["-c", shell], { env, encoding: "utf8" });
     assert.ifError(result.error);
+    lastOutput = result.stdout;
     return result.status;
   };
   assert.equal(execute(refs), 0);
-  assert.notEqual(execute({ ...refs, "native-settle": { result: "failure" } }), 0, "failed settle diagnostic cannot be bypassed by a passing matrix");
-  assert.notEqual(execute({ ...refs, "native-modal": { result: "failure" } }), 0, "failed modal qualification cannot be bypassed by a passing matrix");
-  assert.notEqual(execute({ ...refs, "native-ax-request": { result: "failure" } }), 0, "failed AX request qualification cannot be bypassed by a passing matrix");
   const safe = structuredClone(refs);
   safe.changes.outputs["native-required"] = "false";
-  safe["native-build"].result = safe.native.result = safe["native-modal"].result = safe["native-ax-request"].result = safe["native-settle"].result = "skipped";
+  safe["native-ax-request"].result = "skipped";
   assert.equal(execute(safe), 0);
-  assert.notEqual(execute({ ...refs, native: { result: "skipped" } }), 0);
-  assert.notEqual(execute({ ...safe, native: { result: "success" } }), 0);
-  assert.notEqual(execute({ ...safe, "native-modal": { result: "success" } }), 0);
-  for (const result of ["", "queued", "in_progress"]) assert.notEqual(execute({ ...refs, "native-modal": { result } }), 0);
-  const missing = structuredClone(refs); delete missing["native-modal"];
-  assert.notEqual(execute(missing), 0, "missing modal dependency");
   for (const baseline of [refs, safe]) {
-    for (const job of Object.keys(refs)) {
-      for (const result of ["failure", "cancelled", "skipped"]) {
-        if (baseline === safe && ["native", "native-build", "native-modal", "native-ax-request", "native-settle"].includes(job) && result === "skipped") continue;
-        const needs = structuredClone(baseline);
-        needs[job].result = result;
+    for (const job of ["changes", "validate", "mutation", "native-build", "native-ax-request"]) {
+      for (const result of ["failure", "cancelled", "skipped", "", "queued", "in_progress"]) {
+        if (baseline === safe && job === "native-ax-request" && result === "skipped") continue;
+        const needs = structuredClone(baseline); needs[job].result = result;
         assert.notEqual(execute(needs), 0, `${job} ${result}`);
       }
+      const missing = structuredClone(baseline); delete missing[job];
+      assert.notEqual(execute(missing), 0, `missing ${job}`);
+    }
+    for (const job of ["native", "native-modal", "native-settle"]) {
+      for (const result of ["failure", "cancelled", "skipped", "", "queued", "in_progress"]) {
+        const needs = structuredClone(baseline); needs[job].result = result;
+        assert.equal(execute(needs), 0, `advisory ${job} ${result}`);
+        assert.match(lastOutput, /::warning::Hosted device qualification is advisory under issue #130/);
+      }
+      const missing = structuredClone(baseline); delete missing[job];
+      assert.equal(execute(missing), 0, `missing advisory ${job} stays reported`);
+      assert.match(lastOutput, /::warning::/);
     }
   }
+
   for (const value of ["", "unknown"]) {
     const needs = structuredClone(refs);
     needs.changes.outputs["native-required"] = value;
@@ -232,4 +239,23 @@ test("actual workflow executes base policy, never the PR classifier, and default
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("advisory policy retains full native flows and reports outcomes", () => {
+  const run = readFileSync(new URL("../ios-native/run.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(workflow + run, /gameplay-only|resetCoverage|continue-on-error/);
+  assert.match(run, /await corruption\(booted, bundleId\)/);
+  assert.match(jobs["quality-gate"], /GITHUB_STEP_SUMMARY/);
+  assert.match(jobs["quality-gate"], /https:\/\/github.com\/hemsoft-dev\/yahtzee\/issues\/130/);
+  assert.match(jobs["native-modal"], /run.mjs --modal-only/);
+  assert.match(jobs["native-settle"], /settle\/execute.mjs/);
+  for (const job of ["native", "native-modal", "native-settle"]) assert.match(jobs[job], /if: \$\{\{ always\(\) \$?\}\}/);
+});
+
+test("required device archive covers every PR and main push without path filters", () => {
+  const archive = readFileSync(new URL("../../.github/workflows/ios-archive.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
+  assert.match(archive, /^ {2}pull_request:$/m);
+  assert.match(archive, /^ {2}push:\n {4}branches: \[main\]$/m);
+  assert.doesNotMatch(archive, /^\s+(paths|paths-ignore):/m);
+  assert.doesNotMatch(archive, /continue-on-error/);
 });

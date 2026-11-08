@@ -4,7 +4,7 @@ Refs [#41](https://github.com/hemsoft-dev/yahtzee/issues/41) and
 [#102](https://github.com/hemsoft-dev/yahtzee/issues/102). This qualification copy adds observation and fixes nothing.
 The original native matrix, owned-modal job, app, reset search, assertions,
 60-second search budget, 30-inspection bound and gestures remain unchanged.
-The separate stage job is also required by the aggregate.
+The separate stage job runs automatically but is temporarily advisory to the aggregate under [issue #130](https://github.com/hemsoft-dev/yahtzee/issues/130). Its real outcome and artifacts remain visible; no reset flow or assertion is skipped.
 
 ## Retained occurrence
 
