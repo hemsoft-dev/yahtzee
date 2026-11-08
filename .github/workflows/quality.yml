@@ -271,9 +271,43 @@ jobs:
           path: reports/comparison-build/proof.json
           retention-days: 1
           if-no-files-found: warn
+      - name: Read the pinned original assertion source for phone5 observation
+        if: ${{ matrix.group == 'phone-5' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mobile-dev-inc/maestro
+          ref: 14a408335e17a090df1e26bdbeaf80d8122a8fd8
+          path: reports/assertion-source
+          sparse-checkout: maestro-orchestra/src/main/java/maestro/orchestra
+          persist-credentials: false
+          set-safe-directory: false
+      - name: Acquire the hash-pinned assertion build compiler once
+        if: ${{ matrix.group == 'phone-5' }}
+        shell: bash
+        run: curl --fail --location https://github.com/JetBrains/kotlin/releases/download/v2.2.0/kotlin-compiler-2.2.0.zip -o "$RUNNER_TEMP/assertion-compiler.zip"
+      - name: Require original assertion and matcher forwarding controls
+        if: ${{ matrix.group == 'phone-5' }}
+        run: >-
+          python3 -B scripts/ios-native/assertion/stage.py
+          --source reports/assertion-source
+          --cli-root "$RUNNER_TEMP/maestro-tool/maestro"
+          --java-home "$JAVA_HOME"
+          --archive "$RUNNER_TEMP/maestro.zip"
+          --compiler "$RUNNER_TEMP/assertion-compiler.zip"
+          --output reports/assertion-build
+      - name: Retain finite assertion toolchain identity
+        if: ${{ always() && matrix.group == 'phone-5' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-assertion-source-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/assertion-build/proof.json
+          retention-days: 1
+          if-no-files-found: warn
       - name: Verify the app and exercise this device group
         env:
           NATIVE_TEST_GROUP: ${{ matrix.group }}
+          THIRDROLL_ASSERT_ENABLE: ${{ matrix.group == 'phone-5' && '1' || '0' }}
+          THIRDROLL_ASSERT_SOURCE: ${{ github.event.pull_request.head.sha || github.sha }}
         run: bun scripts/ios-native/run.mjs "--test-group=$NATIVE_TEST_GROUP"
       - name: Freeze partial evidence if native execution ended early
         if: ${{ always() }}

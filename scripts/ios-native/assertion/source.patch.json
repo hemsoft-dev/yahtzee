@@ -1,0 +1,114 @@
+{
+  "v": 1,
+  "ref": "14a408335e17a090df1e26bdbeaf80d8122a8fd8",
+  "path": "maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt",
+  "originalSHA256": "e7c42f0bba4e837555b11a536a9e9b77ef35b8f89e628422c846940d7624c441",
+  "patchedSHA256": "96b0f5ae0d5bb5710dc78473fe9a2308f1f0eb684d155b2dbbfbc1a3387b476d",
+  "edits": [
+    {
+      "start": 12604,
+      "end": 12604,
+      "line": 328,
+      "old": "",
+      "new": ", QualificationAssertResult.context(index, evaluatedCommand)"
+    },
+    {
+      "start": 15401,
+      "end": 15401,
+      "line": 384,
+      "old": "",
+      "new": "= executeCommand(maestroCommand, config, null)\n\n    private suspend fun executeCommand(maestroCommand: MaestroCommand, config: MaestroConfig?, assertionObservation: QualificationAssertResult.Context?): Boolean "
+    },
+    {
+      "start": 16682,
+      "end": 16682,
+      "line": 411,
+      "old": "",
+      "new": ", assertionObservation"
+    },
+    {
+      "start": 21355,
+      "end": 21355,
+      "line": 513,
+      "old": "",
+      "new": "= assertConditionCommand(command, null)\n\n    private suspend fun assertConditionCommand(command: AssertConditionCommand, assertionObservation: QualificationAssertResult.Context?): Boolean {\n        val assertionScope = QualificationAssertResult.begin(assertionObservation, command)\n        try "
+    },
+    {
+      "start": 21959,
+      "end": 21959,
+      "line": 523,
+      "old": "",
+      "new": "QualificationAssertResult.result(assertionScope, "
+    },
+    {
+      "start": 22051,
+      "end": 22051,
+      "line": 523,
+      "old": "",
+      "new": ", assertionObservation = assertionScope)"
+    },
+    {
+      "start": 22344,
+      "end": 22344,
+      "line": 531,
+      "old": "",
+      "new": "\n        } catch (error: Throwable) {\n            QualificationAssertResult.failed(assertionScope, error)\n            throw error\n        } finally {\n            QualificationAssertResult.end(assertionScope)\n        }"
+    },
+    {
+      "start": 43938,
+      "end": 43938,
+      "line": 1015,
+      "old": "",
+      "new": "condition: Condition?, commandOptional: Boolean, timeoutMs: Long? = null): Boolean = evaluateCondition(condition, commandOptional, timeoutMs, null)\n\n    private suspend fun evaluateCondition("
+    },
+    {
+      "start": 44035,
+      "end": 44035,
+      "line": 1018,
+      "old": "",
+      "new": ",\n        assertionObservation: QualificationAssertResult.Context?"
+    },
+    {
+      "start": 45128,
+      "end": 45128,
+      "line": 1060,
+      "old": "",
+      "new": "    assertionObservation = assertionObservation,\n                "
+    },
+    {
+      "start": 45597,
+      "end": 45597,
+      "line": 1072,
+      "old": "",
+      "new": ",\n                        assertionObservation = assertionObservation"
+    },
+    {
+      "start": 59224,
+      "end": 59224,
+      "line": 1422,
+      "old": "",
+      "new": "selector: ElementSelector, optional: Boolean, timeoutMs: Long? = null): FindElementResult = findElement(selector, optional, timeoutMs, null)\n\n    private suspend fun findElement("
+    },
+    {
+      "start": 59318,
+      "end": 59318,
+      "line": 1425,
+      "old": "",
+      "new": ",\n        assertionObservation: QualificationAssertResult.Context?"
+    },
+    {
+      "start": 59556,
+      "end": 59557,
+      "line": 1433,
+      "old": "f",
+      "new": "originalF"
+    },
+    {
+      "start": 59601,
+      "end": 59601,
+      "line": 1433,
+      "old": "",
+      "new": ")\n        val filterFunc = QualificationAssertResult.filter(assertionObservation, originalFilterFunc"
+    }
+  ]
+}

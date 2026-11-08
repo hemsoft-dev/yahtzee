@@ -1,0 +1,10 @@
+appId: "com.hemsoft.thirdroll"
+---
+- tapOn: {"text":"Solo","enabled":true,"retryTapIfNoChange":false}
+- waitForAnimationToEnd: {"timeout":5000}
+- assertNotVisible: "Current: .*"
+- waitForAnimationToEnd: {"timeout":5000}
+- scrollUntilVisible: {"element":{"text":"Dice count"},"direction":"DOWN","timeout":60000,"visibilityPercentage":100}
+- waitForAnimationToEnd: {"timeout":5000}
+- tapOn: {"text":"Dice count","enabled":true,"retryTapIfNoChange":false}
+- assertVisible: "Current: .*"

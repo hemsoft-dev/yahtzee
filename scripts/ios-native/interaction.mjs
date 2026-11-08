@@ -7,6 +7,7 @@ import { redactDriverLog, retainXCTestLogs } from "./driverLogs.mjs";
 import { captureDriverEvidence, prepareDriverScratch, unavailableDriverEvidence } from "./driverEvidence.mjs";
 import { resetAXGeometry } from "./resetAXGeometry.mjs";
 import { captureChildEnvironment } from "./comparison/state.mjs";
+import { assertionEnvironment, retainAssertionResults } from "./assertion/retention.mjs";
 
 /** One bounded local driver session for the owned simulator. */
 export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay, evidenceWorker }) {
@@ -36,6 +37,8 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   const childEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
     /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|JAVA_HOME|DEVELOPER_DIR|LANG|LC_ALL|MAESTRO_CLI_NO_ANALYTICS|MAESTRO_DISABLE_UPDATE_CHECK|MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED|MAESTRO_DRIVER_STARTUP_TIMEOUT)$/.test(key)));
   Object.assign(childEnv, captureChildEnvironment(env, prefix, directory));
+  const assertionIdentity = assertionEnvironment(env, prefix, directory);
+  Object.assign(childEnv, assertionIdentity);
   // An isolated hidden state directory keeps raw driver output out of published evidence.
   const state = join(directory, `.${prefix}-driver-state`);
   mkdirSync(state, { recursive: true });
@@ -169,6 +172,8 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
       } catch (error) { diagnosticFailed = true; diagnosticError = error; }
       try { writeFileSync(join(directory, `${prefix}-mcp.log`), redactDriverLog(diagnostics, env)); }
       catch (error) { diagnosticFailed = true; diagnosticError = error; }
+      try { retainAssertionResults(diagnostics, assertionIdentity, directory); }
+      catch { /* Optional typed retention cannot replace the original interaction outcome. */ }
     }
   }
   if (shutdownFailed) throw shutdownError;
