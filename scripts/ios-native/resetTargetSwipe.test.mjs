@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { resetActionPosition, revealResetAction } from "./reset.mjs";
+import { resetActionPosition, revealResetAction, createResetSwipeApproach } from "./reset.mjs";
 
 const captured = () => JSON.parse(readFileSync(new URL("./fixtures/reset-partial-target-f88.json", import.meta.url)));
 const stalled = () => JSON.parse(readFileSync(new URL("./fixtures/reset-stalled-target-9a89.json", import.meta.url)));
@@ -136,7 +136,9 @@ test("retained repeated AX geometry restores the original span within the next e
   assert(!calls.some(e => e.tapOn));
 });
 
-test("fresh AX progress retains measured motion instead of forcing a full span", async () => {
+test("a changed AX ancestry representation does not reuse the prior shortened attempt", async () => {
+  // The retained full tree and this synthetic shallow tree have different
+  // observed ancestry. Same-target progress is covered by the retained67d0 sequence.
   const layouts = [stalled(), screen("[176,1276][856,1357]"), screen("[176,1200][856,1281]")];
   const swipes = []; let inspections = 0;
   await revealResetAction({ run: async commands => { if (commands[0].swipe) swipes.push(commands[0].swipe); },
@@ -145,8 +147,8 @@ test("fresh AX progress retains measured motion instead of forcing a full span",
 });
 
 test("the no-progress comparison also preserves the original opposite direction", () => {
-  const layout = screen("[176,70][856,151]"), first = resetActionPosition(layout);
-  const next = resetActionPosition(layout, first);
+  const layout = screen("[176,70][856,151]"), approach = createResetSwipeApproach(), first = resetActionPosition(layout, approach);
+  const next = resetActionPosition(layout, approach);
   assert.equal(displacement(first), 44); assert.equal(next.start, "516,231");
   assert.equal(next.end, "516,1231"); assert.equal(next.duration, 600);
 });

@@ -8,22 +8,44 @@ const title = "Delete all local data";
 const contains = (outer, inner, margin = 0) => inner.left >= outer.left + margin && inner.right <= outer.right - margin &&
   inner.top >= outer.top + margin && inner.bottom <= outer.bottom - margin;
 
-function resetSwipeDistance(viewport, target, maximum, previous) {
+export function createResetSwipeApproach() {
+  let identity = null, shortened = false;
+  return {
+    reset() { identity = null; shortened = false; },
+    choose(distance, maximum, nextIdentity) {
+      if (identity !== nextIdentity) { identity = nextIdentity; shortened = false; }
+      const selected = shortened ? maximum : distance;
+      if (selected < maximum) shortened = true;
+      return selected;
+    },
+  };
+}
+
+export function resetSwipeDistance(viewport, target, maximum, approach, viewportNode = null) {
   const rect = target?.rect;
-  if (!rect || rect.left < viewport.left + 8 || rect.right > viewport.right - 8) return maximum;
+  const original = () => { approach.reset(); return maximum; };
+  if (!rect || rect.left < viewport.left + 8 || rect.right > viewport.right - 8) return original();
   const clippedAbove = rect.top < viewport.top && rect.bottom > viewport.top;
   const clippedBelow = rect.bottom > viewport.bottom && rect.top < viewport.bottom;
-  if ((!clippedAbove && !clippedBelow) || !target.parents.every(parent => contains(parent.rect, rect) || contains(parent.rect, viewport))) return maximum;
-  // Identical fresh AX geometry restores the old span within this existing iteration.
-  if (previous?.action === "swipe" && ["left", "top", "right", "bottom"].every(key =>
-    previous.viewport[key] === viewport[key] && previous.target?.[key] === rect[key])) return maximum;
+  if ((!clippedAbove && !clippedBelow) || !target.parents.every(parent => contains(parent.rect, rect) || contains(parent.rect, viewport))) return original();
   // A measured coordinate displacement is a candidate, never native motion or visibility proof.
   const clipping = clippedAbove ? viewport.top - rect.top : rect.bottom - viewport.bottom;
-  return Math.min(maximum, Math.ceil(clipping + 8));
+  const distance = Math.min(maximum, Math.ceil(clipping + 8));
+  // Only available AX identity is used. Vertical position/height can change as it scrolls.
+  const identity = JSON.stringify([viewport.left, viewport.top, viewport.right, viewport.bottom, maximum,
+    clippedAbove ? "up" : "down", rect.left, rect.right, target.a11y ?? title, target.rid ?? null,
+    target.type ?? null, target.cls ?? null, target.parents.map(parent => parent.rid ?? null),
+    viewportNode && [viewportNode.rid, viewportNode.rect, viewportNode.parents.map(parent => [parent.rid ?? null, parent.rect])]]);
+  return approach.choose(distance, maximum, identity);
 }
 
 /** Search inside Help, retaining full-size text and requiring an entirely reachable action. */
-export function resetActionPosition(screen, previous = null) {
+export function resetActionPosition(screen, approach = createResetSwipeApproach()) {
+  try { return resetActionPositionInHelp(screen, approach); }
+  catch (error) { approach.reset(); throw error; }
+}
+
+function resetActionPositionInHelp(screen, approach) {
   const elements = screenElements(screen), viewportNode = uniqueElement(elements, "help-viewport");
   const viewport = { ...viewportNode.rect };
   for (const parent of viewportNode.parents) {
@@ -39,10 +61,10 @@ export function resetActionPosition(screen, previous = null) {
     assert(target.parents.includes(viewportNode), "Reset action is outside Help.");
     assert(target.rect.width <= viewport.width - 16 && target.rect.height <= viewport.height - 16, "Reset action cannot fit in Help.");
     assert(target.enabled === true || target.enabled === false, "Reset action has invalid enabled state.");
-    if (!target.enabled) return { action: "wait", viewport, target: target.rect };
+    if (!target.enabled) { approach.reset(); return { action: "wait", viewport, target: target.rect }; }
     if (contains(viewport, target.rect, 8)) {
       assert(target.parents.every((parent) => contains(parent.rect, target.rect)), "Reset action is clipped by an ancestor.");
-      return { action: "tap", viewport, target: target.rect };
+      approach.reset(); return { action: "tap", viewport, target: target.rect };
     }
   }
   const up = target && target.rect.top < viewport.top + 8;
@@ -50,14 +72,14 @@ export function resetActionPosition(screen, previous = null) {
   // The generic whole-screen search traverses only center-to-edge. Use the
   // measured scroll view's interior so long largest-text Help needs fewer scans.
   const low = Math.round(viewport.top + viewport.height * 0.9), high = Math.round(viewport.top + viewport.height * 0.1);
-  const distance = resetSwipeDistance(viewport, target, low - high, previous);
+  const distance = resetSwipeDistance(viewport, target, low - high, approach, viewportNode);
   return { action: "swipe", viewport, target: target?.rect ?? null,
     start: `${x},${up ? high : low}`, end: `${x},${up ? high + distance : low - distance}`, duration: 600 };
 }
 
 export async function revealResetAction(io, now = () => performance.now()) {
   const started = now();
-  let previous = null;
+  const approach = createResetSwipeApproach();
   const budget = () => {
     const elapsed = now() - started;
     assert(Number.isFinite(elapsed) && elapsed >= 0 && elapsed < 60000, "Reset action did not become reachable within 60000ms.");
@@ -66,12 +88,11 @@ export async function revealResetAction(io, now = () => performance.now()) {
     budget();
     await io.run([{ waitForAnimationToEnd: { timeout: 5000 } }]); budget();
     const screen = await io.inspect(); budget();
-    const decision = resetActionPosition(screen, previous); io.record({ kind: "reset-action", attempt, ...decision });
+    const decision = resetActionPosition(screen, approach); io.record({ kind: "reset-action", attempt, ...decision });
     if (decision.action === "tap") return decision.target;
     if (decision.action === "swipe") {
       await io.run([{ swipe: { start: decision.start, end: decision.end, duration: decision.duration } }]); budget();
     }
-    previous = decision;
   }
   assert.fail("Reset action did not become reachable within 30 inspections.");
 }
