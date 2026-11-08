@@ -140,18 +140,21 @@ test("v4 comparison CPU is conditional, finite, nullable and separate from elaps
   assert.equal(scoped.flowSequence, 4);
 });
 
-test("original interaction retains finite stages and preserves one submitted call and original error identity", async () => {
+test("original interaction retains finite stages and preserves one submitted call and original error identity", async (t) => {
+  // This fixture asserts correspondence, so both synthetic wall clocks share one value.
+  // Real Date.now ticks need not fit inside a performance.now duration.
+  const wallMs = 1000;
+  t.mock.method(Date, "now", () => wallMs);
   for (const fail of [false, true]) {
     const directory = fileURLToPath(new URL(`../../reports/.settle-interaction-${randomUUID()}/`, import.meta.url));
     mkdirSync(directory, { recursive: true });
     const original = new Error("synthetic original failure"); let submitted = 0;
     const invoke = nativeInteraction({ device: "fixture", bundleId: "com.hemsoft.thirdroll", directory, prefix: "reset", env: {},
-      capture: async () => {}, openSession: async ({ onStderr }) => ({
+      now: () => wallMs, capture: async () => {}, openSession: async ({ onStderr }) => ({
         close: async () => {}, call: async (name) => {
           if (name === "list_devices") return { devices: [{ device_id: "fixture", platform: "ios", connected: true }] };
           if (name === "inspect_screen") return {};
           assert.equal(name, "run"); submitted++;
-          const wallMs = Date.now();
           onStderr(log(row(0, 0, { wallMs, monoNs: 0 }), row(1, fail ? 2 : 1, { wallMs, monoNs: 1 })));
           if (fail) throw original;
           return { success: true };
