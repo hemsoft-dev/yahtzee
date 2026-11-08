@@ -2,17 +2,8 @@ name: Unsigned iOS device archive
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - '.github/workflows/ios-archive.yml'
-      - 'scripts/ios-archive/**'
-      - 'scripts/ios-native/**'
-      - 'scripts/ios-assets/**'
-      - 'apps/mobile/**'
-      - 'packages/game-engine/**'
-      - 'package.json'
-      - 'bun.lock'
-      - 'patches/**'
-      - 'tsconfig.base.json'
+  push:
+    branches: [main]
 permissions:
   contents: read
 concurrency:

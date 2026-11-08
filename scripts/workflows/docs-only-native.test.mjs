@@ -251,3 +251,11 @@ test("advisory policy retains full native flows and reports outcomes", () => {
   assert.match(jobs["native-settle"], /settle\/execute.mjs/);
   for (const job of ["native", "native-modal", "native-settle"]) assert.match(jobs[job], /if: \$\{\{ always\(\) \$?\}\}/);
 });
+
+test("required device archive covers every PR and main push without path filters", () => {
+  const archive = readFileSync(new URL("../../.github/workflows/ios-archive.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
+  assert.match(archive, /^ {2}pull_request:$/m);
+  assert.match(archive, /^ {2}push:\n {4}branches: \[main\]$/m);
+  assert.doesNotMatch(archive, /^\s+(paths|paths-ignore):/m);
+  assert.doesNotMatch(archive, /continue-on-error/);
+});
