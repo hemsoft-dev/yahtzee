@@ -1,0 +1,184 @@
+name: Reset recovery diagnostic
+
+# Temporarily outside automatic required CI. Restore under issue #130.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reset-recovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-build:
+    name: Build unsigned iOS simulator app
+    runs-on: macos-26
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.12.0'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - name: Install locked dependencies without lifecycle scripts
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Compile and inspect the source-bound Release app
+        env:
+          EXPO_PUBLIC_NATIVE_INPUT_TRACE: '1'
+          REFRESH_PODS: ${{ contains(github.event.pull_request.labels.*.name, 'native-pods-refresh') }}
+        run: |
+          if [ "$REFRESH_PODS" = true ]; then
+            bun scripts/ios-native/run.mjs --refresh-pods
+          else
+            bun scripts/ios-native/run.mjs --build-only
+          fi
+      - name: Freeze partial evidence if native execution ended early
+        if: ${{ always() }}
+        run: node scripts/ios-native/snapshot.mjs
+      - name: Retain native build or dependency-refresh evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-native-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/native-evidence/
+          retention-days: 1
+          compression-level: 9
+          if-no-files-found: warn
+
+  native-modal:
+    name: Owned reset modal qualification
+    needs: native-build
+    if: ${{ !cancelled() && needs.native-build.result == 'success' }}
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.12.0'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - name: Install locked dependencies without lifecycle scripts
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Download this run's source-bound simulator app
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ios-native-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/native-build/
+      - name: Install hash-verified local Maestro CLI
+        shell: bash
+        run: |
+          curl --fail --location --retry 2 --retry-all-errors https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
+          printf '%s  %s\n' '29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991' "$RUNNER_TEMP/maestro.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-tool"
+          test -x "$RUNNER_TEMP/maestro-tool/maestro/bin/maestro"
+          echo "$RUNNER_TEMP/maestro-tool/maestro/bin" >> "$GITHUB_PATH"
+          echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
+      - name: Exercise the real corruption and owned confirmation without gameplay
+        run: bun scripts/ios-native/run.mjs --modal-only
+      - name: Freeze partial evidence if native execution ended early
+        if: ${{ always() }}
+        run: node scripts/ios-native/snapshot.mjs
+      - name: Retain isolated modal qualification and failure evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-native-owned-modal-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/native-evidence/
+          retention-days: 1
+          compression-level: 9
+          if-no-files-found: warn
+
+  native-settle:
+    name: Original reset settle stage qualification
+    needs: native-build
+    if: ${{ !cancelled() && needs.native-build.result == 'success' }}
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.12.0'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - name: Install locked dependencies without lifecycle scripts
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Read the exact pinned client source for the qualification copy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mobile-dev-inc/maestro
+          ref: 14a408335e17a090df1e26bdbeaf80d8122a8fd8
+          path: reports/settle-source
+          sparse-checkout: maestro-client/src/main/java/maestro
+          persist-credentials: false
+          set-safe-directory: false
+      - name: Download this run's source-bound simulator app
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ios-native-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/native-build/
+      - name: Acquire the original package and pinned build compiler once
+        shell: bash
+        run: |
+          curl --fail --location https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
+          curl --fail --location https://github.com/JetBrains/kotlin/releases/download/v2.2.0/kotlin-compiler-2.2.0.zip -o "$RUNNER_TEMP/kotlin-compiler-2.2.0.zip"
+          echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
+      - name: Verify hashes, build the observed copy and require actual JVM controls
+        run: >-
+          python3 scripts/ios-native/settle/stage.py
+          --source reports/settle-source
+          --archive "$RUNNER_TEMP/maestro.zip"
+          --compiler "$RUNNER_TEMP/kotlin-compiler-2.2.0.zip"
+          --java-home "$JAVA_HOME"
+          --output reports/.settle-cli
+      - name: Run the original isolated reset route once with scoped settle observation
+        run: node scripts/ios-native/settle/execute.mjs
+      - name: Freeze partial native evidence without replay
+        if: ${{ always() }}
+        run: node scripts/ios-native/snapshot.mjs
+      - name: Preserve the finite staging proof even if native execution was not reached
+        if: ${{ always() }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { existsSync, mkdirSync, copyFileSync } from 'node:fs';
+          const source = 'reports/.settle-cli/staging-proof.json';
+          const target = 'reports/settle-stage-evidence/staging-proof.json';
+          if (existsSync(source) && !existsSync(target)) {
+            mkdirSync('reports/settle-stage-evidence', { recursive: true });
+            copyFileSync(source, target);
+          }
+          NODE
+      - name: Retain finite stages and build identity
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-native-settle-stages-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/settle-stage-evidence/
+          retention-days: 1
+          if-no-files-found: warn
+      - name: Retain the independently bound native route evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-native-settle-route-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/native-evidence/
+          retention-days: 1
+          compression-level: 9
+          if-no-files-found: warn
+
