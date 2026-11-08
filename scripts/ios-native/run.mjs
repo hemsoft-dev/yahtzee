@@ -22,19 +22,17 @@ import { startHostTelemetry } from "./hostTelemetry.mjs";
 import { retainNativeCancellation } from "./nativeCancelRetention.mjs";
 import { retainCorruptionMarker, retainNativeModal, withModalRetention } from "./nativeModalRetention.mjs";
 import { modalRouteRequested, ownedModalCapability, qualifyOwnedModal } from "./modalRoute.mjs";
-import { resetCoverage } from "./resetCoverage.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
 const architecture = process.arch === "arm64" ? "arm64" : "x86_64";
 const args = process.argv.slice(2);
 const modalOnly = modalRouteRequested(args);
-assert(args.every((arg) => ["--build-only", "--refresh-pods", "--modal-only", "--gameplay-only", ...GROUPS.map((group) => `--test-group=${group}`)].includes(arg)), "Unknown native qualification argument.");
+assert(args.every((arg) => ["--build-only", "--refresh-pods", "--modal-only", ...GROUPS.map((group) => `--test-group=${group}`)].includes(arg)), "Unknown native qualification argument.");
 const groupArgs = args.filter((arg) => arg.startsWith("--test-group=")); assert(groupArgs.length <= 1);
 const group = groupArgs[0]?.slice("--test-group=".length);
 const refreshPodLock = args.includes("--refresh-pods");
 const buildOnly = args.includes("--build-only") || refreshPodLock;
-const recoveryCoverage = resetCoverage(args, { group, buildOnly, modalOnly });
 assert(!(group && buildOnly), "Build and test-only modes cannot be combined.");
 const selectedScenarios = group ? scenariosForGroup(group) : scenarios;
 const root = resolve(import.meta.dirname, "../..");
@@ -58,7 +56,7 @@ function run(executable, commandArgs, { cwd = root, capture = false, timeout = 1
 const sim = (...commandArgs) => run("xcrun", ["simctl", ...commandArgs], { capture: true, timeout: commandArgs[0] === "bootstatus" ? 600000 : 180000 });
 const receipt = { schemaVersion: 1, kind: buildOnly ? "unsigned-ios-simulator-build" : "unsigned-ios-simulator-tests", status: "running", source: run("git", ["rev-parse", "HEAD"], { capture: true }),
   startedAt: new Date().toISOString(), runId: process.env.GITHUB_RUN_ID ?? null, runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
-  runnerImage: process.env.ImageVersion ?? null, architecture, group: group ?? null, resetCoverage: recoveryCoverage, scenarios: [],
+  runnerImage: process.env.ImageVersion ?? null, architecture, group: group ?? null, scenarios: [],
   limits: ["Not a signed device archive", "Not TestFlight or physical-device evidence", "No airplane-mode or VoiceOver acceptance claim", "Public identity and release approvals remain unset", "Raw hidden debug trees are excluded; selected driver logs are sanitized and retained"] };
 if (modalOnly) {
   receipt.kind = "unsigned-ios-owned-modal-tests";
@@ -225,7 +223,7 @@ async function exercise(app, bundleId) {
     await stopRecording();
     result.status = "passed"; result.resumeDocumentSha256 = hash(resumedBytes); checkpoint();
   }
-  if (recoveryCoverage.status === "required" && (!group || group === "tablet-10")) { receipt.phase = "corruption-and-reset"; checkpoint(); await corruption(booted, bundleId); }
+  if (!group || group === "tablet-10") { receipt.phase = "corruption-and-reset"; checkpoint(); await corruption(booted, bundleId); }
   assert.equal(receipt.scenarios.length, selectedScenarios.length);
   assert(receipt.scenarios.every((scenario) => scenario.status === "passed"));
 }
