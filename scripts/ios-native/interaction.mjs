@@ -8,6 +8,7 @@ import { captureDriverEvidence, prepareDriverScratch, unavailableDriverEvidence 
 import { resetAXGeometry } from "./resetAXGeometry.mjs";
 import { captureChildEnvironment } from "./comparison/state.mjs";
 import { assertionEnvironment, retainAssertionResults } from "./assertion/retention.mjs";
+import { compactChildEnvironment, compactCollector, compactRequest } from "./compact/retention.mjs";
 
 /** One bounded local driver session for the owned simulator. */
 export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay, evidenceWorker }) {
@@ -39,6 +40,9 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
   Object.assign(childEnv, captureChildEnvironment(env, prefix, directory));
   const assertionIdentity = assertionEnvironment(env, prefix, directory);
   Object.assign(childEnv, assertionIdentity);
+  const compactIdentity = compactChildEnvironment(env, prefix, directory);
+  Object.assign(childEnv, compactIdentity);
+  let compact, compactInvoke = 0;
   // An isolated hidden state directory keeps raw driver output out of published evidence.
   const state = join(directory, `.${prefix}-driver-state`);
   mkdirSync(state, { recursive: true });
@@ -68,10 +72,10 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
       catch { diagnostics += "\nDriver identity retention unavailable.\n"; }
     }
   }
-  async function call(name, args) {
+  async function call(name, args, observation) {
     assert(now() < deadline, "Native interaction exceeded its bounded session budget.");
     const started = Date.now(), monotonicStarted = performance.now(); let outcome = "threw";
-    try { const result = await client.call(name, args); outcome = "returned"; return result; }
+    try { const result = observation ? await client.call(name, args, observation) : await client.call(name, args); outcome = "returned"; return result; }
     catch (error) {
       // A later read-only failure cannot turn an already submitted scenario into startup.
       if (sequence > 0 && error instanceof MaestroError && error.failureClass === "transport-startup") {
@@ -85,7 +89,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     }
   }
   async function inspect() {
-    const screen = await call("inspect_screen", { device_id: device });
+    const screen = await call("inspect_screen", { device_id: device }, compactRequest(compactIdentity, ++compactInvoke, sequence));
     writeFileSync(join(directory, `${prefix}-screen-latest.json`), JSON.stringify(screen, null, 2) + "\n");
     retainResetAX(screen);
     return screen;
@@ -120,7 +124,10 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
         scratch = isolatedState ? prepareDriverScratch(childEnv.XDG_STATE_HOME) : { reason: "state-unavailable" }; evidenceCaptured = false;
         delete childEnv.MAESTRO_OPTS;
         if (scratch.option) childEnv.MAESTRO_OPTS = scratch.option;
-        client = await openSession({ cwd: directory, env: childEnv, deadline, onStderr: (text) => { diagnostics += text.slice(0, Math.max(0, 262144 - diagnostics.length)); } });
+        compactInvoke = 0;
+        const ordinaryStderr = (text) => { diagnostics += text.slice(0, Math.max(0, 262144 - diagnostics.length)); };
+        compact = compactIdentity.THIRDROLL_COMPACT_SOURCE ? compactCollector(compactIdentity, ordinaryStderr) : undefined;
+        client = await openSession({ cwd: directory, env: childEnv, deadline, onStderr: (text) => { if (compact) compact.feed(text); else ordinaryStderr(text); } });
         operation = "list_devices";
         const devices = await call("list_devices", {});
         assert(devices.devices?.some((item) => item.device_id === device && item.platform === "ios" && item.connected === true), "Owned simulator is not connected to Maestro.");
@@ -134,6 +141,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
           && error.recoverySafe !== false && sequence === 0 && attempt < recovery.maxAttempts;
         if (!retry) throw error;
         // Retire the old process before another connection. Late replies cannot authorize a flow.
+        compact?.retain(directory, undefined, attempt);
         await retainIdentity();
         await client?.close(); client = undefined;
         const waitMs = 1000 * attempt;
@@ -151,6 +159,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     try { await capture(`${prefix}-failure`); } catch { /* Preserve the original error; the runner also reads the saved document. */ }
     throw error;
   } finally {
+    compact?.retain(directory, undefined, recovery.attempts.length);
     if (resetAXFile !== undefined) { try { closeSync(resetAXFile); } catch { /* Advisory retention cannot replace the original outcome. */ } }
     // The driver deletes registered temporary files at close. Read metadata first,
     // within the existing interaction deadline, shutdown reserve and shared five-second cap.

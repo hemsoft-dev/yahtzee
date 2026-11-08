@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { bindCompactRequest } from "./compact/retention.mjs";
 
 /** Codes are assigned at the protocol boundary, never inferred by the retry loop. */
 export class MaestroError extends Error {
@@ -61,14 +62,14 @@ export function rpcClient(child, { timeoutMs = 300000, maxBytes = 8 * 1024 * 102
   const stopped = new Promise((resolve) => child.once("close", (code, signal) => {
     fail(new Error(`Local Maestro exited: ${code ?? signal}.`)); resolve();
   }));
-  function request(method, params) {
+  function request(method, params, observation) {
     if (Date.now() >= deadline) return Promise.reject(new MaestroError("deadline-exhausted", method, "deadline"));
     if (failure || closing) return Promise.reject(failure ?? new Error("Local Maestro is closing."));
     return new Promise((resolve, reject) => {
       const id = ++nextId;
       const timer = setTimeout(() => fail(new MaestroError("rpc-timeout", params?.name ?? method, params?.name === "run" ? "transport-uncertain" : "transport-startup")), Math.max(1, Math.min(timeoutMs, deadline - Date.now())));
       pending.set(id, { resolve, reject, timer });
-      try { send({ jsonrpc: "2.0", id, method, params }); } catch (error) { fail(error); }
+      try { send({ jsonrpc: "2.0", id, method, params: bindCompactRequest(method, params, observation, id) }); } catch (error) { fail(error); }
     });
   }
   async function close() {
@@ -106,9 +107,9 @@ export async function localMaestro({ cwd, env, onStderr, deadline, start = spawn
     }
     throw error;
   }
-  async function call(name, args = {}) {
+  async function call(name, args = {}, observation) {
     assert(localTools.has(name), "Only local native qualification tools are permitted.");
-    const result = await client.request("tools/call", { name, arguments: args });
+    const result = await client.request("tools/call", { name, arguments: args }, observation);
     if (result.isError) {
       onStderr(`\nLocal ${name} error: ${JSON.stringify(result.content).slice(0, 8192)}\n`);
       throw toolFailure(name, result);

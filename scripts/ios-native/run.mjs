@@ -24,6 +24,7 @@ import { retainNativeScroll } from "./nativeScrollRetention.mjs";
 import { retainCorruptionMarker, retainNativeModal, withModalRetention } from "./nativeModalRetention.mjs";
 import { modalRouteRequested, ownedModalCapability, qualifyOwnedModal } from "./modalRoute.mjs";
 import { captureEnvironment, retainState } from "./comparison/state.mjs";
+import { compactEnvironment } from "./compact/retention.mjs";
 
 assert.equal(process.platform, "darwin", "Native qualification requires macOS, Xcode and iOS simulators.");
 assert(["arm64", "x64"].includes(process.arch), "Unsupported simulator host architecture.");
@@ -105,7 +106,7 @@ async function corruption(device, bundleId) {
     const observation = { id: `corrupt-save/${name}`, udid: device, nativeObservationStartedAtMs: Date.now() };
     (receipt.nativeCorruptionObservations ??= []).push(observation);
     return withModalRetention(() => nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset",
-        env: captureEnvironment(env, name, resetDirectory, modalOnly, receipt.source), report: recordRecovery,
+        env: compactEnvironment(captureEnvironment(env, name, resetDirectory, modalOnly, receipt.source), name, receipt.source), report: recordRecovery,
         capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
         exercise: (io) => confirmReset(bundleId, io) }), () => {
       if (modalOnly && env.THIRDROLL_COMPARISON_CAPTURE === "1") observation.comparisonInput = retainState(resetDirectory,
@@ -247,6 +248,13 @@ try {
   assert.equal(receipt.toolchain.sdk, "26.5"); assert.equal(receipt.toolchain.node, "v24.12.0");
   assert.equal(receipt.toolchain.bun, "1.4.2"); assert.equal(receipt.toolchain.cocoapods, "1.17.0");
   if (!buildOnly) assert.match(receipt.toolchain.maestro, /2\.10\.0/);
+  if (!buildOnly) {
+    const compactBuild = join(output, ".compact-build");
+    run("python3", ["-B", "scripts/ios-native/compact/prepare.py", "--output", compactBuild, "--source-sha", receipt.source,
+      "--public-proof", join(output, "compact-build.json")]);
+    receipt.compactToolchain = JSON.parse(readFileSync(join(compactBuild, "proof.json"), "utf8"));
+    json(join(output, "compact-build.json"), receipt.compactToolchain);
+  }
   receipt.bunLockSha256 = hash(readFileSync(join(root, "bun.lock")));
   receipt.phase = group || modalOnly ? "verify-built-app" : "build"; checkpoint();
   const context = { root, output, run, hash, receipt, architecture, refreshPodLock };

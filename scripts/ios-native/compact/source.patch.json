@@ -1,0 +1,112 @@
+{
+  "InspectScreenTool": {
+    "originalSHA256": "18e1242aa1bd8c3c798f5fa7f21b394c6d35195931232d46cb56544aae8a86be",
+    "patchedSHA256": "f4c064844213240b77ed6683de180dce3a353cf6c4068fa7ff06dc80cee6645d",
+    "inverseExact": true,
+    "edits": [
+      {
+        "start": 2756,
+        "end": 2796,
+        "old": "        ) { request ->\n            try {",
+        "new": "        ) { request ->\n            val observation = QualificationCompact.begin(request)\n            QualificationCompact.handler(observation) {\n            try {"
+      },
+      {
+        "start": 2949,
+        "end": 2986,
+        "old": "return@RegisteredTool CallToolResult(",
+        "new": "return@handler CallToolResult("
+      },
+      {
+        "start": 3346,
+        "end": 3405,
+        "old": "val viewHierarchy = runBlocking { maestro.viewHierarchy() }",
+        "new": "val viewHierarchy = QualificationCompact.query(observation) { runBlocking { maestro.viewHierarchy() } }"
+      },
+      {
+        "start": 3426,
+        "end": 3512,
+        "old": "ViewHierarchyFormatters.extractCompactJsonOutput(viewHierarchy.root, session.platform)",
+        "new": "ViewHierarchyFormatters.extractCompactJsonOutput(viewHierarchy.root, session.platform, observation)"
+      },
+      {
+        "start": 3817,
+        "end": 3846,
+        "old": "            }\n        }\n    }",
+        "new": "            }\n            }\n        }\n    }"
+      }
+    ]
+  },
+  "ViewHierarchyFormatters": {
+    "originalSHA256": "f0d01230daa77932ba4527a4ba437dadc6fde04c87ea0f5b393c57e3c7dcb5d0",
+    "patchedSHA256": "901e9afa6da491c8cfb5bd5530bf0526bf43e657e32ae26cd513201eba45f53c",
+    "inverseExact": true,
+    "edits": [
+      {
+        "start": 6830,
+        "end": 6906,
+        "old": "    fun extractCompactJsonOutput(node: TreeNode, platform: String): String {",
+        "new": "    fun extractCompactJsonOutput(node: TreeNode, platform: String): String = extractCompactJsonOutput(node, platform, null)\n\n    internal fun extractCompactJsonOutput(node: TreeNode, platform: String, observation: QualificationCompact.Context?): String =\n        QualificationCompact.format(observation) {\n"
+      },
+      {
+        "start": 6915,
+        "end": 7009,
+        "old": "val compactData = createCompactWithSchema(node, platform)\n        return jacksonObjectMapper()",
+        "new": "val compactData = createCompactWithSchema(node, platform, QualificationCompact.platform(observation, platform))\n        jacksonObjectMapper()"
+      },
+      {
+        "start": 7079,
+        "end": 7134,
+        "old": "            .writeValueAsString(compactData)\n    }\n    ",
+        "new": "            .writeValueAsString(compactData)\n        }\n    "
+      },
+      {
+        "start": 8435,
+        "end": 8529,
+        "old": "    private fun createCompactWithSchema(node: TreeNode, platform: String): Map<String, Any?> {",
+        "new": "    private fun createCompactWithSchema(node: TreeNode, platform: String): Map<String, Any?> =\n        createCompactWithSchema(node, platform, null)\n\n    private fun createCompactWithSchema(node: TreeNode, platform: String, observation: QualificationCompact.Context?): Map<String, Any?> {"
+      },
+      {
+        "start": 8777,
+        "end": 8829,
+        "old": "result[\"elements\"] = compactTreeData(node, platform)",
+        "new": "result[\"elements\"] = compactTreeData(node, platform, observation, 0, 0, 0, 0, 0)"
+      },
+      {
+        "start": 11138,
+        "end": 11230,
+        "old": "    private fun compactTreeData(node: TreeNode, platform: String): List<Map<String, Any?>> {",
+        "new": "    private fun compactTreeData(node: TreeNode, platform: String): List<Map<String, Any?>> =\n        compactTreeData(node, platform, null, 0, 0, 0, 0, 0)\n\n    private fun compactTreeData(node: TreeNode, platform: String, observation: QualificationCompact.Context?,\n        depth: Int, parent: Int, outputParent: Int, rawHelp: Int, outputHelp: Int): List<Map<String, Any?>> {\n        var frame: QualificationCompact.Frame? = null"
+      },
+      {
+        "start": 11333,
+        "end": 11432,
+        "old": "if (hasZeroSize(node)) {\n            return node.children.flatMap { compactTreeData(it, platform) }",
+        "new": "if (hasZeroSize(node) { attributes, bounds ->\n            frame = QualificationCompact.node(observation, attributes, bounds, depth, parent, outputParent, rawHelp, outputHelp)\n        }) {\n            QualificationCompact.branch(observation, frame, 1)\n            return node.children.flatMap { compactTreeData(it, platform, observation, depth + 1, frame?.id ?: 0, outputParent, frame?.rawHelp ?: 0, outputHelp) }"
+      },
+      {
+        "start": 11556,
+        "end": 11674,
+        "old": "if (!hasNonDefaultValues(node, platform)) {\n            return node.children.flatMap { compactTreeData(it, platform) }",
+        "new": "if (!hasNonDefaultValues(node, platform)) {\n            QualificationCompact.branch(observation, frame, 2)\n            return node.children.flatMap { compactTreeData(it, platform, observation, depth + 1, frame?.id ?: 0, outputParent, frame?.rawHelp ?: 0, outputHelp) }"
+      },
+      {
+        "start": 11795,
+        "end": 11850,
+        "old": "val element = convertToCompactNode(node).toMutableMap()",
+        "new": "val element = convertToCompactNode(node).toMutableMap()\n        QualificationCompact.branch(observation, frame, 0, element)"
+      },
+      {
+        "start": 11934,
+        "end": 12004,
+        "old": "val children = node.children.flatMap { compactTreeData(it, platform) }",
+        "new": "val children = node.children.flatMap { compactTreeData(it, platform, observation, depth + 1,\n            frame?.id ?: 0, frame?.id ?: 0, frame?.rawHelp ?: 0,\n            if (frame != null && frame!!.post and 1 != 0) frame!!.id else outputHelp) }"
+      },
+      {
+        "start": 12222,
+        "end": 12339,
+        "old": "    private fun hasZeroSize(node: TreeNode): Boolean {\n        val bounds = node.attributes[\"bounds\"] ?: return false",
+        "new": "    private fun hasZeroSize(node: TreeNode, observed: (Map<String, String>, String?) -> Unit): Boolean {\n        val attributes = node.attributes\n        val value = attributes[\"bounds\"]\n        observed(attributes, value)\n        val bounds = value ?: return false"
+      }
+    ]
+  }
+}
