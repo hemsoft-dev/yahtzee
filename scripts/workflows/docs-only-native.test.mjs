@@ -230,7 +230,7 @@ test("actual workflow executes base policy, never the PR classifier, and default
 });
 
 test("reset quarantine is explicit and has no automatic diagnostic trigger", () => {
-  const diagnostic = readFileSync(new URL("../../.github/workflows/reset-recovery.yml", import.meta.url), "utf8");
+  const diagnostic = readFileSync(new URL("../../.github/workflows/reset-recovery.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
   assert.match(diagnostic, /on:\n {2}workflow_dispatch:/);
   assert.doesNotMatch(diagnostic, / {2}(push|pull_request|schedule|workflow_run|merge_group):/);
   assert.match(diagnostic, /issue #130/);
