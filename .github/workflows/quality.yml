@@ -113,7 +113,7 @@ jobs:
         env:
           EXPO_OFFLINE: '1'
           EXPO_NO_TELEMETRY: '1'
-        run: bun run build:mobile
+        run: ${{ runner.os == 'Windows' && 'node scripts/workflows/mobile-export.mjs' || 'bun run build:mobile' }}
       - name: Install client-test browser and host dependencies
         id: browsers
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
