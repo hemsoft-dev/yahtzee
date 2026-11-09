@@ -87,6 +87,24 @@ test("annotation formatting rejects arbitrary fields and payloads before output"
   }
 });
 
+test("early unavailable observation cannot consume the iOS completion slot", () => {
+  const rows = [], p = exportProgress((row) => rows.push(row));
+  p.emit(1); p.emit(2);
+  p.push(2, Buffer.from("x".repeat(8193) + "\n"));
+  p.push(1, Buffer.from(original));
+  p.emit(9, 0);
+  assert.deepEqual(rows.map((r) => r.stage), [1, 2, 11, 3, 4, 5, 6, 7, 8, 9]);
+  assert.equal(rows.length, 10);
+});
+
+test("completed child without recognized exports is explicitly unavailable", async () => {
+  const rows = [], out = collect(), err = collect();
+  const result = await runExport({ command: process.execPath, args: ["-e", "console.log('unrecognized original output')"],
+    stdout: out.stream, stderr: err.stream, notice: (row) => rows.push(row) });
+  assert.equal(result.code, 0);
+  assert.deepEqual(rows.map((r) => r.stage), [1, 2, 11, 9]);
+});
+
 test("real successful child records entry, spawn, ordered markers and close", async () => {
   const out = collect(), err = collect(), rows = [];
   const result = await runExport({ command: process.execPath, args: ["-e", `process.stdout.write(${JSON.stringify(original)})`],

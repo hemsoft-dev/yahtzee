@@ -19,8 +19,9 @@ export function exportProgress(notice, clock = () => performance.now()) {
     if (!Number.isInteger(code) || code < -1 || code > 255 || !Number.isInteger(signal) || signal < 0 || signal > 3) { emit(11); return; }
     if (seen.has(stage)) return;
     // Reserve a final close record, and mark an exhausted observation budget.
-    if (stage !== 9 && stage !== 11 && seen.size >= 8) { emit(11); return; }
-    if (stage !== 9 && seen.size >= 9) return;
+    const ordinary = seen.size - Number(seen.has(11)) - Number(seen.has(9));
+    if (stage !== 9 && stage !== 11 && ordinary >= 8) { emit(11); return; }
+    if (seen.size >= 10) return;
     seen.add(stage);
     let ms = -1;
     try {
@@ -64,6 +65,7 @@ export function exportProgress(notice, clock = () => performance.now()) {
       const state = streams.get(id);
       if (state?.length || state?.overflow) emit(11);
     },
+    finish() { if (expected !== 9) emit(11); },
   };
 }
 
@@ -94,6 +96,7 @@ export function runExport({ command = "bun", args = ["run", "build:mobile"], cwd
       progress.emit(10, value.code === "ENOENT" ? 1 : value.code === "EACCES" ? 2 : 0);
     });
     child.once("close", (code, signal) => {
+      progress.finish();
       progress.emit(9, Number.isInteger(code) && code >= 0 && code <= 255 ? code : -1, SIGNALS[signal] ?? 0);
       done({ code, signal, error });
     });
