@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { Writable } from "node:stream";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { annotation, exportProgress, runExport } from "./mobile-export.mjs";
 
 // Fixed progress lines retained from actual successful main682/PR127 Windows exports.
@@ -157,4 +157,71 @@ test("workflow uses observation only on Windows and preserves the original deadl
   assert.match(workflow, /validate:[\s\S]*?timeout-minutes: 15/);
   assert(workflow.includes("run: ${{ runner.os == 'Windows' && 'node scripts/workflows/mobile-export.mjs' || 'bun run build:mobile' }}"));
   assert(workflow.includes("EXPO_OFFLINE: '1'"));
+});
+
+test("actual CLI runs once through direct and directory-alias entry paths", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "export entry "));
+  const modulePath = fileURLToPath(new URL("./mobile-export.mjs", import.meta.url));
+  const alias = join(root, "source alias");
+  // A Windows directory junction needs no symlink privilege. Never link dependencies.
+  symlinkSync(dirname(modulePath), alias, process.platform === "win32" ? "junction" : "dir");
+  t.after(() => {
+    // Remove the link itself before recursively removing only this owned fixture.
+    if (process.platform === "win32") rmdirSync(alias); else unlinkSync(alias);
+    rmSync(root, { recursive: true });
+  });
+  const counter = join(root, "count");
+  writeFileSync(join(root, "package.json"), JSON.stringify({ scripts: { "build:mobile": "node child.cjs" } }));
+  writeFileSync(join(root, "child.cjs"), `require('node:fs').appendFileSync(${JSON.stringify(counter)},'1');process.stdout.write('entry-output\\n');process.stderr.write('entry-error\\n');process.exitCode=7;`);
+  const opts = { cwd: root, encoding: "utf8", timeout: 10000, env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" } };
+  const baseline = spawnSync("bun", ["run", "build:mobile"], opts);
+  assert.equal(baseline.error, undefined);
+  assert.equal(baseline.status, 7);
+  let calls = "1";
+  const aliasPath = join(alias, "mobile-export.mjs");
+  for (const args of [[modulePath], [aliasPath], [relative(root, aliasPath)], ["--preserve-symlinks-main", aliasPath]]) {
+    const observed = spawnSync(process.execPath, args, opts);
+    assert.equal(observed.error, undefined);
+    assert.equal(observed.status, baseline.status, JSON.stringify(args));
+    calls += "1";
+    assert.equal(readFileSync(counter, "utf8"), calls);
+    assert.equal(observed.stderr, baseline.stderr);
+    assert.equal(observed.stdout.replace(/\n::notice title=Mobile export stage::[^\r\n]*\n/g, ""), baseline.stdout);
+    assert.match(observed.stdout, /stage=9 .*code=7 signal=0/);
+  }
+});
+
+test("importing the actual module never starts an export for absent, unrelated or unresolved argv", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "export import "));
+  t.after(() => rmSync(root, { recursive: true }));
+  const counter = join(root, "count");
+  writeFileSync(join(root, "package.json"), JSON.stringify({ scripts: { "build:mobile": "node child.cjs" } }));
+  writeFileSync(join(root, "child.cjs"), `require('node:fs').appendFileSync(${JSON.stringify(counter)},'1');`);
+  const imported = new URL("./mobile-export.mjs", import.meta.url).href;
+  // Same filename, different file: comparing only basenames would start an export.
+  const importer = join(root, "mobile-export.mjs");
+  writeFileSync(importer, `await import(${JSON.stringify(imported)});`);
+  const opts = { cwd: root, encoding: "utf8", timeout: 10000 };
+  for (const args of [[importer], ["--input-type=module", "--eval", `await import(${JSON.stringify(imported)});`],
+    ["--input-type=module", "--eval", `process.argv[1]=${JSON.stringify(join(root, "missing.mjs"))};await import(${JSON.stringify(imported)});`]]) {
+    const result = spawnSync(process.execPath, args, opts);
+    assert.equal(result.error, undefined);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "");
+    assert(!existsSync(counter));
+  }
+  // An imported alias must also remain inert with an unrelated main module.
+  const alias = join(root, "source alias");
+  symlinkSync(dirname(fileURLToPath(imported)), alias, process.platform === "win32" ? "junction" : "dir");
+  try {
+    writeFileSync(importer, `await import(${JSON.stringify(pathToFileURL(join(alias, "mobile-export.mjs")).href)});`);
+    const result = spawnSync(process.execPath, ["--preserve-symlinks", importer], opts);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "");
+    assert(!existsSync(counter));
+  } finally {
+    if (process.platform === "win32") rmdirSync(alias); else unlinkSync(alias);
+  }
 });

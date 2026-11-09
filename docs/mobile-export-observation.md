@@ -4,6 +4,8 @@
 
 On Windows, the existing export step invokes `node scripts/workflows/mobile-export.mjs`. It starts exactly one original `bun run build:mobile` child with the original environment, working directory and arguments. Linux keeps its original command. The 15-minute job deadline, platform exports, workers, assertions and required aggregate are unchanged. There is no retry, sampler, timer, extra export, cache or dependency change.
 
+The CLI entry guard compares the [resolved filesystem paths](https://nodejs.org/download/release/v22.13.0/docs/api/fs.html#fsrealpathsyncpath-options) of the invocation and module. This supports a directory symlink or Windows junction, including paths with spaces and `--preserve-symlinks-main`. The previous lexical comparison could silently exit 0 through an alias without starting the export. Direct and aliased launches now use the same child boundary; importing the module from another entry point starts no export. An absent or unresolvable invocation path is treated as an import. These APIs support the repository's Node 22.13 floor; [`import.meta.main`](https://nodejs.org/api/esm.html#importmetamain) arrived later in Node 22.18. The alias regression is separate from the historical hosted export timeouts, whose cause remains unknown.
+
 The observer reads the child's existing stdout/stderr and forwards those bytes. It also emits fixed numeric [GitHub notice annotations](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-a-notice-message), available through the job's check annotation API. Each annotation is bound to that original check's source/run/job identity. No later request is associated by wall time alone.
 
 | Stage | Observed boundary |

@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { realpathSync } from "node:fs";
 import { stripVTControlCharacters } from "node:util";
 
 const LINE_BYTES = 8192;
@@ -103,7 +102,19 @@ export function runExport({ command = "bun", args = ["run", "build:mobile"], cwd
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function isEntrypoint() {
+  if (!process.argv[1]) return false;
+  try {
+    // Node resolves the module URL, but argv may still name a directory alias.
+    // Resolve both sides, including when --preserve-symlinks-main is in use.
+    return realpathSync(process.argv[1]) === realpathSync(new URL(import.meta.url));
+  } catch {
+    // An unresolved argv from an importer is not an executable entry point.
+    return false;
+  }
+}
+
+if (isEntrypoint()) {
   const result = await runExport();
   if (result.signal) process.kill(process.pid, result.signal);
   process.exitCode = result.error ? 1 : result.code ?? 1;
