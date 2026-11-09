@@ -4,7 +4,7 @@
 
 The Third Roll rename on November 2, 2026 changed only `PODFILE CHECKSUM`, because the generated Podfile's target line carries the app's name. The new value is the SHA-1 of that Podfile from `expo prebuild --platform ios --no-install` on Linux. The same run under the old name reproduced the old checksum, and `pod install --deployment` rejects a wrong value.
 
-The current lock's SHA-256 is `805949b1ccb546277c9b6303bc3f78e8b5415bf0576ba5efc7261bfd41daf1a4`, using LF bytes. Its external sources point to the locked workspace packages and generated codegen directories, not workstation paths. The inspected native modules include Expo 57.0.31, Expo SQLite 57.0.4, AsyncStorage 3.1.1 for legacy preference import, React Native 0.86.3 and its declared navigation/runtime dependencies. There are no Apple signing credentials in this directory.
+The current lock's SHA-256 is `18537a2a2c69abf0678b99a597f7e7170474a7aa5f040b0c02b6f69962c28c51`, using LF bytes. Its external sources point to the locked workspace packages and generated codegen directories, not workstation paths. The inspected native modules include Expo 57.0.31, Expo SQLite 57.0.4, AsyncStorage 3.1.1 for legacy preference import, React Native 0.86.3 and its declared navigation/runtime dependencies. There are no Apple signing credentials in this directory.
 
 The [native runner](../../../scripts/ios-native/run.mjs) copies this lock into a newly generated Expo project and uses `pod install --deployment`. It also checks the generated lock against source. Do not edit dependency versions or checksums by hand.
 
