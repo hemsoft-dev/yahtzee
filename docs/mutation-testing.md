@@ -9,7 +9,7 @@ bun run mutation:probe
 bun run mutation
 ```
 
-Qualification uses Node 24, Bun 1.4.2, Stryker 10.0.0, its TypeScript checker 10.0.0 and report metrics/schema 3.8.4. Versions and transitive resolutions are locked. No deployment, credentials or production database is needed.
+Qualification uses Node 24, Bun 1.4.2, Stryker 10.1.1, its TypeScript checker 10.1.1 and report metrics/schema 3.8.4. Versions and transitive resolutions are locked. No deployment, credentials or production database is needed.
 
 [The configuration](../stryker.config.json) mutates scoring, totals, maximum-score calculation, AI selection, game-log statistics, in-memory rankings and the actual Convex leaderboard query/write helper. Its five source paths are explicit. Generated Convex code is available for compilation but is never mutated.
 
