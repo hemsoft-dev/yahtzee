@@ -94,6 +94,11 @@ beforeAll(async () => {
     scripts[mode] = await result.outputs[0].text();
   }
   browser = await chromium.launch({ headless: true });
+  // Chromium's first context and the real navigation fixture must become ready within
+  // this existing 30-second setup budget, before any 5-second Done assertion starts.
+  // Discard this page: every case still gets its own fresh context and original state.
+  const ready = await open("current");
+  await ready.close();
 }, 30000);
 afterAll(async () => { await browser?.close(); });
 
