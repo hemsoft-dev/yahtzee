@@ -80,6 +80,16 @@ The extra read-only `log stream` is one more process on the runner, and that loa
 
 ## Running the tests
 
+The browser launch and one disposable current-source navigation fixture run in the
+existing 30000 ms `beforeAll` budget. This warms Chromium's first context and verifies
+navigation readiness before the first Done assertion. Each case still creates a fresh
+context and keeps its original 5000 ms deadline and assertions. The CI lifecycle command
+uses `--bail=1`: its first failure keeps the step red and stops the suite, so a killed
+shared browser cannot produce sixteen misleading follow-on failures. Successful runs
+still execute all 120 cases. This separates setup from assertion timing; it neither
+explains the hosted stall nor proves native behavior. [Issue #132](https://github.com/hemsoft-dev/yahtzee/issues/132)
+retains the original failed main run and passing sibling runs.
+
 ```sh
 node --test scripts/ios-native/doneLog.test.mjs scripts/ios-native/doneObservation.test.mjs
 bun test packages/game-engine/tests/nativeDoneTrace.test.ts
