@@ -1,9 +1,9 @@
 {
   "entries": {
-    "github/gh-aw-actions/setup@v1.0.0": {
+    "github/gh-aw-actions/setup@v1.2.0": {
       "repo": "github/gh-aw-actions/setup",
-      "version": "v1.0.0",
-      "sha": "9b6239065cc3a210544331a9a1888be1b11c9686"
+      "version": "v1.2.0",
+      "sha": "4607d462dc213dbe54d02f77ec31215776fd5554"
     },
     "actions/download-artifact@v8.0.2": {
       "repo": "actions/download-artifact",
