@@ -198,7 +198,9 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Compile and inspect the source-bound Release app
         env:
-          EXPO_PUBLIC_NATIVE_INPUT_TRACE: '1'
+          # JS input/Done traces feed only the opt-in log streams (#130). Off unless the
+          # repository variable NATIVE_LOG_STREAMS is 1, so hosted runs carry no trace load.
+          EXPO_PUBLIC_NATIVE_INPUT_TRACE: ${{ vars.NATIVE_LOG_STREAMS == '1' && '1' || '0' }}
           REFRESH_PODS: ${{ contains(github.event.pull_request.labels.*.name, 'native-pods-refresh') }}
         run: |
           if [ "$REFRESH_PODS" = true ]; then
@@ -260,6 +262,7 @@ jobs:
       - name: Verify the app and exercise this device group
         env:
           NATIVE_TEST_GROUP: ${{ matrix.group }}
+          NATIVE_LOG_STREAMS: ${{ vars.NATIVE_LOG_STREAMS }}
         run: bun scripts/ios-native/run.mjs "--test-group=$NATIVE_TEST_GROUP"
       - name: Freeze partial evidence if native execution ended early
         if: ${{ always() }}
@@ -308,6 +311,8 @@ jobs:
           echo "$RUNNER_TEMP/maestro-tool/maestro/bin" >> "$GITHUB_PATH"
           echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
       - name: Exercise the real corruption and owned confirmation without gameplay
+        env:
+          NATIVE_LOG_STREAMS: ${{ vars.NATIVE_LOG_STREAMS }}
         run: bun scripts/ios-native/run.mjs --modal-only
       - name: Freeze partial evidence if native execution ended early
         if: ${{ always() }}

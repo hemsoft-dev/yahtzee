@@ -73,6 +73,8 @@ Do not correlate timestamps across segments. The input and Done channels have se
 Any missed sequence makes the receipt unavailable, including one consumed by a failed sink or clock.
 
 Both `log stream` observers are opt-in since #130: set `NATIVE_LOG_STREAMS=1` for the native run to start them.
+In hosted CI, the repository variable `NATIVE_LOG_STREAMS=1` turns on both the streams and the app's JS input/Done
+tracing (`EXPO_PUBLIC_NATIVE_INPUT_TRACE`) in the simulator build; without it the build carries no trace output.
 Hosted runs leave them off, because debug-level streaming raises simulator load on runners that already sat at load
 averages of 160-220 on 3 CPUs. Without the streams, `input-events.jsonl`, `done-events.jsonl` and the receipt's
 `inputTrace`/`doneTrace` fields are absent; absence proves nothing about the app.

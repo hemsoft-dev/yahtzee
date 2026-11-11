@@ -95,9 +95,11 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
       let cancel = null;
       try { cancel = systemGateCancelSince(await systemCancelProbe(), startedMs); } catch { cancel = null; }
       if (!cancel || (suffix.touches === "only" && cancel.beganSince !== 1)) throw error;
-      reissues++;
       const entry = { kind: "system-gesture-cancel-reissue", assertion: error.assertion ?? null, tap: suffix.lines[0], touch: cancel };
-      try { record(entry); onSystemCancelReissue?.(entry); } catch { /* the manifest write may fail; the re-send itself stays bounded */ }
+      // Fail closed: a re-send that cannot be reported would look like a clean run, so report
+      // first and keep the original failure if any report write throws.
+      try { record(entry); onSystemCancelReissue?.(entry); } catch { throw error; }
+      reissues++;
       await send(header + suffix.lines.join("\n") + "\n");
     }
   }

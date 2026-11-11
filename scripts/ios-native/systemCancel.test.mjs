@@ -105,6 +105,15 @@ test("no proof, the wrong failure kind, or a spent budget ends the run without a
   assert.equal(two.sent.length, 1);
 });
 
+test("a re-send that cannot be reported does not happen", async (t) => {
+  const s = session(t, { failures: [flowFailure()], probe: proof });
+  const original = s.options.onSystemCancelReissue;
+  s.options.onSystemCancelReissue = (entry) => { original(entry); throw new Error("manifest write failed"); };
+  await assert.rejects(nativeInteraction({ ...s.options, exercise: async (io) => { await io.runFlow(header + hold.join("\n") + "\n"); } }),
+    (error) => error instanceof MaestroError);
+  assert.equal(s.sent.length, 1, "the original failure stands");
+});
+
 test("a session allows at most two re-sends", async (t) => {
   // Each flow fails once; the first two re-sends succeed, the third flow's failure is final.
   const s = session(t, { failures: [flowFailure(), null, flowFailure(), null, flowFailure()], probe: proof });
