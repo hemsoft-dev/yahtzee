@@ -19,12 +19,17 @@ const scroll = (element, visibilityPercentage = 100, direction = "DOWN") => [
   command("scrollUntilVisible", { element, direction, timeout: 60000, visibilityPercentage, ...(direction === "UP" ? { centerElement: true } : {}) }),
   command("waitForAnimationToEnd", { timeout: 5000 }),
 ].join("\n");
+// A cold launch on a loaded hosted runner can take longer than Maestro's default lookup
+// window: one owned-modal failure spent ~38 s in terminate/launch and 16 s more before the
+// first hierarchy read, then failed the assertion while the screenshot showed the text (#130).
+// Wait for the same text with an explicit budget, then keep the original assertion.
+const launched = (text) => [command("extendedWaitUntil", { visible: text, timeout: 60000 }), visible(text)];
 const shot = (name) => command("takeScreenshot", name);
 const header = (bundleId, commands) => `appId: ${JSON.stringify(bundleId)}\n---\n${commands.join("\n")}\n`;
 
 export function startFlow(bundleId, scenario) {
   return header(bundleId, [command("launchApp", { clearState: true, permissions: { all: "deny" } }),
-    command("setOrientation", scenario.orientation), visible("A little time for dice."),
+    command("setOrientation", scenario.orientation), ...launched("A little time for dice."),
     tap("Help"), visible("How to play"), command("waitForAnimationToEnd", { timeout: 5000 }),
     command("tapOn", { text: "Done", enabled: true, retryTapIfNoChange: false }),
     command("assertNotVisible", "How to play"), visible("A little time for dice."), shot("setup"),
@@ -46,8 +51,8 @@ export function completeReadyFlow(bundleId) {
     command("assertVisible", { id: "score-viewport" }), shot("ready-to-score")]);
 }
 export function completeEndFlow(bundleId, previewDiagnostics = false, alreadyForeground = false) {
-  return header(bundleId, [...(alreadyForeground ? [] : [command("launchApp", { stopApp: false, clearState: false, permissions: { all: "deny" } })]),
-    visible("Game Over!"), shot("results"), tap("History"), visible("Local history"), shot("history"),
+  return header(bundleId, [...(alreadyForeground ? [visible("Game Over!")] : [command("launchApp", { stopApp: false, clearState: false, permissions: { all: "deny" } }),
+    ...launched("Game Over!")]), shot("results"), tap("History"), visible("Local history"), shot("history"),
     command("launchApp", { permissions: { all: "deny" } }), scroll({ text: "Review saved result" }), tap("Review saved result"),
     visible("Game Over!"), tap("Help"), visible("How to play"), shot("help"),
     ...(previewDiagnostics ? [scroll({ text: "Preview diagnostics" }), tap("Preview diagnostics"), scroll({ id: "diagnostics-preview" }, 10),
@@ -67,10 +72,10 @@ export function completeEndFlow(bundleId, previewDiagnostics = false, alreadyFor
     scroll({ text: "Play Again" }), tap("Play Again"), scroll({ text: "Start Game" }), shot("play-again")]);
 }
 export function emptyRelaunchFlow(bundleId) {
-  return header(bundleId, [command("launchApp", { clearState: false, stopApp: true }), visible("A little time for dice."), shot("empty-after-reset-relaunch")]);
+  return header(bundleId, [command("launchApp", { clearState: false, stopApp: true }), ...launched("A little time for dice."), shot("empty-after-reset-relaunch")]);
 }
 export function corruptFlow(bundleId, reset = false) {
-  const commands = [command("launchApp", { permissions: { all: "deny" } }), visible("Your saved data has not been reset."), shot("recovery")];
+  const commands = [command("launchApp", { permissions: { all: "deny" } }), ...launched("Your saved data has not been reset."), shot("recovery")];
   if (reset) commands.push(tap("Help"), scroll({ text: "Delete all local data" }), tap("Delete all local data"), tap("Cancel"),
     tap("Delete all local data"), visible("Cancel"));
   return header(bundleId, commands);

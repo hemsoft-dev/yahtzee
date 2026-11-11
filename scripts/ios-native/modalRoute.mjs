@@ -13,7 +13,9 @@ export function modalBootstrapFlow(bundleId) {
   assert(typeof bundleId === "string" && /^[a-zA-Z0-9.-]+$/.test(bundleId));
   return `appId: ${JSON.stringify(bundleId)}\n---\n` + [
     ["launchApp", { clearState: true, permissions: { all: "deny" } }],
-    ["setOrientation", "PORTRAIT"], ["assertVisible", "A little time for dice."], ["takeScreenshot", "modal-prerequisite"],
+    // Same explicit launch budget as the ordinary flows (#130), then the original assertion.
+    ["setOrientation", "PORTRAIT"], ["extendedWaitUntil", { visible: "A little time for dice.", timeout: 60000 }],
+    ["assertVisible", "A little time for dice."], ["takeScreenshot", "modal-prerequisite"],
   ].map(([key, value]) => `- ${key}: ${JSON.stringify(value)}`).join("\n") + "\n";
 }
 

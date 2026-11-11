@@ -50,6 +50,13 @@ static NSDictionary *HSCPeer(UIGestureRecognizer *peer, UIView *root) {
     [peer isKindOfClass:UILongPressGestureRecognizer.class] ? 3 : [peer isKindOfClass:NSClassFromString(@"RCTSurfaceTouchHandler")] ? 4 :
     [peer isKindOfClass:NSClassFromString(@"RCTSurfacePointerHandler")] ? 5 : [peer isKindOfClass:UISwipeGestureRecognizer.class] ? 6 :
     [peer isKindOfClass:UIPinchGestureRecognizer.class] ? 7 : [peer isKindOfClass:UIRotationGestureRecognizer.class] ? 8 : 0;
+  // #130: a window-level recognizer of no public kind cancelled a native Resume tap. Bucket
+  // the class numerically (system gesture gate, other UIKit-private, everything else) so the
+  // owner is identifiable without retaining any class name.
+  if (kind == 0) {
+    NSString *name = NSStringFromClass(peer.class);
+    kind = [name containsString:@"SystemGestureGate"] ? 9 : [name hasPrefix:@"_UI"] ? 10 : 0;
+  }
   UIView *view = peer.view;
   NSInteger relation = !view || !root ? 0 : view == root ? 1 : [view isDescendantOfView:root] ? 2 : [root isDescendantOfView:view] ? 3 : 4;
   BOOL scrollPan = [view isKindOfClass:UIScrollView.class] && ((UIScrollView *)view).panGestureRecognizer == peer;

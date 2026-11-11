@@ -215,3 +215,19 @@ test("upward support searches must move targets out from under the native Help h
     }
   } }, completeEndFlow("com.hemsoft.thirdroll", true, true));
 });
+test("every cold launch waits for its first screen with an explicit budget before the same assertion", () => {
+  const flows = [startFlow("com.hemsoft.thirdroll", scenarios[0]), emptyRelaunchFlow("com.hemsoft.thirdroll"),
+    corruptFlow("com.hemsoft.thirdroll"), corruptFlow("com.hemsoft.thirdroll", true), completeEndFlow("com.hemsoft.thirdroll")];
+  for (const flow of flows) {
+    const steps = parse(flow);
+    const wait = steps.findIndex((step) => step.command === "extendedWaitUntil");
+    assert(wait > 0 && wait <= 2, flow);
+    assert.deepEqual(Object.keys(steps[wait].value), ["visible", "timeout"]);
+    assert.equal(steps[wait].value.timeout, 60000);
+    assert.deepEqual(steps[wait + 1], { command: "assertVisible", value: steps[wait].value.visible });
+  }
+  const foreground = parse(completeEndFlow("com.hemsoft.thirdroll", false, true));
+  // Already-foreground results need no launch; the later saved-result relaunch keeps its own search budget.
+  assert.deepEqual(foreground.slice(0, 2), [{ command: "assertVisible", value: "Game Over!" }, { command: "takeScreenshot", value: "results" }]);
+  assert(!foreground.some((step) => step.command === "extendedWaitUntil"));
+});

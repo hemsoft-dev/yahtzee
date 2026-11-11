@@ -72,7 +72,11 @@ Sequence restarts at 0 in each process. The collector counts restarts as `segmen
 Do not correlate timestamps across segments. The input and Done channels have separate sequence numbers.
 Any missed sequence makes the receipt unavailable, including one consumed by a failed sink or clock.
 
-`scripts/ios-native/run.mjs` starts this stream after the input observer and stops it after that observer.
+Both `log stream` observers are opt-in since #130: set `NATIVE_LOG_STREAMS=1` for the native run to start them.
+Hosted runs leave them off, because debug-level streaming raises simulator load on runners that already sat at load
+averages of 160-220 on 3 CPUs. Without the streams, `input-events.jsonl`, `done-events.jsonl` and the receipt's
+`inputTrace`/`doneTrace` fields are absent; absence proves nothing about the app.
+When enabled, `scripts/ios-native/run.mjs` starts this stream after the input observer and stops it after that observer.
 It writes `done-events.jsonl` to the scenario folder and `doneTrace` to the scenario's receipt.
 Its advisory wrapper does not throw or reject and bounds its own shutdown wait to 3 seconds; it does not turn retention status into an exercise failure or replace an original error.
 The extra wait/process still has overhead, and no claim is made that observation cannot affect timing near an outer deadline.

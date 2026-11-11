@@ -134,7 +134,11 @@ async function corruption(device, bundleId) {
   assert.equal(saved(device, bundleId, directory, "after-database-reset").data.history.entries.length, 0);
   receipt.nativeCorruptionAndReset = "passed";
 }
-const traceInputs = process.env.GITHUB_ACTIONS === "true" || process.env.EXPO_PUBLIC_NATIVE_INPUT_TRACE === "1";
+// Each observer keeps a debug-level `log stream` open inside the simulator for the whole
+// scenario. Debug streaming makes every simulator process emit debug messages, and hosted
+// 3-CPU runners already sat at load averages of 160-220 with ~170 MB free (#130). The
+// streams are diagnostics, not qualification, so they run only when explicitly requested.
+const traceInputs = process.env.NATIVE_LOG_STREAMS === "1";
 let stopInputLog;
 let stopDoneLog;
 function retainNativeForScenario(scenario, bundleId) {
