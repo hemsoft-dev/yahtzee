@@ -231,3 +231,16 @@ test("every cold launch waits for its first screen with an explicit budget befor
   assert.deepEqual(foreground.slice(0, 2), [{ command: "assertVisible", value: "Game Over!" }, { command: "takeScreenshot", value: "results" }]);
   assert(!foreground.some((step) => step.command === "extendedWaitUntil"));
 });
+test("setup waits for each preference save to settle before the next control and before Start Game", () => {
+  for (const scenario of scenarios) {
+    const steps = parse(startFlow("com.hemsoft.thirdroll", scenario));
+    const settles = steps.flatMap((step, index) => step.command === "extendedWaitUntil" && step.value.notVisible ? [index] : []);
+    for (const index of settles) assert.deepEqual(steps[index].value, { notVisible: "Reading or saving on this device.*", timeout: 60000 });
+    const start = steps.findIndex((step) => step.command === "tapOn" && step.value.text === "Start Game");
+    assert(settles.includes(start - 1), "Start Game follows a settled save");
+    for (const option of [scenario.ai ? "3 AI" : "Solo", `${scenario.dice} dice`]) {
+      const chosen = steps.findIndex((step) => step.command === "tapOn" && step.value.text === option);
+      assert.equal(steps[chosen + 2].command, "assertNotVisible"); assert(settles.includes(chosen + 3), option);
+    }
+  }
+});

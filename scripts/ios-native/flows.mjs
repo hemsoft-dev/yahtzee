@@ -4,11 +4,16 @@ const tap = (text) => command("tapOn", { text, enabled: true, retryTapIfNoChange
 // iOS choices are native action sheets. Accessibility visibility alone does not
 // prove their presentation/dismissal has finished and the next row can receive taps.
 // iPad popovers omit Cancel; the Current message exists on both iOS device families.
+// A choice starts a SQLite preference write, and Setup locks its controls until the write is
+// acknowledged. On a loaded hosted runner one write took 9.7 s, and the next Start Game tap
+// landed on the locked button (#130, PR #139 phone-6). Wait for the app's own save indicator
+// to clear before the next control; nothing is retried or skipped.
+const settled = () => command("extendedWaitUntil", { notVisible: "Reading or saving on this device.*", timeout: 60000 });
 const choose = (title, option) => [
   command("tapOn", { text: title, enabled: true, retryTapIfNoChange: false }),
   visible("Current: .*"), command("waitForAnimationToEnd", { timeout: 5000 }), visible(option),
   command("tapOn", { text: option, enabled: true, retryTapIfNoChange: false }),
-  command("waitForAnimationToEnd", { timeout: 5000 }), command("assertNotVisible", "Current: .*"),
+  command("waitForAnimationToEnd", { timeout: 5000 }), command("assertNotVisible", "Current: .*"), settled(),
 ];
 // A visible target can still be moving when scrollUntilVisible returns on iOS.
 // Settle before using its geometry; never compensate by replaying a tap.
@@ -36,7 +41,7 @@ export function startFlow(bundleId, scenario) {
     scroll({ text: "Your name" }), tap("Your name"), command("eraseText"), command("inputText", "Local tester"), command("pressKey", "enter"),
     scroll({ text: "AI opponents" }), ...choose("AI opponents", scenario.ai ? "3 AI" : "Solo"),
     scroll({ text: "Dice count" }), ...choose("Dice count", `${scenario.dice} dice`),
-    scroll({ text: "Start Game" }), tap("Start Game"), visible("Re-roll \\(2\\)"), shot("started-game")]);
+    scroll({ text: "Start Game" }), settled(), tap("Start Game"), visible("Re-roll \\(2\\)"), shot("started-game")]);
 }
 export function resumeFlow(bundleId) {
   return header(bundleId, [command("launchApp", { permissions: { all: "deny" } }),
