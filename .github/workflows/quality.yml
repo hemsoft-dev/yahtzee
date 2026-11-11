@@ -414,6 +414,8 @@ jobs:
           --java-home "$JAVA_HOME"
           --output reports/.settle-cli
       - name: Run the original isolated reset route once with scoped settle observation
+        env:
+          NATIVE_LOG_STREAMS: ${{ vars.NATIVE_LOG_STREAMS }}
         run: node scripts/ios-native/settle/execute.mjs
       - name: Freeze partial native evidence without replay
         if: ${{ always() }}
