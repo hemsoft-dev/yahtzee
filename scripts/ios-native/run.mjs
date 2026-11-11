@@ -19,6 +19,7 @@ import { checkedCommandOutput } from "./commandResult.mjs";
 import { startInputObservation } from "./inputObservation.mjs";
 import { startDoneObservation } from "./doneObservation.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
+import { settleAfterBoot } from "./hostSettle.mjs";
 import { newestNativeCancelText, retainNativeCancellation } from "./nativeCancelRetention.mjs";
 import { retainCorruptionMarker, retainNativeModal, withModalRetention } from "./nativeModalRetention.mjs";
 import { modalRouteRequested, ownedModalCapability, qualifyOwnedModal } from "./modalRoute.mjs";
@@ -179,6 +180,8 @@ async function exerciseModal(app, bundleId) {
     status: "running", nativeObservationStartedAtMs: Date.now() };
   receipt.modalRoute = result; receipt.phase = "modal-prerequisite"; checkpoint();
   sim("boot", device); sim("bootstatus", device, "-b");
+  receipt.phase = "modal-host-settle"; checkpoint();
+  (receipt.hostSettle ??= []).push({ device: "owned-modal", ...await settleAfterBoot() }); checkpoint();
   sim("spawn", device, "defaults", "write", "NSGlobalDomain", "AppleLanguages", "-array", "en");
   sim("spawn", device, "defaults", "write", "NSGlobalDomain", "AppleLocale", "-string", "en_US");
   sim("install", device, app); sim("ui", device, "appearance", "dark"); sim("ui", device, "content_size", result.requestedContentSize);
@@ -211,6 +214,8 @@ async function exercise(app, bundleId) {
     if (booted !== device) {
       if (booted) sim("shutdown", booted);
       sim("boot", device); sim("bootstatus", device, "-b"); booted = device;
+      receipt.phase = `host-settle-${scenario.id}`; checkpoint();
+      (receipt.hostSettle ??= []).push({ device: scenario.device, ...await settleAfterBoot() }); checkpoint();
       sim("spawn", device, "defaults", "write", "NSGlobalDomain", "AppleLanguages", "-array", "en");
       sim("spawn", device, "defaults", "write", "NSGlobalDomain", "AppleLocale", "-string", "en_US");
       sim("install", device, app);
