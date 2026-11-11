@@ -19,7 +19,12 @@ function toolFailure(name, result) {
     if (/Device became unreachable during \S+/.test(text)) return new MaestroError("device-unreachable", name, transportClass);
     if (/driver.*(?:install|connect).*(?:fail|error)|(?:Failed|Unable) to (?:install|connect).*driver/i.test(text)) return new MaestroError("driver-connect", name, transportClass);
   }
-  return new MaestroError(name === "run" ? "flow-failed" : "tool-failed", name, name === "run" ? "application-flow" : "unknown");
+  const error = new MaestroError(name === "run" ? "flow-failed" : "tool-failed", name, name === "run" ? "application-flow" : "unknown");
+  // Only the authored positive-assertion text, bounded, so a caller can match it to its own flow line.
+  // Maestro prints the authored pattern verbatim (for example `Re-roll \(2\)`).
+  const asserted = /Assertion is false: "([^"\n]{1,200})" is visible/.exec(text);
+  if (name === "run" && asserted) error.assertion = asserted[1];
+  return error;
 }
 
 /** Bounded local JSON-RPC transport. Never persist raw responses or injected environment values. */

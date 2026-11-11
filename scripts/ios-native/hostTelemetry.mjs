@@ -5,7 +5,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { writeFileSync, renameSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
-// No arguments or environment are collected. Only known simulator/driver processes.
+// No arguments or environment are collected. This list holds only known simulator/driver
+// processes; `topProcesses` adds the bounded, basename-only heaviest processes of any kind.
 export function driverProcesses(output) {
   return output.split("\n").flatMap((line) => {
     const match = /^\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(.+)$/.exec(line);
@@ -16,11 +17,29 @@ export function driverProcesses(output) {
   }).slice(0, 64);
 }
 
+/**
+ * The heaviest processes by CPU and by resident memory, whatever they are (#130: load averages
+ * of 300-450 persisted with only the whitelisted driver processes visible). Executable basenames
+ * only, limited to a safe character set; anything else is reported as "other".
+ */
+export function topProcesses(output, limit = 8) {
+  const rows = output.split("\n").flatMap((line) => {
+    const match = /^\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(.+)$/.exec(line);
+    if (!match) return [];
+    const base = basename(match[5].trim());
+    const name = /^[A-Za-z0-9._ -]{1,40}$/.test(base) ? base : "other";
+    return [{ name, cpuPercent: Number(match[3]), residentKiB: Number(match[4]) }];
+  });
+  const by = (key) => [...rows].sort((a, b) => b[key] - a[key]).slice(0, limit);
+  return { byCpu: by("cpuPercent"), byMemory: by("residentKiB") };
+}
+
 function hostSample() {
   const result = spawnSync("ps", ["-axo", "pid=,ppid=,%cpu=,rss=,comm="], { encoding: "utf8", timeout: 1000, maxBuffer: 1024 * 1024 });
   const vm = spawnSync("vm_stat", [], { encoding: "utf8", timeout: 1000, maxBuffer: 8192 });
   return { at: Date.now(), vmStat: vm.status === 0 ? vm.stdout.slice(0, 4096) : null, freeBytes: freemem(), totalBytes: totalmem(), cpus: availableParallelism(), load: loadavg(),
-    processes: result.status === 0 ? driverProcesses(result.stdout) : [], processSampleAvailable: result.status === 0 };
+    processes: result.status === 0 ? driverProcesses(result.stdout) : [], processSampleAvailable: result.status === 0,
+    top: result.status === 0 ? topProcesses(result.stdout) : null };
 }
 
 /** Best-effort bounded diagnostics, stopped before the evidence snapshot. */

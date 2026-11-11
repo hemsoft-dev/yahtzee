@@ -19,7 +19,7 @@ import { checkedCommandOutput } from "./commandResult.mjs";
 import { startInputObservation } from "./inputObservation.mjs";
 import { startDoneObservation } from "./doneObservation.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
-import { retainNativeCancellation } from "./nativeCancelRetention.mjs";
+import { newestNativeCancelText, retainNativeCancellation } from "./nativeCancelRetention.mjs";
 import { retainCorruptionMarker, retainNativeModal, withModalRetention } from "./nativeModalRetention.mjs";
 import { modalRouteRequested, ownedModalCapability, qualifyOwnedModal } from "./modalRoute.mjs";
 
@@ -102,7 +102,7 @@ async function corruption(device, bundleId) {
     const resetDirectory = join(directory, name); mkdirSync(resetDirectory);
     const observation = { id: `corrupt-save/${name}`, udid: device, nativeObservationStartedAtMs: Date.now() };
     (receipt.nativeCorruptionObservations ??= []).push(observation);
-    return withModalRetention(() => nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery,
+    return withModalRetention(() => nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery, systemCancelProbe: nativeCancelProbe(device, bundleId), onSystemCancelReissue: reportReissue(`corrupt-save/${name}`),
         capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
         exercise: (io) => confirmReset(bundleId, io) }), () => {
       retainNativeForScenario(observation, bundleId);
@@ -134,7 +134,28 @@ async function corruption(device, bundleId) {
   assert.equal(saved(device, bundleId, directory, "after-database-reset").data.history.entries.length, 0);
   receipt.nativeCorruptionAndReset = "passed";
 }
-const traceInputs = process.env.GITHUB_ACTIONS === "true" || process.env.EXPO_PUBLIC_NATIVE_INPUT_TRACE === "1";
+// Each observer keeps a debug-level `log stream` open inside the simulator for the whole
+// scenario. Debug streaming makes every simulator process emit debug messages, and hosted
+// 3-CPU runners already sat at load averages of 160-220 with ~170 MB free (#130). The
+// streams are diagnostics, not qualification, so they run only when explicitly requested.
+const traceInputs = process.env.NATIVE_LOG_STREAMS === "1";
+// Read-only: the newest native-cancel log of the owned app, through the same hardened reader
+// as retention, for the evidence-gated re-send of a tap the system gesture gate cancelled (#130).
+function nativeCancelProbe(device, bundleId) {
+  return () => newestNativeCancelText(sim("get_app_container", device, bundleId, "data"));
+}
+// Every re-send is visible in the manifest, as a job warning and in the step summary.
+// A run with any re-send does not count toward #130's three-green restoration streak.
+function reportReissue(id) {
+  return (entry) => {
+    (receipt.systemCancelReissues ??= []).push({ phase: id, assertion: entry.assertion, tap: entry.tap, touch: entry.touch });
+    checkpoint();
+    const failed = entry.assertion ? `"${entry.assertion}" failed` : "its check failed";
+    const line = `System gesture gate cancelled a tap in ${id} (${entry.tap.slice(2, 160)}); re-sent once after ${failed}. This run does not count toward the #130 restoration streak.`;
+    console.log(`::warning::${line}`);
+    if (process.env.GITHUB_STEP_SUMMARY) { try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${line}\n`); } catch { /* the manifest still records it */ } }
+  };
+}
 let stopInputLog;
 let stopDoneLog;
 function retainNativeForScenario(scenario, bundleId) {
@@ -204,7 +225,7 @@ async function exercise(app, bundleId) {
     if (traceInputs) stopInputLog = startInputObservation(device, join(directory, "input-events.jsonl"), { env });
     if (traceInputs) stopDoneLog = startDoneObservation(device, join(directory, "done-events.jsonl"), { env });
     let resumedBytes;
-    await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery,
+    await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery, systemCancelProbe: nativeCancelProbe(device, bundleId), onSystemCancelReissue: reportReissue(scenario.id),
       capture: (name) => sim("io", device, "screenshot", join(directory, `${name}.png`)),
       exercise: async (io) => {
         resumedBytes = await exerciseScenario({ bundleId, scenario, io,

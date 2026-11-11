@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { driverProcesses, startHostTelemetry, startHostTelemetryCollector } from "./hostTelemetry.mjs";
+import { driverProcesses, startHostTelemetry, startHostTelemetryCollector, topProcesses } from "./hostTelemetry.mjs";
 
 test("host telemetry limits process fields and excludes unrelated processes", () => {
   const rows = driverProcesses("1 0 15.4 4096 /Applications/Xcode.app/xcodebuild\n2 1 42.0 2048 /Simulator/SpringBoard\n3 1 0.0 1024 /unrelated/token-value\n");
@@ -62,4 +62,14 @@ await stop.ready;
     const evidence = JSON.parse(readFileSync(join(directory, "host.json"), "utf8"));
     assert(evidence.samples.length > 0);
   } finally { rmSync(directory, { recursive: true }); }
+});
+test("top processes keep only safe basenames, CPU and memory, bounded per list", () => {
+  const ps = ["1 0 95.0 900000 /usr/libexec/heavy-cpu", "2 0 1.0 4000000 /Applications/Big Memory.app/Contents/MacOS/Big Memory",
+    "3 0 50.0 10 /tmp/$(secret)=x", ...Array.from({ length: 20 }, (_, i) => `${i + 10} 0 0.${i} 100 small${i}`)].join("\n") + "\n";
+  const top = topProcesses(ps);
+  assert.equal(top.byCpu.length, 8); assert.equal(top.byMemory.length, 8);
+  assert.deepEqual(top.byCpu[0], { name: "heavy-cpu", cpuPercent: 95, residentKiB: 900000 });
+  assert.deepEqual(top.byCpu[1], { name: "other", cpuPercent: 50, residentKiB: 10 });
+  assert.equal(top.byMemory[0].name, "Big Memory");
+  assert(!JSON.stringify(top).includes("/") && !JSON.stringify(top).includes("secret"));
 });

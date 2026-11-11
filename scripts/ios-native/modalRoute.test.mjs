@@ -20,7 +20,8 @@ test("bootstrap only launches the owned app and establishes Setup, without gamep
   const flow = modalBootstrapFlow("com.hemsoft.thirdroll");
   assert(flow.startsWith('appId: "com.hemsoft.thirdroll"\n---\n'));
   const commands = flow.split("\n").filter((line) => line.startsWith("- "));
-  assert.deepEqual(commands.map((line) => line.split(":")[0]), ["- launchApp", "- setOrientation", "- assertVisible", "- takeScreenshot"]);
+  assert.deepEqual(commands.map((line) => line.split(":")[0]), ["- launchApp", "- setOrientation", "- extendedWaitUntil", "- assertVisible", "- takeScreenshot"]);
+  assert.match(commands[2], /"visible":"A little time for dice\.","timeout":60000/);
   assert.match(commands[0], /"clearState":true/); assert(!/tapOn|Help|Done|Start Game|repeat|retry/.test(flow));
   assert.throws(() => modalBootstrapFlow('other\n---\n- tapOn: "Delete"'));
 });

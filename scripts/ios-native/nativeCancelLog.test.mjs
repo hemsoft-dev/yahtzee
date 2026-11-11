@@ -62,3 +62,10 @@ test("no native record or mixed processes can establish an absent cancellation",
   const s = nativeCancelSummary(parse([])); assert.equal(s.installed, false); assert.equal(s.outcomes.length, 0); assert.equal(s.absenceProvesNothing, true);
   const mixed = nativeCancelSummary(parse([boot(), row(1, 1, { pid: 21 }), row(2, 4)])); assert.equal(mixed.outcomes.length, 0);
 });
+test("unknown recognizer classes are bucketed numerically; no other kind survives", () => {
+  for (const kind of [9, 10]) {
+    const candidate = { ...peer, kind, relation: 3, state: 3, scrollPan: false };
+    assert.equal(parse([row(0, 4, { origin: 1, candidates: [candidate], peer: candidate })]).invalidLines, 0);
+  }
+  assert.equal(parse([row(0, 4, { origin: 1, candidates: [{ ...peer, kind: 11 }] })]).invalidLines, 1);
+});

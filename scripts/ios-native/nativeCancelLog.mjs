@@ -7,7 +7,7 @@ const finite = (v, lo, hi) => Number.isFinite(v) && v >= lo && v <= hi;
 function peerValid(v) {
   if (!v || typeof v !== "object" || Array.isArray(v)) return false;
   if (Object.keys(v).length === 0) return true;
-  return Object.keys(v).length === 5 && integer(v.kind, 0, 8) && integer(v.state, 0, 5) && integer(v.relation, 0, 4)
+  return Object.keys(v).length === 5 && integer(v.kind, 0, 10) && integer(v.state, 0, 5) && integer(v.relation, 0, 4)
     && typeof v.cancels === "boolean" && typeof v.scrollPan === "boolean";
 }
 function valid(row) {

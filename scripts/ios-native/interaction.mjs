@@ -5,9 +5,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import { localMaestro, MaestroError } from "./mcp.mjs";
 import { redactDriverLog, retainXCTestLogs } from "./driverLogs.mjs";
 import { captureDriverEvidence, prepareDriverScratch, unavailableDriverEvidence } from "./driverEvidence.mjs";
+import { reissuableSuffix, systemGateCancelSince } from "./systemCancel.mjs";
 
 /** One bounded local driver session for the owned simulator. */
-export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay, evidenceWorker }) {
+export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay, evidenceWorker, systemCancelProbe, onSystemCancelReissue }) {
   assert(["complete", "hold", "scenario", "reset"].includes(prefix), "Unknown native interaction phase.");
   let diagnostics = "", sequence = 0, timingUnavailable = false;
   const timings = [];
@@ -70,11 +71,37 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
     writeFileSync(join(directory, `${prefix}-screen-latest.json`), JSON.stringify(screen, null, 2) + "\n");
     return screen;
   }
-  async function runFlow(yaml) {
-    assert(typeof yaml === "string" && yaml.length <= 262144 && yaml.startsWith(`appId: ${JSON.stringify(bundleId)}\n---\n`), "Flow must target the owned application.");
+  const record = (value) => appendFileSync(join(directory, `${prefix}-geometry.jsonl`), JSON.stringify(value) + "\n");
+  let reissues = 0;
+  async function send(yaml) {
     writeFileSync(join(directory, `${prefix}-step-${String(++sequence).padStart(3, "0")}.yaml`), yaml);
     const result = await call("run", { device_id: device, yaml });
     assert.equal(result.success, true, "Native interaction command failed.");
+  }
+  // #130: the one exception to "never replay". When the app's own native cancel log proves the
+  // system gesture gate cancelled this flow's tap before delivery, that tap and the passive
+  // commands after it are sent once more. At most once per flow and twice per session; each
+  // re-send is recorded and reported (manifest, job warning, step summary).
+  async function runFlow(yaml) {
+    const header = `appId: ${JSON.stringify(bundleId)}\n---\n`;
+    assert(typeof yaml === "string" && yaml.length <= 262144 && yaml.startsWith(header), "Flow must target the owned application.");
+    const startedMs = Date.now();
+    try { await send(yaml); }
+    catch (error) {
+      if (!(error instanceof MaestroError) || error.failureClass !== "application-flow" || reissues >= 2 || typeof systemCancelProbe !== "function") throw error;
+      const lines = yaml.slice(header.length).split("\n"); if (lines.at(-1) === "") lines.pop();
+      const suffix = reissuableSuffix(lines, error.assertion);
+      if (!suffix) throw error;
+      let cancel = null;
+      try { cancel = systemGateCancelSince(await systemCancelProbe(), startedMs); } catch { cancel = null; }
+      if (!cancel || (suffix.touches === "only" && cancel.beganSince !== 1)) throw error;
+      const entry = { kind: "system-gesture-cancel-reissue", assertion: error.assertion ?? null, tap: suffix.lines[0], touch: cancel };
+      // Fail closed: a re-send that cannot be reported would look like a clean run, so report
+      // first and keep the original failure if any report write throws.
+      try { record(entry); onSystemCancelReissue?.(entry); } catch { throw error; }
+      reissues++;
+      await send(header + suffix.lines.join("\n") + "\n");
+    }
   }
   async function run(commands) {
     const yaml = `appId: ${JSON.stringify(bundleId)}\n---\n` + commands.map((command) => {
@@ -125,7 +152,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
         diagnostics += `\nConnection readiness ${JSON.stringify(entry)}\n`;
       }
     }
-    await exercise({ inspect, run, runFlow, capture, record: (value) => appendFileSync(join(directory, `${prefix}-geometry.jsonl`), JSON.stringify(value) + "\n") });
+    await exercise({ inspect, run, runFlow, capture, record });
   } catch (error) {
     recovery.failure = { ...classify(error, sequence ? "run-or-exercise" : "readiness"), handling: "fail-without-replay" };
     try { await capture(`${prefix}-failure`); } catch { /* Preserve the original error; the runner also reads the saved document. */ }
