@@ -48,6 +48,17 @@ The repairs still in use are braces 3.0.3, sprintf-js 1.1.3 and deepmerge 4.3.1.
 
 [security-remediations.json](../../security-remediations.json) records the delivered hashes. [Policy regressions](../../packages/game-engine/tests/securityRemediations.test.ts) prove tampering and unrelated advisories remain errors. Remove each patch, override and matching remediation record together when a compatible upstream release incorporates the fix; run the exploit regressions and full audit before merging that replacement.
 
+## November 11 repair
+
+Four node-forge advisories published on November 10 turned the dependency audit red on every branch:
+[GHSA-6889-vf6x-f3g5](https://github.com/advisories/GHSA-6889-vf6x-f3g5) (low),
+[GHSA-w4xr-hqv8-ch44](https://github.com/advisories/GHSA-w4xr-hqv8-ch44),
+[GHSA-6cv4-p8m7-4r25](https://github.com/advisories/GHSA-6cv4-p8m7-4r25) and
+[GHSA-j8rw-jp99-435v](https://github.com/advisories/GHSA-j8rw-jp99-435v) (moderate). All four affect 1.4.2 and are
+fixed in 1.4.3, so the root pin moved to 1.4.3. `@expo/cli` asks for `^1.3.3`, which 1.4.3 satisfies. The
+GHSA-86w9-cpqp-85rv exploit regressions still pass unchanged, and the inventory's four node-forge `current` values
+now read 1.4.3.
+
 ## November 1 repairs
 
 Advisories published on October 30 turned the daily audit red on `main`.
