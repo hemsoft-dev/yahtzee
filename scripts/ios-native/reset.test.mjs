@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { resetPosition, confirmReset, recoveryHelpPosition, resetActionPosition, revealResetAction } from "./reset.mjs";
+import { RESET_SEARCH_BUDGET_MS, resetPosition, confirmReset, recoveryHelpPosition, resetActionPosition, revealResetAction } from "./reset.mjs";
 
 const fixture = () => JSON.parse(readFileSync(new URL("./fixtures/reset-confirmation.json", import.meta.url)));
 
@@ -84,15 +84,23 @@ test("a clipped viewport navigates only inside the intersection visible through 
   assert.throws(() => resetActionPosition(screen), /too small/);
 });
 
-test("the reset search keeps one 60-second budget and cannot tap a late snapshot", async () => {
+test("the reset search keeps one 180-second budget and cannot tap a late snapshot", async () => {
+  assert.equal(RESET_SEARCH_BUDGET_MS, 180000);
   let clock = 0, inspections = 0; const calls = [];
   await assert.rejects(revealResetAction({ run: async (commands) => { calls.push(...commands); },
-    inspect: async () => { inspections++; clock = 60000; return help(); }, record: () => {} }, () => clock), /60000ms/);
+    inspect: async () => { inspections++; clock = 180000; return help(); }, record: () => {} }, () => clock), /180000ms/);
   assert.equal(inspections, 1); assert(!calls.some((command) => command.tapOn || command.swipe));
   clock = 0; inspections = 0;
-  await assert.rejects(revealResetAction({ run: async () => { clock += 10000; },
-    inspect: async () => { inspections++; return help(null); }, record: () => {} }, () => clock), /60000ms/);
+  await assert.rejects(revealResetAction({ run: async () => { clock += 30000; },
+    inspect: async () => { inspections++; return help(null); }, record: () => {} }, () => clock), /180000ms/);
   assert(inspections > 1 && inspections < 6);
+});
+test("a slow host that needs six scans at ~10 s per cycle still reaches the action", async () => {
+  // PR #138 owned modal: 8-10 s per wait/inspect/swipe cycle; the action entered the viewport on scan seven.
+  let clock = 0, inspections = 0;
+  const target = await revealResetAction({ run: async () => { clock += 4500; },
+    inspect: async () => { inspections++; clock += 500; return help(inspections < 7 ? null : undefined); }, record: () => {} }, () => clock);
+  assert.equal(inspections, 7); assert(clock > 60000 && clock < 180000); assert(target);
 });
 
 test("failed navigation is never replayed and a stalled search has a secondary inspection bound", async () => {

@@ -40,11 +40,17 @@ export function resetActionPosition(screen) {
     start: `${x},${up ? high : low}`, end: `${x},${up ? low : high}`, duration: 600 };
 }
 
+// The 30-inspection cap bounds the search logically. The wall-clock budget only stops a
+// stalled driver. At 60 s it measured host speed instead: on PR #138 each wait/inspect/swipe
+// cycle took 8-10 s at load averages of 300-600, and the budget expired one inspection after
+// the target reached the viewport edge on its sixth scan of largest-text Help (#130).
+export const RESET_SEARCH_BUDGET_MS = 180000;
 export async function revealResetAction(io, now = () => performance.now()) {
   const started = now();
   const budget = () => {
     const elapsed = now() - started;
-    assert(Number.isFinite(elapsed) && elapsed >= 0 && elapsed < 60000, "Reset action did not become reachable within 60000ms.");
+    assert(Number.isFinite(elapsed) && elapsed >= 0 && elapsed < RESET_SEARCH_BUDGET_MS,
+      `Reset action did not become reachable within ${RESET_SEARCH_BUDGET_MS}ms.`);
   };
   for (let attempt = 0; attempt < 30; attempt++) {
     budget();

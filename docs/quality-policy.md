@@ -4,7 +4,7 @@ Application quality runs for every pull request, main update and merge-group can
 
 ## Hosted native qualification during the incident
 
-[Issue #130](https://github.com/hemsoft-dev/yahtzee/issues/130) tracks the temporary advisory policy authorised by Chief on November 8. The source-bound simulator build, four device groups, isolated owned-modal route and reset-settle route run on every PR, main push and merge-group candidate. The complete original gameplay and corruption/reset flows execute, with their original assertions, waits, 60000 ms/30-inspection reset limit and 600 ms reset swipes. No per-flow quarantine remains.
+[Issue #130](https://github.com/hemsoft-dev/yahtzee/issues/130) tracks the temporary advisory policy authorised by Chief on November 8. The source-bound simulator build, four device groups, isolated owned-modal route and reset-settle route run on every PR, main push and merge-group candidate. The complete original gameplay and corruption/reset flows execute, with their original assertions, waits, 180000 ms/30-inspection reset limit (60000 ms before #138) and 600 ms reset swipes. No per-flow quarantine remains.
 
 Only the outcomes of `native`, `native-modal` and `native-settle` are advisory to `quality-gate`. A failure remains a failed job and retains its original logs, receipts and artifacts. The aggregate prints all three outcomes, emits a warning for unsuccessful or unavailable outcomes, and writes a step summary linked to issue #130. It waits for those outcomes; it does not relabel them as success or use `continue-on-error`. Consequently the workflow may be red from advisory jobs while required `quality-gate` is green. A green aggregate is not native acceptance or App Store acceptance.
 

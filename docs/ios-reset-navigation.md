@@ -18,8 +18,10 @@ This avoids the generic whole-screen search's center-to-edge gesture on long,
 large-text content. See the official
 [Maestro scroll behavior](https://docs.maestro.dev/reference/commands-available/scrolluntilvisible).
 
-The search retains a single 60-second budget, including its animation waits,
-inspections and swipes, with a secondary 30-inspection cap. A late snapshot,
+The search retains a single 180-second budget, including its animation waits,
+inspections and swipes, with a secondary 30-inspection cap. The budget was 60
+seconds until #138: on loaded hosted runners each wait/inspect/swipe cycle took
+8-10 seconds, and largest-text Help needs about seven scans (#130). A late snapshot,
 ambiguous target, clipped control or failed gesture cannot authorize a tap.
 Failures propagate without replay. Text size, content, the destructive warning,
 cancellation check, dialog-position guard, database deletion and empty-save
