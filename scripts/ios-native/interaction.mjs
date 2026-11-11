@@ -7,7 +7,7 @@ import { redactDriverLog, retainXCTestLogs } from "./driverLogs.mjs";
 import { captureDriverEvidence, prepareDriverScratch, unavailableDriverEvidence } from "./driverEvidence.mjs";
 
 /** One bounded local driver session for the owned simulator. */
-export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay, evidenceWorker }) {
+export async function nativeInteraction({ device, bundleId, directory, prefix, env, capture, exercise, openSession = localMaestro, report = () => {}, now = Date.now, backoff = delay, evidenceWorker, systemCancelProbe }) {
   assert(["complete", "hold", "scenario", "reset"].includes(prefix), "Unknown native interaction phase.");
   let diagnostics = "", sequence = 0, timingUnavailable = false;
   const timings = [];
@@ -125,7 +125,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
         diagnostics += `\nConnection readiness ${JSON.stringify(entry)}\n`;
       }
     }
-    await exercise({ inspect, run, runFlow, capture, record: (value) => appendFileSync(join(directory, `${prefix}-geometry.jsonl`), JSON.stringify(value) + "\n") });
+    await exercise({ inspect, run, runFlow, capture, systemCancelProbe, record: (value) => appendFileSync(join(directory, `${prefix}-geometry.jsonl`), JSON.stringify(value) + "\n") });
   } catch (error) {
     recovery.failure = { ...classify(error, sequence ? "run-or-exercise" : "readiness"), handling: "fail-without-replay" };
     try { await capture(`${prefix}-failure`); } catch { /* Preserve the original error; the runner also reads the saved document. */ }

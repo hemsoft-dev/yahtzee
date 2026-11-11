@@ -5,7 +5,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { writeFileSync, renameSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
-// No arguments or environment are collected. Only known simulator/driver processes.
+// No arguments or environment are collected. This list holds only known simulator/driver
+// processes; `topProcesses` adds the bounded, basename-only heaviest processes of any kind.
 export function driverProcesses(output) {
   return output.split("\n").flatMap((line) => {
     const match = /^\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(.+)$/.exec(line);

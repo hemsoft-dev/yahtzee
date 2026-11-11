@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { reissuableSuffix, systemGateCancelSince } from "./systemCancel.mjs";
 
 /** Split only our bounded, single-line authored YAML. Preserve every command exactly once. */
 export function batchAuthoredFlow(yaml) {
@@ -15,7 +16,28 @@ export function batchAuthoredFlow(yaml) {
   return batches;
 }
 
-/** Await each batch on the same session. Never replay or continue after an uncertain failure. */
-export async function runAuthoredFlow(io, yaml) {
-  for (const batch of batchAuthoredFlow(yaml)) await io.runFlow(batch);
+/**
+ * Await each batch on the same session. Never replay or continue after an uncertain failure.
+ * One exception (#130): when the app's own native record proves the system gesture gate
+ * cancelled the batch's last tap before delivery, that tap and the commands after it are sent
+ * once more. At most once per authored flow, and every occurrence is recorded.
+ */
+export async function runAuthoredFlow(io, yaml, now = Date.now) {
+  let reissued = false;
+  for (const batch of batchAuthoredFlow(yaml)) {
+    const startedMs = now();
+    try { await io.runFlow(batch); }
+    catch (error) {
+      if (reissued || typeof io.systemCancelProbe !== "function") throw error;
+      const [header, separator, ...lines] = batch.split("\n"); lines.pop();
+      const suffix = reissuableSuffix(lines, error?.assertion);
+      if (!suffix) throw error;
+      let cancel = null;
+      try { cancel = systemGateCancelSince(await io.systemCancelProbe(), startedMs); } catch { cancel = null; }
+      if (!cancel) throw error;
+      reissued = true;
+      io.record?.({ kind: "system-gesture-cancel-reissue", assertion: error.assertion, tap: suffix[0], touch: cancel });
+      await io.runFlow(`${header}\n${separator}\n${suffix.join("\n")}\n`);
+    }
+  }
 }

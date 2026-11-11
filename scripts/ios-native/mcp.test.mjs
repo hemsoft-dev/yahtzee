@@ -126,6 +126,19 @@ for (const [text, expectedClass, expectedCode] of [
   });
 }
 
+test("a failed positive assertion keeps its authored pattern verbatim, and nothing else", async () => {
+  for (const [text, assertion] of [['Failed to run flow: Assertion is false: "Re-roll \\(2\\)" is visible', "Re-roll \\(2\\)"],
+    ["Failed to run flow: Element not found: 10 dice", undefined], ['Failed to run flow: Assertion is false: "x" is not visible', undefined]]) {
+    const fixture = processFixture((message, child) => {
+      if (message.method === "initialize") respond(child, message.id, { serverInfo: { name: "maestro" }, protocolVersion: "2024-11-05" });
+      if (message.method === "tools/call") respond(child, message.id, { isError: true, content: [{ type: "text", text }] });
+    });
+    const client = await localMaestro({ cwd: "/owned", env: {}, onStderr: () => {}, start: () => fixture.child });
+    try { await assert.rejects(client.call("run"), (error) => error instanceof MaestroError && error.assertion === assertion); }
+    finally { await client.close(); }
+  }
+});
+
 test("RPC timeout on a submitted run is uncertain transport", async () => {
   const { child } = processFixture();
   const client = rpcClient(child, { timeoutMs: 5 });
