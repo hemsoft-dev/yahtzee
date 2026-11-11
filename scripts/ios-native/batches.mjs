@@ -36,7 +36,8 @@ export async function runAuthoredFlow(io, yaml, now = Date.now) {
       try { cancel = systemGateCancelSince(await io.systemCancelProbe(), startedMs); } catch { cancel = null; }
       if (!cancel) throw error;
       reissued = true;
-      io.record?.({ kind: "system-gesture-cancel-reissue", assertion: error.assertion, tap: suffix[0], touch: cancel });
+      const entry = { kind: "system-gesture-cancel-reissue", assertion: error.assertion, tap: suffix[0], touch: cancel };
+      io.record?.(entry); io.reportReissue?.(entry);
       await io.runFlow(`${header}\n${separator}\n${suffix.join("\n")}\n`);
     }
   }

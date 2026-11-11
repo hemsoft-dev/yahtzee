@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { getScorecardCategories } from "../../packages/game-engine/src/presentation.ts";
@@ -19,7 +19,7 @@ import { checkedCommandOutput } from "./commandResult.mjs";
 import { startInputObservation } from "./inputObservation.mjs";
 import { startDoneObservation } from "./doneObservation.mjs";
 import { startHostTelemetry } from "./hostTelemetry.mjs";
-import { retainNativeCancellation } from "./nativeCancelRetention.mjs";
+import { newestNativeCancelText, retainNativeCancellation } from "./nativeCancelRetention.mjs";
 import { retainCorruptionMarker, retainNativeModal, withModalRetention } from "./nativeModalRetention.mjs";
 import { modalRouteRequested, ownedModalCapability, qualifyOwnedModal } from "./modalRoute.mjs";
 
@@ -102,7 +102,7 @@ async function corruption(device, bundleId) {
     const resetDirectory = join(directory, name); mkdirSync(resetDirectory);
     const observation = { id: `corrupt-save/${name}`, udid: device, nativeObservationStartedAtMs: Date.now() };
     (receipt.nativeCorruptionObservations ??= []).push(observation);
-    return withModalRetention(() => nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery, systemCancelProbe: nativeCancelProbe(device, bundleId),
+    return withModalRetention(() => nativeInteraction({ device, bundleId, directory: resetDirectory, prefix: "reset", env, report: recordRecovery, systemCancelProbe: nativeCancelProbe(device, bundleId), onSystemCancelReissue: reportReissue(`corrupt-save/${name}`),
         capture: async (stage) => sim("io", device, "screenshot", join(resetDirectory, `${stage}.png`)),
         exercise: (io) => confirmReset(bundleId, io) }), () => {
       retainNativeForScenario(observation, bundleId);
@@ -139,16 +139,20 @@ async function corruption(device, bundleId) {
 // 3-CPU runners already sat at load averages of 160-220 with ~170 MB free (#130). The
 // streams are diagnostics, not qualification, so they run only when explicitly requested.
 const traceInputs = process.env.NATIVE_LOG_STREAMS === "1";
-// Read-only: the newest native-cancel log of the owned app, for the evidence-gated
-// re-send of a tap the system gesture gate cancelled before delivery (#130).
+// Read-only: the newest native-cancel log of the owned app, through the same hardened reader
+// as retention, for the evidence-gated re-send of a tap the system gesture gate cancelled (#130).
 function nativeCancelProbe(device, bundleId) {
-  return () => {
-    const documents = join(sim("get_app_container", device, bundleId, "data"), "Documents");
-    const newest = readdirSync(documents).filter((name) => /^native-cancel-[1-9][0-9]{0,8}\.jsonl$/.test(name))
-      .map((name) => ({ name, mtime: statSync(join(documents, name)).mtimeMs })).sort((a, b) => b.mtime - a.mtime)[0];
-    if (!newest) return "";
-    const bytes = readFileSync(join(documents, newest.name));
-    return bytes.length > 4 * 1024 * 1024 ? "" : bytes.toString("utf8");
+  return () => newestNativeCancelText(sim("get_app_container", device, bundleId, "data"));
+}
+// Every re-send is visible in the manifest, as a job warning and in the step summary.
+// A run with any re-send does not count toward #130's three-green restoration streak.
+function reportReissue(id) {
+  return (entry) => {
+    (receipt.systemCancelReissues ??= []).push({ phase: id, assertion: entry.assertion, touch: entry.touch });
+    checkpoint();
+    const line = `System gesture gate cancelled a tap in ${id}; re-sent once after "${entry.assertion}" failed. This run does not count toward the #130 restoration streak.`;
+    console.log(`::warning::${line}`);
+    if (process.env.GITHUB_STEP_SUMMARY) { try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${line}\n`); } catch { /* the manifest still records it */ } }
   };
 }
 let stopInputLog;
@@ -220,7 +224,7 @@ async function exercise(app, bundleId) {
     if (traceInputs) stopInputLog = startInputObservation(device, join(directory, "input-events.jsonl"), { env });
     if (traceInputs) stopDoneLog = startDoneObservation(device, join(directory, "done-events.jsonl"), { env });
     let resumedBytes;
-    await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery, systemCancelProbe: nativeCancelProbe(device, bundleId),
+    await nativeInteraction({ device, bundleId, directory, prefix: "scenario", env, report: recordRecovery, systemCancelProbe: nativeCancelProbe(device, bundleId), onSystemCancelReissue: reportReissue(scenario.id),
       capture: (name) => sim("io", device, "screenshot", join(directory, `${name}.png`)),
       exercise: async (io) => {
         resumedBytes = await exerciseScenario({ bundleId, scenario, io,

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { retainNativeCancellation } from "./nativeCancelRetention.mjs";
+import { newestNativeCancelText, readOwnedNativeFile, retainNativeCancellation } from "./nativeCancelRetention.mjs";
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), "native-cancel-retention-"));
@@ -40,4 +40,15 @@ test("a linked Documents directory cannot admit another path", (t) => {
   rmdirSync(f.documents); symlinkSync(other, f.documents, "junction");
   writeFileSync(join(other, "native-cancel-20.jsonl"), JSON.stringify(boot) + "\n");
   assert.equal(retainNativeCancellation(f.container, f.output, 0).reason, "documents-not-owned-directory");
+});
+test("the re-send probe reads only the newest owned regular log through the hardened reader", (t) => {
+  const { container, documents } = fixture(t);
+  assert.equal(newestNativeCancelText(container), "");
+  writeFileSync(join(documents, "native-cancel-11.jsonl"), "old\n"); utimesSync(join(documents, "native-cancel-11.jsonl"), 1000, 1000);
+  writeFileSync(join(documents, "native-cancel-12.jsonl"), "new\n"); utimesSync(join(documents, "native-cancel-12.jsonl"), 2000, 2000);
+  writeFileSync(join(documents, "other.jsonl"), "ignored\n");
+  assert.equal(newestNativeCancelText(container), "new\n");
+  writeFileSync(join(documents, "native-cancel-13.jsonl"), Buffer.alloc(4 * 1024 * 1024 + 1)); utimesSync(join(documents, "native-cancel-13.jsonl"), 3000, 3000);
+  assert.equal(newestNativeCancelText(container), "", "over-budget newest file yields no text");
+  assert.equal(readOwnedNativeFile(join(documents, "native-cancel-12.jsonl")).toString(), "new\n");
 });

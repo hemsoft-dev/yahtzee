@@ -63,3 +63,9 @@ test("runAuthoredFlow re-sends once only with native proof, and records it", asy
     systemCancelProbe: async () => log([boot(), began(1, 3), cancelled(1, [handler, gate], { w: 3.06 })]) }, yaml, () => 2000), /transport/);
   assert.equal(n, 1, "only an authored positive assertion qualifies");
 });
+test("every re-send is also reported to the run, not only the geometry log", async () => {
+  const reports = []; let calls = 0;
+  await runAuthoredFlow({ runFlow: async () => { if (calls++ === 0) throw failure(); }, record: () => {}, reportReissue: (v) => reports.push(v),
+    systemCancelProbe: async () => log([boot(), began(1, 3), cancelled(1, [handler, gate], { w: 3.06 })]) }, yaml, () => 2000);
+  assert.equal(reports.length, 1); assert.equal(reports[0].assertion, "Current: .*"); assert.equal(reports[0].touch.q, 1);
+});
