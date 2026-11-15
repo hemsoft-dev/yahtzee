@@ -25,7 +25,7 @@ for (const [name, start] of [
 ]) {
   test(`${name} is unavailable and cannot turn a successful flow into failure`, async () => {
     const stop = startInputObservation("device", "path", { start });
-    let completed = false;
+    let completed;
     try { completed = true; } finally {
       const trace = await stop(); assert.equal(trace.status, "unavailable");
       assert(!JSON.stringify(trace).includes("private"));
