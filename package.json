@@ -51,7 +51,7 @@
     "convex-test": "0.0.59",
     "eslint": "9.39.4",
     "eslint-plugin-react-hooks": "7.1.1",
-    "globals": "17.5.0",
+    "globals": "17.14.0",
     "istanbul-lib-coverage": "3.2.2",
     "istanbul-lib-instrument": "6.0.3",
     "mutation-testing-metrics": "3.8.4",
