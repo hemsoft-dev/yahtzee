@@ -9,7 +9,7 @@ export async function unchangedSave({ expected, exercise, readSaved, record }) {
     await record(saved); // Retain observed bytes before rejecting a mutation.
     assert.equal(saved, expected, "Display-only capture changed the preloaded save.");
   } catch (error) {
-    if (failed) throw new AggregateError([failure, error], "Capture navigation failed and fixture integrity was not preserved.");
+    if (failed) throw new AggregateError([failure, error], "Capture navigation failed and fixture integrity was not preserved.", { cause: error });
     throw error;
   }
   if (failed) throw failure;

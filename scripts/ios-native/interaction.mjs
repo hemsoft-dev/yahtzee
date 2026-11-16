@@ -92,7 +92,7 @@ export async function nativeInteraction({ device, bundleId, directory, prefix, e
       const lines = yaml.slice(header.length).split("\n"); if (lines.at(-1) === "") lines.pop();
       const suffix = reissuableSuffix(lines, error.assertion);
       if (!suffix) throw error;
-      let cancel = null;
+      let cancel;
       try { cancel = systemGateCancelSince(await systemCancelProbe(), startedMs); } catch { cancel = null; }
       if (!cancel || (suffix.touches === "only" && cancel.beganSince !== 1)) throw error;
       const entry = { kind: "system-gesture-cancel-reissue", assertion: error.assertion ?? null, tap: suffix.lines[0], touch: cancel };
