@@ -103,6 +103,10 @@ See [client qualification](docs/client-qualification.md) for Linux display depen
 
 See [the lint policy](docs/lint-policy.md) for rules and generated-code exclusions. No production deployment is needed for these checks. A frontend build without a URL can compile, but it will not start successfully until configured.
 
+## T3 Code project icon
+
+[t3.json](t3.json) points T3 Code at [assets/icon.svg](assets/icon.svg), a small version of the app icon: the tilted porcelain five on evergreen, with larger pips so it stays readable in the sidebar. The SVG is self-contained and its path is relative to the checkout, so worktrees pick it up too. Leave the project's icon on Automatic to use it; a saved image override takes precedence.
+
 ## Planned work
 
 Remote human multiplayer is planned, not part of the current application. Do not interpret shared leaderboards as live multiplayer. Server-authoritative results, durable replay handling and isolated client journeys are implemented. Remaining work is tracked in the [issue queue](https://github.com/hemsoft-dev/yahtzee/issues).
