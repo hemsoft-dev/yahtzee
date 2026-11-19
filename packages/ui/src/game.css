@@ -108,6 +108,8 @@
 .settings-group > label, .settings-group legend { font-size: 13px; font-weight: 750; padding: 0; margin-bottom: 10px; display: block; }
 .settings-group > input { width: 100%; border-radius: 9px; min-height: 48px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); padding: 12px 14px; }
 .settings-group input::placeholder { color: var(--muted); opacity: 1; }
+.settings-group > input[aria-invalid="true"] { border-color: var(--error); }
+.field-error { color: var(--error); font-size: 13px; margin-top: 8px; }
 .recent-names { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; }
 .recent-names button { border: 0; background: transparent; color: var(--muted); padding: 4px 0; font-size: 12px; text-decoration: underline; text-underline-offset: 4px; overflow-wrap: anywhere; }
 .segmented-control { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--surface-soft); padding: 4px; border-radius: 10px; }
