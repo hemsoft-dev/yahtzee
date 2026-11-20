@@ -14,7 +14,7 @@
   "dependencies": {
     "@yahtzee/game-engine": "workspace:*",
     "@yahtzee/ui": "workspace:*",
-    "convex": "1.46.0",
+    "convex": "1.50.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
