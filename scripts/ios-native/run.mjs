@@ -146,13 +146,12 @@ function nativeCancelProbe(device, bundleId) {
   return () => newestNativeCancelText(sim("get_app_container", device, bundleId, "data"));
 }
 // Every re-send is visible in the manifest, as a job warning and in the step summary.
-// A run with any re-send does not count toward #130's three-green restoration streak.
 function reportReissue(id) {
   return (entry) => {
     (receipt.systemCancelReissues ??= []).push({ phase: id, assertion: entry.assertion, tap: entry.tap, touch: entry.touch });
     checkpoint();
     const failed = entry.assertion ? `"${entry.assertion}" failed` : "its check failed";
-    const line = `System gesture gate cancelled a tap in ${id} (${entry.tap.slice(2, 160)}); re-sent once after ${failed}. This run does not count toward the #130 restoration streak.`;
+    const line = `System gesture gate cancelled a tap in ${id} (${entry.tap.slice(2, 160)}); re-sent once after ${failed}.`;
     console.log(`::warning::${line}`);
     if (process.env.GITHUB_STEP_SUMMARY) { try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${line}\n`); } catch { /* the manifest still records it */ } }
   };
