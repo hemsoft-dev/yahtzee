@@ -3,7 +3,6 @@ import { Appearance, Platform, useColorScheme } from "react-native";
 import { createPlatformStorage } from "./platformStorage";
 import { createLocalStore, type LocalStore, type LocalView } from "./store";
 import { nativeColors } from "../ui/colors";
-import { inputTrace } from "../diagnostics/inputTrace";
 import type { NativeColors } from "../ui/palette";
 
 interface LocalContext { store: LocalStore; view: LocalView; dark: boolean; colors: NativeColors }
@@ -16,7 +15,6 @@ export function LocalProvider({ children }: { children: ReactNode }) {
   const preference = view.data?.preferences.appearance ?? "system";
   const dark = preference === "dark" || (preference === "system" && system === "dark");
   const colors = useMemo(() => nativeColors(dark), [dark]);
-  useEffect(() => inputTrace.start(), []);
   useEffect(() => { void store.load(); }, [store]);
   useEffect(() => {
     if (Platform.OS !== "web") Appearance.setColorScheme(preference === "system" ? "unspecified" : preference);

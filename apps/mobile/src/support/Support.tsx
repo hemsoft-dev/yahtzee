@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Linking, View } from "react-native";
 import { Action, Label, Section, styles } from "../ui/controls";
-import { destinations, openDestination, reportText, reportURL, reviewURL, type ReportKind } from "./destinations";
+import { destinations, openDestination, reportText, reportURL, type ReportKind } from "./destinations";
 
 export function Support({ diagnostics }: { diagnostics: string }) {
   const [kind, setKind] = useState<ReportKind | null>(null);
@@ -9,7 +9,6 @@ export function Support({ diagnostics }: { diagnostics: string }) {
   const [busy, setBusy] = useState(false);
   const text = kind ? reportText(kind, diagnostics) : "";
   const url = kind ? reportURL(destinations, kind, text) : null;
-  const review = reviewURL(destinations);
   const open = async (target: string) => {
     if (busy) return;
     setBusy(true);
@@ -37,12 +36,6 @@ export function Support({ diagnostics }: { diagnostics: string }) {
         {destinations.privateEmail && <Label selectable>Private support: {destinations.privateEmail}</Label>}
         <Label muted>Select and copy these details if you're offline. For security or privacy concerns, use a private contact when available; never a public issue.</Label></View>
       <Action label="Security reporting information" disabled={busy} onPress={() => { void open(destinations.security); }} />
-    </Section>
-    <Section title="Privacy and reviews">
-      <View style={styles.row}><Label>Local-data and backup information is available offline in Your data above. Opening the development privacy draft connects to GitHub. Opening reviews connects to Apple.</Label></View>
-      <Action label="Open privacy information" disabled={busy} onPress={() => { void open(destinations.privacy); }} />
-      {review ? <Action label="Rate or review Third Roll" disabled={busy} onPress={() => { void open(review); }} />
-        : <View style={styles.row}><Label>App Store reviews will be available here once Third Roll has an App Store listing.</Label></View>}
     </Section>
     {error && <Label accessibilityRole="alert">{error}</Label>}
   </>;

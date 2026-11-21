@@ -28,11 +28,11 @@ SQLite transaction recovery is not a guarantee against device loss, arbitrary fi
 
 The development default uses Expo SQLite's iOS Documents/SQLite directory. It is eligible for standard OS-controlled device backup; the app does not independently sync it. Deleting the app removes its local container. Offloading can retain data, and restoring an older device backup can restore older games and preferences. Reset does not erase existing OS backups. No application-level database encryption is configured.
 
-Physical backup/restore, uninstall and locked-device behavior still need device qualification. The owner must review the final privacy disclosures before release. These source-level defaults are not an attestation that a particular backup has succeeded.
+Physical backup/restore, uninstall and locked-device behavior are not tested on a device. These source-level defaults are not an attestation that a particular backup has succeeded.
 
 ## Evidence boundaries
 
 - `nativePersistence.test.ts` covers validation, staged retries, concurrency, all modes, completion retention and reset at the storage interface.
 - `nativeSqlite.test.ts` uses real temporary SQLite files through Bun. It covers corruption preservation, schema rejection, SQL binding, restart, acknowledgment loss and explicit reset. It does not run Expo's native module.
-- The [native simulator workflow](native-simulator.md) builds and exercises the actual Expo iOS app, reads its database, compares resume bytes and tests corrupt documents/databases through the native recovery UI.
-- Real iPhone/iPad airplane-mode, VoiceOver, interruption, backup and TestFlight acceptance remain separate requirements in [issue 41](https://github.com/hemsoft-dev/yahtzee/issues/41) and [issue 42](https://github.com/hemsoft-dev/yahtzee/issues/42).
+- No check runs the Expo app's native SQLite module, recovery UI or resume path on a simulator or device. The hosted iOS simulator workflow that did this was removed on November 21, 2026 because there will be no iOS release.
+- Airplane-mode, VoiceOver, interruption and backup behavior on a real device are not tested.

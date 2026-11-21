@@ -21,4 +21,4 @@ Describe any existing controls or workflows you tried.
 
 ## Affected edition
 
-Native iPhone/iPad, offline Windows, online web/desktop, or more than one. Note accessibility or layout needs without personal information.
+Native mobile development build, offline Windows, online web/desktop, or more than one. Note accessibility or layout needs without personal information.

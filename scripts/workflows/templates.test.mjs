@@ -22,7 +22,7 @@ function assertTemplate(content) {
   assert.match(content, /General private support without GitHub is not available yet/);
   assert.match(content, /\[security reporting policy\]\(https:\/\/github\.com\/hemsoft-dev\/yahtzee\/blob\/main\/SECURITY\.md\)/);
   assert.doesNotMatch(content, /\]\(\.\.\//);
-  assert.doesNotMatch(content, /mailto:|itms-apps:|apps\.apple\.com|https:\/\/[^\s)]*\/security\/advisories\/new/);
+  assert.doesNotMatch(content, /mailto:|https:\/\/[^\s)]*\/security\/advisories\/new/);
 }
 function assertBlankEnabled(config) {
   const fields = config.split(/\r?\n/).filter((line) => line.startsWith("blank_issues_enabled:"));

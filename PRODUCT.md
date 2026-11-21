@@ -14,7 +14,7 @@ The product spans a React web app, an Electron desktop app, and an Expo/React Na
 
 ## Users
 
-The owner and his wife were the first users. The owner requested a self-contained offline Windows build to send to his wife. The first App Store release is free and open to anyone, as decided in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39), with no public-growth goal.
+The owner and his wife were the first users. The owner requested a self-contained offline Windows build to send to his wife. There is no public-growth goal, and there will be no iOS App Store release (see [iOS release](#ios-release)).
 
 ## Product purpose
 
@@ -48,7 +48,7 @@ These are repository-verified implementation facts, not newly requested commitme
 - Completed-game history and top-ten leaderboards are separated by dice count. Display names are labels, not authenticated identities; name-based averages are not account statistics.
 - Online guest access expires after 12 hours and stays in client memory. There is no account login or game-access recovery.
 - The portable offline Windows edition needs no Convex service or developer tools. It retains local top-ten scores per dice count and the last 500 completed games, with no online sync. Unfinished games are abandoned on quit or close.
-- Native mobile retains acknowledged active games, the last 500 completed games and local top-ten scores per dice count. Damaged or unavailable saves enter visible recovery without silent replacement. Exact-byte write retry, explicit discard/reset and cold resume are covered by unsigned native simulator qualification, not signed-device or release acceptance.
+- Native mobile retains acknowledged active games, the last 500 completed games and local top-ten scores per dice count. Damaged or unavailable saves enter visible recovery without silent replacement. Exact-byte write retry, explicit discard/reset and cold resume are covered by storage-interface and SQLite tests, not by native simulator or device execution.
 - Remote multiplayer is documented as planned, not implemented. The owner has not made it a priority in this product interview.
 
 The owner identified no additional must-preserve requirements. House rules and variable dice counts remain current behavior, but were not confirmed as defining product commitments. This record does not authorize removing or changing them without a scoped request.
@@ -70,8 +70,8 @@ No audience research, testimonials, or comparative product claims were supplied 
 
 ## Open decisions
 
-No product-specific accessibility needs or conformance target were established. The public name and first-release scope are recorded in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39). Multiplayer priority, distribution beyond the App Store, and changes to the existing rules remain undecided.
+No product-specific accessibility needs or conformance target were established. The public name is recorded in [#39](https://github.com/hemsoft-dev/yahtzee/issues/39). Multiplayer priority, any mobile distribution, and changes to the existing rules remain undecided.
 
-## iOS 1.0 decision record
+## iOS release
 
-The versioned [mobile release brief](docs/mobile-release-brief.md) records Third Roll's public identity, conflict-screen limits, asset rights, frozen rules and launch scope. It preserves the delegated decision without claiming store-name reservation or legal clearance.
+On November 21, 2026 the owner decided there will be no iOS App Store release because of copyright concerns. The App Store release materials, hosted iOS simulator qualification, device archive workflow and GitHub Pages companion site were removed. The Expo app still targets iOS and Android for development builds and JavaScript exports.

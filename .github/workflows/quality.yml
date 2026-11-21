@@ -14,56 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  changes:
-    name: Classify native qualification
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      native-required: ${{ steps.classify.outputs.native-required }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24'
-      - name: Classify the complete PR diff, defaulting to native
-        id: classify
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import { execFileSync } from 'node:child_process';
-          import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-          import { tmpdir } from 'node:os';
-          import { join } from 'node:path';
-          let required = 'true';
-          try {
-            if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
-              const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-              const base = event.pull_request?.base?.sha;
-              if (!/^[a-f0-9]{40}$/.test(base ?? '')) throw new Error('Invalid base revision');
-              execFileSync('git', ['cat-file', '-e', `${base}^{commit}`]);
-              const source = execFileSync('git', ['show', `${base}:scripts/workflows/docs-only-native.mjs`]);
-              const dir = mkdtempSync(join(tmpdir(), 'native-policy-'));
-              const script = join(dir, 'classifier.mjs');
-              const output = join(dir, 'output');
-              writeFileSync(script, source);
-              execFileSync(process.execPath, [script], {
-                env: { ...process.env, GITHUB_OUTPUT: output },
-                stdio: 'pipe',
-              });
-              const result = readFileSync(output, 'utf8');
-              if (!/^native-required=(true|false)\n$/.test(result)) throw new Error('Invalid classifier output');
-              required = result.match(/=(true|false)/)[1];
-            }
-          } catch {
-            console.log('Trusted base classification unavailable; full native qualification required.');
-          }
-          appendFileSync(process.env.GITHUB_OUTPUT, `native-required=${required}\n`);
-          console.log(`Trusted base policy: native-required=${required}`);
-          NODE
-
   validate:
     name: Validate (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -91,14 +41,9 @@ jobs:
       - name: Lint
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run lint
-      - name: iOS release-record consistency tests and draft check
+      - name: Workflow script tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        shell: bash
-        run: |
-          node --test scripts/ios-release/*.test.mjs scripts/ios-assets/*.test.mjs scripts/ios-native/*.test.mjs scripts/ios-capture/*.test.mjs scripts/ios-archive/*.test.mjs scripts/workflows/*.test.mjs
-          bun test scripts/ios-capture/fixtures.test.ts
-          bunx tsc -p scripts/tsconfig.json
-          node scripts/ios-release/check.mjs
+        run: node --test "scripts/workflows/*.test.mjs"
       - name: Unit and backend tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run test
@@ -118,9 +63,6 @@ jobs:
         id: browsers
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node node_modules/playwright/cli.js install --with-deps chromium
-      - name: Resume handler and React commit lifecycle regression
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        run: bun test --bail=1 --preload ./scripts/ios-native/click-protocol/install.mjs scripts/ios-native/resumeObservation.test.ts scripts/ios-native/startObservation.test.ts scripts/ios-native/helpObservation.test.ts scripts/ios-native/pickerObservation.test.ts scripts/ios-native/doneObservation.test.ts scripts/ios-native/rerollObservation.test.ts scripts/ios-native/scoreObservation.test.ts
       - name: Install pinned Electron binary outside the test timeout
         id: electron
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -139,7 +81,6 @@ jobs:
           path: |
             reports/clients/
             reports/quality/
-            reports/lifecycle-click/
           retention-days: 3
           if-no-files-found: warn
 
@@ -177,308 +118,19 @@ jobs:
           retention-days: 3
           if-no-files-found: warn
 
-  native-build:
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') }}
-    name: Build unsigned iOS simulator app
-    runs-on: macos-26
-    timeout-minutes: 50
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24.12.0'
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: '1.4.2'
-      - name: Install locked dependencies without lifecycle scripts
-        run: bun install --frozen-lockfile --ignore-scripts
-      - name: Compile and inspect the source-bound Release app
-        env:
-          # JS input/Done traces feed only the opt-in log streams (#130). Off unless the
-          # repository variable NATIVE_LOG_STREAMS is 1, so hosted runs carry no trace load.
-          EXPO_PUBLIC_NATIVE_INPUT_TRACE: ${{ vars.NATIVE_LOG_STREAMS == '1' && '1' || '0' }}
-          REFRESH_PODS: ${{ contains(github.event.pull_request.labels.*.name, 'native-pods-refresh') }}
-        run: |
-          if [ "$REFRESH_PODS" = true ]; then
-            bun scripts/ios-native/run.mjs --refresh-pods
-          else
-            bun scripts/ios-native/run.mjs --build-only
-          fi
-      - name: Freeze partial evidence if native execution ended early
-        if: ${{ always() }}
-        run: node scripts/ios-native/snapshot.mjs
-      - name: Retain native build or dependency-refresh evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ios-native-build-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/native-evidence/
-          retention-days: 1
-          compression-level: 9
-          if-no-files-found: warn
-
-  native:
-    name: Native qualification (${{ matrix.group }})
-    needs: [changes, native-build]
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') && needs.native-build.result == 'success' }}
-    runs-on: macos-26
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        group: [phone-5, phone-6, tablet-8, tablet-10]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24.12.0'
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: '1.4.2'
-      - name: Install locked dependencies without lifecycle scripts
-        run: bun install --frozen-lockfile --ignore-scripts
-      - name: Download this run's source-bound simulator app
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ios-native-build-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/native-build/
-      - name: Install hash-verified local Maestro CLI
-        shell: bash
-        run: |
-          curl --fail --location --retry 2 --retry-all-errors https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
-          printf '%s  %s\n' '29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991' "$RUNNER_TEMP/maestro.zip" | shasum -a 256 -c -
-          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-tool"
-          test -x "$RUNNER_TEMP/maestro-tool/maestro/bin/maestro"
-          echo "$RUNNER_TEMP/maestro-tool/maestro/bin" >> "$GITHUB_PATH"
-          echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
-      - name: Verify the app and exercise this device group
-        env:
-          NATIVE_TEST_GROUP: ${{ matrix.group }}
-          NATIVE_LOG_STREAMS: ${{ vars.NATIVE_LOG_STREAMS }}
-        run: bun scripts/ios-native/run.mjs "--test-group=$NATIVE_TEST_GROUP"
-      - name: Freeze partial evidence if native execution ended early
-        if: ${{ always() }}
-        run: node scripts/ios-native/snapshot.mjs
-      - name: Retain unsigned native evidence, including failed-run diagnostics
-        if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ios-native-${{ matrix.group }}-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/native-evidence/
-          retention-days: 1
-          compression-level: 9
-          if-no-files-found: warn
-
-  native-modal:
-    name: Owned reset modal qualification
-    needs: [changes, native-build]
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') && needs.native-build.result == 'success' }}
-    runs-on: macos-26
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24.12.0'
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: '1.4.2'
-      - name: Install locked dependencies without lifecycle scripts
-        run: bun install --frozen-lockfile --ignore-scripts
-      - name: Download this run's source-bound simulator app
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ios-native-build-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/native-build/
-      - name: Install hash-verified local Maestro CLI
-        shell: bash
-        run: |
-          curl --fail --location --retry 2 --retry-all-errors https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
-          printf '%s  %s\n' '29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991' "$RUNNER_TEMP/maestro.zip" | shasum -a 256 -c -
-          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro-tool"
-          test -x "$RUNNER_TEMP/maestro-tool/maestro/bin/maestro"
-          echo "$RUNNER_TEMP/maestro-tool/maestro/bin" >> "$GITHUB_PATH"
-          echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
-      - name: Exercise the real corruption and owned confirmation without gameplay
-        env:
-          NATIVE_LOG_STREAMS: ${{ vars.NATIVE_LOG_STREAMS }}
-        run: bun scripts/ios-native/run.mjs --modal-only
-      - name: Freeze partial evidence if native execution ended early
-        if: ${{ always() }}
-        run: node scripts/ios-native/snapshot.mjs
-      - name: Retain isolated modal qualification and failure evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ios-native-owned-modal-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/native-evidence/
-          retention-days: 1
-          compression-level: 9
-          if-no-files-found: warn
-
-  native-ax-request:
-    name: Pinned driver AX request qualification
-    needs: [changes, native-build]
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') && needs.native-build.result == 'success' }}
-    runs-on: macos-26
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24.12.0'
-      - name: Read only the exact pinned upstream driver source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: mobile-dev-inc/maestro
-          ref: 3ff379997a4879b174458cbd58ecade5641e8609
-          path: reports/ax-driver-source
-          sparse-checkout: maestro-ios-xctest-runner
-          persist-credentials: false
-          set-safe-directory: false
-      - name: Download this run's source-bound simulator app
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ios-native-build-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/native-build/
-      - name: Build the observed qualification copy and invoke the real deviceInfo handler
-        run: node scripts/ios-native/axRequest.mjs
-      - name: Retain finite request stages and source/build identity, including failures
-        if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ios-native-ax-request-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/ax-request-evidence/
-          retention-days: 1
-          compression-level: 9
-          if-no-files-found: warn
-  native-settle:
-    name: Original reset settle stage qualification
-    needs: [changes, native-build]
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.native-required != 'false') && needs.native-build.result == 'success' }}
-    runs-on: macos-26
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24.12.0'
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: '1.4.2'
-      - name: Install locked dependencies without lifecycle scripts
-        run: bun install --frozen-lockfile --ignore-scripts
-      - name: Read the exact pinned client source for the qualification copy
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: mobile-dev-inc/maestro
-          ref: 14a408335e17a090df1e26bdbeaf80d8122a8fd8
-          path: reports/settle-source
-          sparse-checkout: maestro-client/src/main/java/maestro
-          persist-credentials: false
-          set-safe-directory: false
-      - name: Download this run's source-bound simulator app
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ios-native-build-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/native-build/
-      - name: Acquire the original package and pinned build compiler once
-        shell: bash
-        run: |
-          curl --fail --location https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip -o "$RUNNER_TEMP/maestro.zip"
-          curl --fail --location https://github.com/JetBrains/kotlin/releases/download/v2.2.0/kotlin-compiler-2.2.0.zip -o "$RUNNER_TEMP/kotlin-compiler-2.2.0.zip"
-          echo "JAVA_HOME=$(/usr/libexec/java_home -v 17)" >> "$GITHUB_ENV"
-      - name: Verify hashes, build the observed copy and require actual JVM controls
-        run: >-
-          python3 scripts/ios-native/settle/stage.py
-          --source reports/settle-source
-          --archive "$RUNNER_TEMP/maestro.zip"
-          --compiler "$RUNNER_TEMP/kotlin-compiler-2.2.0.zip"
-          --java-home "$JAVA_HOME"
-          --output reports/.settle-cli
-      - name: Run the original isolated reset route once with scoped settle observation
-        env:
-          NATIVE_LOG_STREAMS: ${{ vars.NATIVE_LOG_STREAMS }}
-        run: node scripts/ios-native/settle/execute.mjs
-      - name: Freeze partial native evidence without replay
-        if: ${{ always() }}
-        run: node scripts/ios-native/snapshot.mjs
-      - name: Preserve the finite staging proof even if native execution was not reached
-        if: ${{ always() }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { existsSync, mkdirSync, copyFileSync } from 'node:fs';
-          const source = 'reports/.settle-cli/staging-proof.json';
-          const target = 'reports/settle-stage-evidence/staging-proof.json';
-          if (existsSync(source) && !existsSync(target)) {
-            mkdirSync('reports/settle-stage-evidence', { recursive: true });
-            copyFileSync(source, target);
-          }
-          NODE
-      - name: Retain finite stages and build identity
-        if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ios-native-settle-stages-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/settle-stage-evidence/
-          retention-days: 1
-          if-no-files-found: warn
-      - name: Retain the independently bound native route evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ios-native-settle-route-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/native-evidence/
-          retention-days: 1
-          compression-level: 9
-          if-no-files-found: warn
-
   quality-gate:
     name: quality-gate
     if: ${{ always() }}
-    needs: [changes, validate, mutation, native-build, native, native-modal, native-ax-request, native-settle]
+    needs: [validate, mutation]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Require every validation job to succeed
         env:
-          CHANGES_RESULT: ${{ needs.changes.result }}
-          NATIVE_REQUIRED: ${{ needs.changes.outputs.native-required }}
           VALIDATION_RESULT: ${{ needs.validate.result }}
           MUTATION_RESULT: ${{ needs.mutation.result }}
-          NATIVE_BUILD_RESULT: ${{ needs.native-build.result }}
-          NATIVE_RESULT: ${{ needs.native.result }}
-          NATIVE_MODAL_RESULT: ${{ needs.native-modal.result }}
-          NATIVE_AX_RESULT: ${{ needs.native-ax-request.result }}
-          NATIVE_SETTLE_RESULT: ${{ needs.native-settle.result }}
         run: |
-          if [ "$CHANGES_RESULT" != success ] || { [ "$NATIVE_REQUIRED" != true ] && [ "$NATIVE_REQUIRED" != false ]; }; then
-            echo "Native classification did not succeed: changes=$CHANGES_RESULT native-required=$NATIVE_REQUIRED"
-            exit 1
-          fi
-          EXPECTED_NATIVE=success
-          if [ "$NATIVE_REQUIRED" = false ]; then
-            EXPECTED_NATIVE=skipped
-            echo "Native jobs intentionally skipped for allowlisted documentation/marketing content."
-          fi
-          if [ "$VALIDATION_RESULT" != success ] || [ "$MUTATION_RESULT" != success ] || [ "$NATIVE_BUILD_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_MODAL_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_AX_RESULT" != "$EXPECTED_NATIVE" ] || [ "$NATIVE_SETTLE_RESULT" != "$EXPECTED_NATIVE" ]; then
-            echo "Qualification did not succeed: validation=$VALIDATION_RESULT mutation=$MUTATION_RESULT native-build=$NATIVE_BUILD_RESULT native=$NATIVE_RESULT native-modal=$NATIVE_MODAL_RESULT native-ax=$NATIVE_AX_RESULT native-settle=$NATIVE_SETTLE_RESULT"
+          if [ "$VALIDATION_RESULT" != success ] || [ "$MUTATION_RESULT" != success ]; then
+            echo "Qualification did not succeed: validation=$VALIDATION_RESULT mutation=$MUTATION_RESULT"
             exit 1
           fi
