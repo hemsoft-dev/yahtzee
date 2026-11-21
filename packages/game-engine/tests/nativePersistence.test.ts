@@ -271,151 +271,102 @@ describe("durable native storage boundary, without a native-runtime claim", () =
   });
 });
 
-describe("optional Start and preference observations at the actual store boundary", () => {
-  test("pending preference rejects Start as busy, then acknowledges only the original selection", async () => {
+describe("Start and preference writes at the actual store boundary", () => {
+  test("pending preference rejects Start as busy, then saves only the original selection", async () => {
     const f = fixture(); await f.store.load();
     let release!: () => void;
     f.state.pause = new Promise<void>((resolve) => { release = resolve; });
-    const selection: string[] = [], start: string[] = [];
-    const changing = f.store.preferences({ diceCount: 10 }, (phase) => selection.push(phase));
+    const changing = f.store.preferences({ diceCount: 10 });
     const writes = f.state.attempts.length;
     expect(f.store.getSnapshot().data!.preferences.diceCount).toBe(5);
-    expect(await f.store.start(options, (phase) => start.push(phase))).toBe(false);
-    expect(start).toEqual(["decision-busy"]); expect(f.state.attempts.length).toBe(writes);
-    expect(selection).toEqual(["decision-accepted", "write-begin"]);
+    expect(await f.store.start(options)).toBe(false);
+    expect(f.state.attempts.length).toBe(writes);
     release(); expect(await changing).toBe(true);
-    expect(selection).toEqual(["decision-accepted", "write-begin", "write-ack", "settled-success"]);
     expect(f.store.getSnapshot().data!.preferences.diceCount).toBe(10);
     expect(f.store.getSnapshot().data!.active).toBeNull();
   });
-  test("accepted Start reports real write completion, and no-op selection writes nothing", async () => {
-    const f = fixture(); await f.store.load(); const phases: string[] = [];
+  test("accepted Start saves the new game, and no-op selection writes nothing", async () => {
+    const f = fixture(); await f.store.load();
     const writes = f.state.attempts.length;
-    expect(await f.store.preferences({ diceCount: 5 }, (p) => phases.push(p))).toBe(true);
-    expect(phases).toEqual(["no-op"]); expect(f.state.attempts.length).toBe(writes);
-    phases.length = 0;
-    expect(await f.store.start(options, (p) => phases.push(p))).toBe(true);
-    expect(phases).toEqual(["decision-accepted", "write-begin", "write-ack", "settled-success"]);
+    expect(await f.store.preferences({ diceCount: 5 })).toBe(true);
+    expect(f.state.attempts.length).toBe(writes);
+    expect(await f.store.start(options)).toBe(true);
     expect(JSON.parse(f.values.get(SAVE_KEY)!).active.revision).toBe(0);
   });
-  for (const failure of ["before", "after"] as const) test(`write ${failure} failure and pending/canRetry rejection are distinct from acknowledgment`, async () => {
-    const f = fixture(); await f.store.load(); f.state.fail = failure; const phases: string[] = [];
-    expect(await f.store.start(options, (p) => phases.push(p))).toBe(false);
-    expect(phases).toEqual(["decision-accepted", "write-begin", "write-failed", "operation-failed", "settled-failure"]);
+  for (const failure of ["before", "after"] as const) test(`write ${failure} failure leaves a retry, and a pending save rejects another Start`, async () => {
+    const f = fixture(); await f.store.load(); f.state.fail = failure;
+    expect(await f.store.start(options)).toBe(false);
     expect(f.store.getSnapshot().canRetry).toBe(true);
-    const rejected: string[] = [];
-    expect(await f.store.start(options, (p) => rejected.push(p))).toBe(false);
-    expect(rejected).toEqual(["decision-accepted", "decision-can-retry", "decision-pending", "operation-failed", "settled-failure"]);
-    const beforeRetry = [...phases]; f.state.fail = null;
-    expect(await f.store.retry()).toBe(true); expect(phases).toEqual(beforeRetry);
+    const staged = f.state.attempts.at(-1)!, writes = f.state.attempts.length;
+    expect(await f.store.start(options)).toBe(false);
+    expect(f.state.attempts.length).toBe(writes);
+    expect(f.store.getSnapshot().canRetry).toBe(true);
+    f.state.fail = null;
+    expect(await f.store.retry()).toBe(true);
+    expect(f.state.attempts.at(-1)).toBe(staged);
   });
-  test("observer exceptions preserve actual success/failure, publications and busy guards", async () => {
-    for (const failure of [null, "before"] as const) {
-      const f = fixture(); await f.store.load(); f.state.fail = failure;
-      const snapshots: boolean[] = []; f.store.subscribe(() => snapshots.push(f.store.getSnapshot().busy));
-      const result = await f.store.start(options, () => { throw new Error("PRIVATE observer error"); });
-      expect(result).toBe(failure === null);
-      expect(f.store.getSnapshot().busy).toBe(false);
-      expect(snapshots).toEqual([true, true, false]);
-      expect(f.state.attempts.length).toBe(2);
-    }
-  });
-  test("no-data and invalid-start operation failure do not falsely report a write", async () => {
-    const f = fixture(); const phases: string[] = [];
-    expect(await f.store.start(options, (p) => phases.push(p))).toBe(false);
-    expect(phases).toEqual(["decision-accepted", "decision-no-data", "operation-failed", "settled-failure"]);
-    await f.store.load(); phases.length = 0;
-    expect(await f.store.start({ ...options, name: "" }, (p) => phases.push(p))).toBe(false);
-    expect(phases).toEqual(["decision-accepted", "operation-failed", "settled-failure"]);
+  test("no-data and invalid-start operation failure write nothing", async () => {
+    const f = fixture();
+    expect(await f.store.start(options)).toBe(false);
+    expect(f.state.attempts.length).toBe(0);
+    await f.store.load(); const writes = f.state.attempts.length;
+    expect(await f.store.start({ ...options, name: "" })).toBe(false);
+    expect(f.state.attempts.length).toBe(writes);
   });
 });
 
-describe("optional Re-roll observation at the actual store boundary", () => {
-  /** Runs one scenario with an identical dice sequence, so bytes can be compared. */
-  async function seeded<T>(run: () => Promise<T>) {
-    const original = Math.random; let state = 7;
-    Math.random = () => (state = (state * 16807) % 2147483647) / 2147483647;
-    try { return await run(); } finally { Math.random = original; }
-  }
+describe("Re-roll writes at the actual store boundary", () => {
   async function held() {
     const f = fixture(); await f.store.load(); await f.store.start(options);
     await f.store.move({ kind: "hold", index: 0 });
     return f;
   }
-  test("an observed roll writes the same game as an unobserved one, once, preserving the held die", async () => {
-    const run = (observer?: (phase: string) => void) => seeded(async () => {
-      const f = await held(), before = clone(f.store.getSnapshot().data!);
-      f.state.attempts.length = 0;
-      const moved = await f.store.move({ kind: "roll" }, observer);
-      return { moved, attempts: [...f.state.attempts], before, after: clone(f.store.getSnapshot().data!) };
-    });
-    const phases: string[] = [];
-    const plain = await run(), observed = await run((phase) => phases.push(phase));
-    expect(phases).toEqual(["decision-accepted", "write-begin", "write-ack", "settled-success"]);
-    expect(observed.moved).toBe(true); expect(plain.moved).toBe(true);
-    expect(observed.attempts.length).toBe(1); expect(plain.attempts.length).toBe(1);
-    expect(JSON.parse(observed.attempts[0])).toEqual(observed.after);
-    expect(observed.after.active!.game.rollsLeft).toBe(observed.before.active!.game.rollsLeft - 1);
-    expect(observed.after.active!.revision).toBe(observed.before.active!.revision + 1);
-    expect(observed.after.active!.game.held).toEqual([0]);
-    expect(observed.after.active!.game.dice[0]).toBe(observed.before.active!.game.dice[0]);
-    expect(observed.after.active!.game).toEqual(plain.after.active!.game); // startedAt alone may differ.
-    expect(observed.after.active!.revision).toBe(plain.after.active!.revision);
+  test("a roll writes once, preserving the held die", async () => {
+    const f = await held(), before = clone(f.store.getSnapshot().data!);
+    f.state.attempts.length = 0;
+    expect(await f.store.move({ kind: "roll" })).toBe(true);
+    const after = clone(f.store.getSnapshot().data!);
+    expect(f.state.attempts.length).toBe(1);
+    expect(JSON.parse(f.state.attempts[0])).toEqual(after);
+    expect(after.active!.game.rollsLeft).toBe(before.active!.game.rollsLeft - 1);
+    expect(after.active!.revision).toBe(before.active!.revision + 1);
+    expect(after.active!.game.held).toEqual([0]);
+    expect(after.active!.game.dice[0]).toBe(before.active!.game.dice[0]);
   });
-  test("an overlapping observed roll is rejected busy, while the first keeps its own acknowledgment and one write", async () => {
+  test("an overlapping roll is rejected busy, while the first completes with one write", async () => {
     const f = await held(); let release!: () => void;
     f.state.pause = new Promise<void>((resolve) => { release = resolve; });
-    const writes = f.state.attempts.length, first: string[] = [], second: string[] = [];
-    const moving = f.store.move({ kind: "roll" }, (phase) => first.push(phase));
-    expect(await f.store.move({ kind: "roll" }, (phase) => second.push(phase))).toBe(false);
-    expect(second).toEqual(["decision-busy"]);
-    expect(first).toEqual(["decision-accepted", "write-begin"]);
+    const writes = f.state.attempts.length;
+    const moving = f.store.move({ kind: "roll" });
+    expect(await f.store.move({ kind: "roll" })).toBe(false);
     release(); expect(await moving).toBe(true);
-    expect(first).toEqual(["decision-accepted", "write-begin", "write-ack", "settled-success"]);
     expect(f.state.attempts.length).toBe(writes + 1);
     expect(f.store.getSnapshot().data!.active!.game.rollsLeft).toBe(1);
   });
-  for (const failure of ["before", "after"] as const) test(`write ${failure} failure, pending rejection and an unobserved retry keep the exact bytes`, async () => {
-    const f = await held(); f.state.fail = failure; const phases: string[] = [], rejected: string[] = [];
+  for (const failure of ["before", "after"] as const) test(`write ${failure} failure, pending rejection and retry keep the exact bytes`, async () => {
+    const f = await held(); f.state.fail = failure;
     const before = clone(f.store.getSnapshot().data!);
-    expect(await f.store.move({ kind: "roll" }, (phase) => phases.push(phase))).toBe(false);
-    expect(phases).toEqual(["decision-accepted", "write-begin", "write-failed", "operation-failed", "settled-failure"]);
+    expect(await f.store.move({ kind: "roll" })).toBe(false);
     expect(f.store.getSnapshot().data).toEqual(before); expect(f.store.getSnapshot().canRetry).toBe(true);
     const staged = f.state.attempts.at(-1)!, writes = f.state.attempts.length;
-    expect(await f.store.move({ kind: "roll" }, (phase) => rejected.push(phase))).toBe(false);
-    expect(rejected).toEqual(["decision-accepted", "decision-can-retry", "decision-pending", "operation-failed", "settled-failure"]);
+    expect(await f.store.move({ kind: "roll" })).toBe(false);
     expect(f.state.attempts.length).toBe(writes);
-    f.state.fail = null; const settled = [...phases];
+    f.state.fail = null;
     expect(await f.store.retry()).toBe(true);
-    expect(f.state.attempts.at(-1)).toBe(staged); expect(phases).toEqual(settled);
+    expect(f.state.attempts.at(-1)).toBe(staged);
   });
   test("no data and no rolls left report no write and keep the saved bytes", async () => {
-    const empty = fixture(), phases: string[] = [];
-    expect(await empty.store.move({ kind: "roll" }, (phase) => phases.push(phase))).toBe(false);
-    expect(phases).toEqual(["decision-accepted", "decision-no-data", "operation-failed", "settled-failure"]);
+    const empty = fixture();
+    expect(await empty.store.move({ kind: "roll" })).toBe(false);
+    expect(empty.state.attempts.length).toBe(0);
     const f = await held();
     await f.store.move({ kind: "roll" }); await f.store.move({ kind: "roll" });
-    const bytes = f.values.get(SAVE_KEY), writes = f.state.attempts.length; phases.length = 0;
-    expect(await f.store.move({ kind: "roll" }, (phase) => phases.push(phase))).toBe(false);
-    expect(phases).toEqual(["decision-accepted", "operation-failed", "settled-failure"]);
+    const bytes = f.values.get(SAVE_KEY), writes = f.state.attempts.length;
+    expect(await f.store.move({ kind: "roll" })).toBe(false);
     expect(f.store.getSnapshot().canRetry).toBe(false);
     expect(f.state.attempts.length).toBe(writes); expect(f.values.get(SAVE_KEY)).toBe(bytes);
   });
-  test("a throwing observer preserves results, publications, game and busy guards", async () => {
-    for (const failure of [null, "before"] as const) {
-      const run = (observer?: () => void) => seeded(async () => {
-        const f = await held(); f.state.fail = failure; const busy: boolean[] = [];
-        f.store.subscribe(() => busy.push(f.store.getSnapshot().busy));
-        const moved = await f.store.move({ kind: "roll" }, observer);
-        const view = f.store.getSnapshot();
-        return { moved, busy, game: view.data!.active!.game, revision: view.data!.active!.revision, error: view.error, canRetry: view.canRetry, writes: f.state.attempts.length };
-      });
-      const plain = await run(), throwing = await run(() => { throw new Error("PRIVATE observer error"); });
-      expect(throwing.moved).toBe(failure === null);
-      expect(throwing).toEqual(plain);
-    }
-  });
-  test("hold and score remain unobserved and keep their one-argument behavior", async () => {
+  test("hold and score each write once", async () => {
     const f = await held(), writes = f.state.attempts.length;
     expect(await f.store.move({ kind: "hold", index: 1 })).toBe(true);
     expect(await f.store.move({ kind: "score", category: "chance" })).toBe(true);

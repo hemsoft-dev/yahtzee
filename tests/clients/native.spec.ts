@@ -171,7 +171,6 @@ test("support previews are private by default, cancellable and usable offline", 
   await client.setViewportSize({ width: 1024, height: 1366 });
   await client.getByText("Review your report", { exact: true }).scrollIntoViewIfNeeded();
   await client.screenshot({ path: info.outputPath("support-tablet-private.png") });
-  await expect(client.getByText("App Store reviews will be available here", { exact: false })).toBeVisible();
 });
 
 for (const layout of [

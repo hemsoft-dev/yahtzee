@@ -23,6 +23,6 @@ information and sends nothing automatically. It is not a save export. The
 system share sheet sends the previewed text to the destination you choose,
 which may use its own network service.
 
-The [privacy policy](https://hemsoft-dev.github.io/yahtzee/privacy.html) describes
-the native development app and hosting. Signed-device privacy acceptance is
-still tracked in [issue #48](https://github.com/hemsoft-dev/yahtzee/issues/48).
+There is no published privacy policy. The GitHub Pages companion site that
+carried one was removed on November 21, 2026 because there will be no iOS App
+Store release.

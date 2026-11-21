@@ -57,7 +57,6 @@
     "mutation-testing-metrics": "3.8.4",
     "mutation-testing-report-schema": "3.9.0",
     "playwright": "1.63.0",
-    "pngjs": "7.0.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native-web": "0.21.4",

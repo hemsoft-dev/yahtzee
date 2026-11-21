@@ -42,11 +42,11 @@ export function Help() {
       {rules.map(([title, body]) => <Section key={title} title={title}><View style={styles.row}><Label>{body}</Label></View></Section>)}
       <Section title="Your data">
         <View style={styles.row}><Label>Acknowledged moves, names, appearance and results are saved locally. Pause keeps your active game. Resume restores it; Discard removes only that active game. Completed history keeps the last 500 games, with separate all-time top tens.</Label></View>
-        <View style={styles.row}><Label>Local scores are not server-verified or uploaded. No game-server connection is required. Deleting the app removes local data; offloading can retain it. The iOS data folder is eligible for device backup, so a restore may bring back earlier data. Reset does not erase existing device backups. Restore testing and final privacy declarations remain pending.</Label></View>
+        <View style={styles.row}><Label>Local scores are not server-verified or uploaded. No game-server connection is required. Deleting the app removes local data; offloading can retain it. The iOS data folder is eligible for device backup, so a restore may bring back earlier data. Reset does not erase existing device backups.</Label></View>
       </Section>
       <Section title="About Third Roll">
         <View style={styles.row}><Label>Version {appConfig.expo.version}, build {appConfig.expo.ios.buildNumber}. Third Roll is an offline house-rules dice game by HemSoft.</Label></View>
-        <View style={styles.row}><Label kind="caption" muted>Copyright 2026 Franz Hemmer / HemSoft Developments. Project code is MIT licensed. Built with React Native and Expo. That license does not grant third-party trademark rights. No App Store accessibility labels or physical-device qualification are claimed yet.</Label></View>
+        <View style={styles.row}><Label kind="caption" muted>Copyright 2026 Franz Hemmer / HemSoft Developments. Project code is MIT licensed. Built with React Native and Expo. That license does not grant third-party trademark rights. Accessibility and behavior have not been checked on a physical device.</Label></View>
         <Action label="Preview diagnostics" onPress={() => setPreview(true)} />
         {preview && <View style={styles.row}>
           <Label selectable testID="diagnostics-preview">{diagnostics}</Label>

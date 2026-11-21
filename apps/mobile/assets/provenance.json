@@ -5,7 +5,7 @@
   "sourceSha256": "06a8d30e14dd58aae688027a93986c5590003b30179e6e7281e95f83befb5b4b",
   "sourceNormalization": "LF",
   "renderer": "Version: ImageMagick 7.1.2-13 Q16-HDRI x64 dd991e2:20260119 https://imagemagick.org",
-  "generator": "scripts/ios-assets/generate.mjs",
+  "generator": "scripts/ios-assets/generate.mjs (removed on November 21, 2026; the exports are no longer regenerated)",
   "publicIdentityApproved": true,
   "externalArtwork": [],
   "fonts": [],
@@ -13,7 +13,7 @@
   "exports": [
     {
       "file": "icon.png",
-      "role": "ios-light-and-app-store",
+      "role": "ios-light-and-default",
       "width": 1024,
       "height": 1024,
       "transparencyAllowed": false,
