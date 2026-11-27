@@ -54,7 +54,7 @@
     "globals": "17.14.0",
     "istanbul-lib-coverage": "3.2.2",
     "istanbul-lib-instrument": "6.0.3",
-    "mutation-testing-metrics": "3.8.4",
+    "mutation-testing-metrics": "3.9.0",
     "mutation-testing-report-schema": "3.9.0",
     "playwright": "1.63.0",
     "react": "19.2.3",

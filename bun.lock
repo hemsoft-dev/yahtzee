@@ -25,7 +25,7 @@
         "globals": "17.14.0",
         "istanbul-lib-coverage": "3.2.2",
         "istanbul-lib-instrument": "6.0.3",
-        "mutation-testing-metrics": "3.8.4",
+        "mutation-testing-metrics": "3.9.0",
         "mutation-testing-report-schema": "3.9.0",
         "node-forge": "1.4.3",
         "playwright": "1.63.0",
@@ -1469,7 +1469,7 @@
 
     "mutation-testing-elements": ["mutation-testing-elements@3.8.4", "", {}, "sha512-5CF1SNa7at5ZH33vEr+21wNebTSrtNIVvnzaUlxortHajOrIPaSLczIWvg6sI/fsExekQ7jookwf2cHftkckqQ=="],
 
-    "mutation-testing-metrics": ["mutation-testing-metrics@3.8.4", "", { "dependencies": { "mutation-testing-report-schema": "3.8.4" } }, "sha512-DZcmndJBH6nrNs3tpiB3OcMVq9KkG2cHCpJSnDxSxPwi9qrafRmoec40xjhkbzOoX1n7/4UkDqg5tIj4A6nvCw=="],
+    "mutation-testing-metrics": ["mutation-testing-metrics@3.9.0", "", { "dependencies": { "mutation-testing-report-schema": "3.9.0" } }, "sha512-E2i+8bXoEST8KIyJymc+OjO3eW+Q2gBAwI+hh0tvEZxif9nZQnawAh/+2hLWg+aZRWsG5s3I5xDAGZfELxC7hw=="],
 
     "mutation-testing-report-schema": ["mutation-testing-report-schema@3.9.0", "", {}, "sha512-28CobrcLdQm35zySemaLMKrUpVccLMA1DekUGtfezOSmnI0Xq8oJisixYnO0BQYIwKCkKL7+AE71/uWq/vFSJQ=="],
 
@@ -2157,7 +2157,11 @@
 
     "@react-native/metro-config/metro-runtime": ["metro-runtime@0.87.1", "", { "dependencies": { "@babel/runtime": "^7.25.0", "flow-enums-runtime": "^0.0.6" } }, "sha512-kjeuSvInsM6OzBjkCQsWxnkrKZFMKtnkCl38oXWRI9lDGs2L9hGs9Tak9sQYJ9h3gtDujneB7wZio+irgqJKDw=="],
 
+    "@stryker-mutator/api/mutation-testing-metrics": ["mutation-testing-metrics@3.8.4", "", { "dependencies": { "mutation-testing-report-schema": "3.8.4" } }, "sha512-DZcmndJBH6nrNs3tpiB3OcMVq9KkG2cHCpJSnDxSxPwi9qrafRmoec40xjhkbzOoX1n7/4UkDqg5tIj4A6nvCw=="],
+
     "@stryker-mutator/api/mutation-testing-report-schema": ["mutation-testing-report-schema@3.8.4", "", {}, "sha512-s4G71R6Lt/PpZ0cqeglIcgyBdzLM8E+SeCHZAPg1wkSsPtRBa4XfPzAozYKdiJk/TLbNEEb7En9t0/bveuPuxA=="],
+
+    "@stryker-mutator/core/mutation-testing-metrics": ["mutation-testing-metrics@3.8.4", "", { "dependencies": { "mutation-testing-report-schema": "3.8.4" } }, "sha512-DZcmndJBH6nrNs3tpiB3OcMVq9KkG2cHCpJSnDxSxPwi9qrafRmoec40xjhkbzOoX1n7/4UkDqg5tIj4A6nvCw=="],
 
     "@stryker-mutator/core/mutation-testing-report-schema": ["mutation-testing-report-schema@3.8.4", "", {}, "sha512-s4G71R6Lt/PpZ0cqeglIcgyBdzLM8E+SeCHZAPg1wkSsPtRBa4XfPzAozYKdiJk/TLbNEEb7En9t0/bveuPuxA=="],
 
@@ -2318,8 +2322,6 @@
     "metro-transform-worker/metro-source-map": ["metro-source-map@0.84.5", "", { "dependencies": { "@babel/traverse": "^7.29.0", "@babel/types": "^7.29.0", "flow-enums-runtime": "^0.0.6", "invariant": "^2.2.4", "metro-symbolicate": "0.84.5", "nullthrows": "^1.1.1", "ob1": "0.84.5", "source-map": "^0.5.6", "vlq": "^1.0.0" } }, "sha512-2BtV5L9uPc49F13Gn5wiP6bX/EncqzqTIk2VL/0F/96Vo0YEOjluT/qktQjFODfqGFsucwnh5mPEAl/2jVEfeg=="],
 
     "micromatch/picomatch": ["picomatch@2.3.2", "", {}, "sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA=="],
-
-    "mutation-testing-metrics/mutation-testing-report-schema": ["mutation-testing-report-schema@3.8.4", "", {}, "sha512-s4G71R6Lt/PpZ0cqeglIcgyBdzLM8E+SeCHZAPg1wkSsPtRBa4XfPzAozYKdiJk/TLbNEEb7En9t0/bveuPuxA=="],
 
     "node-gyp/env-paths": ["env-paths@2.2.1", "", {}, "sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A=="],
 
