@@ -42,7 +42,7 @@
     "@eslint/js": "10.0.1",
     "@stryker-mutator/core": "10.1.1",
     "@stryker-mutator/typescript-checker": "10.1.1",
-    "@types/bun": "1.4.2",
+    "@types/bun": "1.4.5",
     "@types/istanbul-lib-coverage": "2.0.6",
     "@types/istanbul-lib-instrument": "1.7.8",
     "@types/node": "26",
